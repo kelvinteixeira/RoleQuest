@@ -1,7 +1,7 @@
-import { Login } from "./screens/Login/Login";
+import { AppRoutes } from "./Routes";
 
 function App() {
-  return <Login />;
+  return <AppRoutes />;
 }
 
 export default App;

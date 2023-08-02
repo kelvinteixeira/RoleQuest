@@ -3,9 +3,11 @@ import GoogleIcon from "@mui/icons-material/Google";
 import { useState } from "react";
 import { GoogleAuthProvider, signInWithPopup, User } from "firebase/auth";
 import { auth } from "../../services/firebase";
+import { useNavigate } from "react-router-dom";
 
 export const Login = () => {
   const [user, setUser] = useState<User>({} as User);
+  const navigate = useNavigate()
 
   function handleGoogleSingIn() {
     const provider = new GoogleAuthProvider();
@@ -13,6 +15,7 @@ export const Login = () => {
     signInWithPopup(auth, provider)
       .then((result) => {
         setUser(result.user);
+        navigate('/home')
       })
       .catch((error) => {
         console.log(error);

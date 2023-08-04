@@ -4,24 +4,33 @@ import { useState } from "react";
 import { GoogleAuthProvider, signInWithPopup, User } from "firebase/auth";
 import { auth } from "../../services/firebase";
 import { useNavigate } from "react-router-dom";
+import { useDispatch } from "react-redux";
+import { setLogin } from "../../redux/auth/authSlice";
 
 export const Login = () => {
   const [user, setUser] = useState<User>({} as User);
-  const navigate = useNavigate()
+  const navigate = useNavigate();
+  const dispatch = useDispatch();
 
-  function handleGoogleSingIn() {
+  function handleGoogleLogin() {
     const provider = new GoogleAuthProvider();
 
     signInWithPopup(auth, provider)
       .then((result) => {
         setUser(result.user);
-        navigate('/home')
+        dispatch(
+          setLogin({
+            name: result.user.displayName!,
+            picture: result.user.photoURL!,
+            email: result.user.email!
+          })
+        );
+        navigate("/home");
       })
       .catch((error) => {
         console.log(error);
       });
   }
-
   return (
     <Grid
       container
@@ -45,7 +54,7 @@ export const Login = () => {
         </Typography>
         <Grid container justifyContent={"center"}>
           <Button
-            onClick={handleGoogleSingIn}
+            onClick={handleGoogleLogin}
             startIcon={<GoogleIcon />}
             variant="contained"
             color="inherit"

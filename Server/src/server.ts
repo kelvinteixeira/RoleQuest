@@ -1,9 +1,13 @@
 import fastify from "fastify";
 import cors from "@fastify/cors";
-
+import { userController } from "./controller/userController/controller";
 const app = fastify();
 
+app.register(cors, {
+  origin: true,
+});
 
+app.register(userController);
 
 app
   .listen({
@@ -13,5 +17,3 @@ app
   .then(() => {
     console.log("Server is running at http://localhost:3333");
   });
-
-

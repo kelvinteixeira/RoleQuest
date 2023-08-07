@@ -1,21 +1,17 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
   provider = "mongodb"
-  url      = env("DATABASE_URL")
+  // url      = env("DATABASE_URL")
+  // url      = "mongodb://kelvinteixeira:abacaxi007@localhost:3333/rolequest"
+  url      = "mongodb+srv://kelvinteixeira:abacaxi007@cluster0.dueuent.mongodb.net/rolequest"
 }
 
-model User {
-  id      String @id @default(auto()) @map("_id") @db.ObjectId
-  name    String
-  email   String
-  picture String
-  token   String
+model teste {
+  id       String @id @default(auto()) @map("_id") @db.ObjectId
+  name     String
+  email    String @unique
+  password String
 }
-
-

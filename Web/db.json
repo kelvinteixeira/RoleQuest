@@ -1,0 +1,10 @@
+{
+	"campaing": 
+		[
+			{
+				"title": "string",
+				"ambient": "string",
+				"description": "string"
+			}
+		]
+}

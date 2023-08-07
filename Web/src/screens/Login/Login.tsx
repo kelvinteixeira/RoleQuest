@@ -6,6 +6,7 @@ import { auth } from "../../services/firebase";
 import { useNavigate } from "react-router-dom";
 import { useDispatch } from "react-redux";
 import { setLogin } from "../../redux/auth/authSlice";
+import backGroundImage from "../../assets/backgroundLogin.jpg";
 
 export const Login = () => {
   const [user, setUser] = useState<User>({} as User);
@@ -22,10 +23,10 @@ export const Login = () => {
           setLogin({
             name: result.user.displayName!,
             picture: result.user.photoURL!,
-            email: result.user.email!
+            email: result.user.email!,
           })
         );
-        navigate("/home");
+        navigate("/campaing");
       })
       .catch((error) => {
         console.log(error);
@@ -35,10 +36,15 @@ export const Login = () => {
     <Grid
       container
       justifyContent={"center"}
-      sx={{ height: "100vh" }}
+      sx={{
+        height: "100vh",
+        backgroundImage: `url(${backGroundImage})`,
+        backgroundSize: "cover",
+        filter: "blur(2)",
+      }}
       alignItems={"center"}
     >
-      <Card sx={{ width: 300, padding: 2, backgroundColor: "#ffffff80" }}>
+      <Card sx={{ width: 300, padding: 2, backgroundColor: "transparent" }}>
         <Typography variant="body1" align="center" fontWeight={"bold"}>
           Acesse sua conta
         </Typography>

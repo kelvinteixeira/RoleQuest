@@ -1,10 +1,15 @@
 {
-	"campaing": 
+	"campaings": 
 		[
 			{
-				"title": "string",
-				"ambient": "string",
-				"description": "string"
+				"title": "Sombras do passado",
+				"ambient": "A história se passa no mundo mágico de Harry Potter, 15 anos após a batalha de Hogwarts, abrangendo diversos locais, como o Ministério da Magia, Godric's Hollow, e outros, como lugares inéditos criados para a campanha.",
+				"description": "Uma nova ameaça emerge novamente, causando mortes repentinas e marcas desconhecidas pelo Ministério da Magia, e assim colocando em risco a harmonia conquistada nos ultimos anos. Agora, cabe aos personagens mergulharem em mistérios antigos, descobrir alianças e enfrentar inimigos perigosos para proteger a comunidade bruxa mais uma vez."
+			},
+			{
+				"title": "Sombras do passado",
+				"ambient": "A história se passa no mundo mágico de Harry Potter, 15 anos após a batalha de Hogwarts, abrangendo diversos locais, como o Ministério da Magia, Godric's Hollow, e outros, como lugares inéditos criados para a campanha.",
+				"description": "Uma nova ameaça emerge novamente, causando mortes repentinas e marcas desconhecidas pelo Ministério da Magia, e assim colocando em risco a harmonia conquistada nos ultimos anos. Agora, cabe aos personagens mergulharem em mistérios antigos, descobrir alianças e enfrentar inimigos perigosos para proteger a comunidade bruxa mais uma vez."
 			}
 		]
 }

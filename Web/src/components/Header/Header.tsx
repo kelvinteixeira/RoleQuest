@@ -1,4 +1,3 @@
-import * as React from "react";
 import AppBar from "@mui/material/AppBar";
 import Box from "@mui/material/Box";
 import Toolbar from "@mui/material/Toolbar";
@@ -13,12 +12,14 @@ import Button from "@mui/material/Button";
 import MenuItem from "@mui/material/MenuItem";
 import { useAppSelector } from "../../redux/hooks/hooks";
 import { Grid } from "@mui/material";
+import { useNavigate } from "react-router-dom";
 
 const pages = ["Campanha", "Almanaque", "Fichas"];
 const settings = ["Profile", "Account", "Dashboard", "Logout"];
 
 export const Header = () => {
   const user = useAppSelector((state) => state.authReducer.user);
+  const navigate = useNavigate()
 
   return (
     <AppBar position="static" color="default">
@@ -95,19 +96,41 @@ export const Header = () => {
             LOGO
           </Typography>
           <Box sx={{ flexGrow: 1, display: { xs: "none", md: "flex" } }}>
-            {pages.map((page) => (
               <Button
-                key={page}
                 sx={{
                   my: 3,
                   color: "black",
                   display: "block",
                   textTransform: "none",
                 }}
+                onClick={() => navigate('/campaing')}
               >
-                {page}
+                Campanha
               </Button>
-            ))}
+              <Button
+                sx={{
+                  my: 3,
+                  color: "black",
+                  display: "block",
+                  textTransform: "none",
+                }}
+                onClick={() => navigate('/almanac')}
+
+              >
+                Almanaque
+              </Button>
+              <Button
+                sx={{
+                  my: 3,
+                  color: "black",
+                  display: "block",
+                  textTransform: "none",
+                }}
+                onClick={() => navigate('/playerFiles')}
+
+              >
+                Fichas
+              </Button>
           </Box>
 
           <Box sx={{ flexGrow: 0 }}>

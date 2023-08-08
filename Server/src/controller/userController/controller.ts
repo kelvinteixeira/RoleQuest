@@ -36,20 +36,12 @@ export async function userController(app: FastifyInstance) {
       res.status(412).send({ error: "usuário ja existe" });
     }
   });
-  /** 
-   * todo - 
-   * 1 - aqui criar o get
-   * 
-  */
+ 
  app.get("/user", async (req: FastifyRequest, rep: FastifyReply) => {
    const user = await prisma.users.findMany();
    return user;
  });
-   /** 
-   * todo - 
-   * 1 - aqui criar o patch
-   * 
-  */
+
   app.patch("/user/:id", async (req: FastifyRequest,rep: FastifyReply) => {
     const userId = z.object({
       id : z.string(),
@@ -77,12 +69,6 @@ export async function userController(app: FastifyInstance) {
     
   })
 
-
-    /** 
-   * todo - 
-   * 1 - aqui criar o delete
-   * 
-  */
     app.delete("/user/:id", async (req: FastifyRequest, rep: FastifyReply) => {
       const userId = z.object({
         id: z.string(),

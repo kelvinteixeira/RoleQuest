@@ -11,12 +11,109 @@ datasource db {
 }
 
 model Users {
-  id      String @id @default(auto()) @map("_id") @db.ObjectId 
-  name    String
-  email   String @unique
+  id       String @id @default(auto()) @map("_id") @db.ObjectId
+  name     String
+  email    String @unique
   password String
-  picture String
-  token   String
+  picture  String
+  token    String
 }
 
+model Character {
+  id                String             @id @default(auto()) @map("_id") @db.ObjectId
+  info              Info?
+  fightAttributes   FightAttributes?
+  socialAttributes  SocialAttributes?
+  magicalAttributes MagicalAttributes?
+  bag               Bag[]
+  qualities         Qualities[]
+  defects           Defects[]
+  antecedents       Antecedents[]
+}
 
+model Info {
+  id          String    @id @default(auto()) @map("_id") @db.ObjectId
+  name        String
+  house       String
+  galleons    Int
+  humanity    Int
+  frame       Int
+  character   Character @relation(fields: [characterId], references: [id])
+  characterId String    @unique @db.ObjectId
+}
+
+model FightAttributes {
+  id              String    @id @default(auto()) @map("_id") @db.ObjectId
+  strengh         Int
+  dexterity       Int
+  agility         Int
+  inteligence     Int
+  vigor           Int
+  magicForce      Int
+  magicResistence Int
+  life            Int
+  initiative      Int
+  actions         Int
+  character       Character @relation(fields: [characterId], references: [id])
+  characterId     String    @unique @db.ObjectId
+}
+
+model SocialAttributes {
+  id            String    @id @default(auto()) @map("_id") @db.ObjectId
+  manipulation  Int
+  determination Int
+  intimidation  Int
+  charisma      Int
+  loyalty       Int
+  ambition      Int
+  perception    Int
+  wisdom        Int
+  character     Character @relation(fields: [characterId], references: [id])
+  characterId   String    @unique @db.ObjectId
+}
+
+model MagicalAttributes {
+  id              String    @id @default(auto()) @map("_id") @db.ObjectId
+  fly             Int
+  potions         Int
+  dada            Int
+  spells          Int
+  animalEmpaty    Int
+  transfiguration Int
+  hexes           Int
+  character       Character @relation(fields: [characterId], references: [id])
+  characterId     String    @unique @db.ObjectId
+}
+
+model Bag {
+  id          String    @id @default(auto()) @map("_id") @db.ObjectId
+  name        String
+  quantity    Int
+  character   Character @relation(fields: [characterId], references: [id])
+  characterId String    @db.ObjectId
+}
+
+model Qualities {
+  id          String    @id @default(auto()) @map("_id") @db.ObjectId
+  name        String
+  description String
+  character   Character @relation(fields: [characterId], references: [id])
+  characterId String    @db.ObjectId
+}
+
+model Defects {
+  id          String    @id @default(auto()) @map("_id") @db.ObjectId
+  name        String
+  description String
+  character   Character @relation(fields: [characterId], references: [id])
+  characterId String    @db.ObjectId
+}
+
+model Antecedents {
+  id          String    @id @default(auto()) @map("_id") @db.ObjectId
+  name        String
+  level       Int
+  description String
+  character   Character @relation(fields: [characterId], references: [id])
+  characterId String    @db.ObjectId
+}

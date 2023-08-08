@@ -4,21 +4,22 @@ import { Almanac } from "./components/Almanac/Almanac";
 import { PlayerFiles } from "./components/PlayerFiles/PlayerFiles";
 import { Campaing } from "./components/Campaing/Campaing";
 import { Header } from "./components/Header/Header";
-import { useAppSelector } from "./redux/hooks/hooks";
+// import { useAppSelector } from "./redux/hooks/hooks";
 import { SingUp } from "./screens/SingUp/SingUp";
 
 export const AppRoutes = () => {
-  const user = useAppSelector((state) => state.authReducer.user);
+  // const user = useAppSelector((state) => state.authReducer.user);
 
   return (
     <BrowserRouter>
-      {user ? <Header />: null}
+      {/* {user ? <Header />: null} */}
+      <Header/>
       <Routes>
         <Route path="/" element={<SingIn />} />
         <Route path="/singup" element={<SingUp />} />
         <Route path="/campaing" element={<Campaing />} />
         <Route path="/almanac" element={<Almanac />} />
-        <Route path="/playerFiles" element={<PlayerFiles />} />
+        <Route path="/playerfiles" element={<PlayerFiles />} />
       </Routes>
     </BrowserRouter>
   );

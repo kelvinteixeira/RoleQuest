@@ -20,8 +20,8 @@ import { auth } from "../../services/firebase";
 import { useNavigate } from "react-router-dom";
 import { useDispatch } from "react-redux";
 import { setLogin } from "../../redux/auth/authSlice";
-import backGroundVideo from "../../assets/backgroundVideo.mp4";
-import logoImage from "../../assets/logo3.png";
+import backgroundVideo from "../../assets/images/backgroundVideoSingIn.mp4";
+import logoImage from "../../assets/images/logo3.png";
 import Visibility from "@mui/icons-material/Visibility";
 import VisibilityOff from "@mui/icons-material/VisibilityOff";
 import { grey } from "@mui/material/colors";
@@ -72,9 +72,10 @@ export const SingIn = () => {
         container
         justifyContent={"space-around"}
         alignItems={"center"}
+        className="custom-font"
       >
         <video autoPlay muted loop>
-          <source src={backGroundVideo} type="video/mp4" />
+          <source src={backgroundVideo} type="video/mp4" />
         </video>
         <img src={logoImage} style={{ height: 170 }} />
         <StyledCard>
@@ -83,6 +84,7 @@ export const SingIn = () => {
             fontSize={20}
             align="center"
             color={"white"}
+            sx={{ fontFamily: "HarryPotter" }}
           >
             Acesse sua conta
           </Typography>
@@ -196,6 +198,7 @@ const StyledCard = styled(Card)`
   flex-direction: column;
   width: 25rem;
   padding: 2rem;
+  font-family: "HarryPotter";
 
   background: rgba(100, 126, 110, 0.1);
   -webkit-backdrop-filter: blur(15px);

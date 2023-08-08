@@ -1,6 +1,7 @@
 import { Box, Container, Typography } from "@mui/material";
 import { api } from "../../lib/axios";
 import { useState, useEffect } from "react";
+import backgroundVideo from '../../assets/images/backgroundCamaping.mp4'
 
 type CampaingProps = {
   title: string
@@ -19,6 +20,9 @@ export const Campaing = () => {
 
   return (
     <Container>
+      <video autoPlay muted loop>
+          <source src={backgroundVideo} type="video/mp4" />
+        </video>
       {campaings.map((campaing : CampaingProps) => (
         <Box
           sx={{

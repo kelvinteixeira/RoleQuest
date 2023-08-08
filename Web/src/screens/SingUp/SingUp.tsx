@@ -20,8 +20,8 @@ import { auth } from "../../services/firebase";
 import { useNavigate } from "react-router-dom";
 import { useDispatch } from "react-redux";
 import { setLogin } from "../../redux/auth/authSlice";
-import backGroundVideo from "../../assets/bakcgourndVideoSingup.mp4";
-import logoImage from "../../assets/logo3.png";
+import backgroundVideo from "../../assets/images/bakcgourndVideoSingup.mp4";
+import logoImage from "../../assets/images/logo3.png";
 import Visibility from "@mui/icons-material/Visibility";
 import VisibilityOff from "@mui/icons-material/VisibilityOff";
 import { grey } from "@mui/material/colors";
@@ -77,7 +77,7 @@ export const SingUp = () => {
       >
         
         <video autoPlay muted loop>
-          <source src={backGroundVideo} type="video/mp4" />
+          <source src={backgroundVideo} type="video/mp4" />
         </video>
         <StyledCard>
           <Typography
@@ -234,5 +234,5 @@ const StyledCard = styled(Card)`
   background: rgba(68, 64, 99, 0.1);
   -webkit-backdrop-filter: blur(15px);
   backdrop-filter: blur(5px);
-  box-shadow: 0 8px 32px 0 #6463925e;
+  box-shadow: 0 8px 32px 0 #7171995e;
 `;

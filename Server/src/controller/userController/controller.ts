@@ -1,10 +1,9 @@
-import { User } from './../../../../Web/src/redux/auth/authTypes';
 import { prisma } from "./../../lib/prisma";
 import { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { FastifyReply } from "fastify";
 import { FastifyRequest } from "fastify";
-import { request } from 'http';
+
 
 export async function userController(app: FastifyInstance) {
   app.post("/user", async (req: FastifyRequest, res: FastifyReply) => {

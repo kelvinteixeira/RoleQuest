@@ -77,7 +77,7 @@ model MagicalAttributes {
   fly             Int
   potions         Int
   dada            Int
-  spells          Int
+  spells          Spells[]
   animalEmpaty    Int
   transfiguration Int
   hexes           Int
@@ -116,5 +116,13 @@ model Antecedents {
   description String
   character   Character @relation(fields: [characterId], references: [id])
   characterId String    @db.ObjectId
+}
+model Spells {
+  id                  String             @id @default(auto()) @map("_id") @db.ObjectId
+  name                String
+  efect               String
+  damage              String
+  MagicalAttributes   MagicalAttributes? @relation(fields: [magicalAttributesId], references: [id])
+  magicalAttributesId String?            @db.ObjectId
 }
 

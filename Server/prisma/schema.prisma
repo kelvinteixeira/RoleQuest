@@ -117,3 +117,4 @@ model Antecedents {
   character   Character @relation(fields: [characterId], references: [id])
   characterId String    @db.ObjectId
 }
+

@@ -3,6 +3,8 @@ import cors from "@fastify/cors";
 import { userController } from "./controller/userController/controller";
 const app = fastify();
 
+app.register(cors);
+
 app.register(cors, {
   origin: true,
 });

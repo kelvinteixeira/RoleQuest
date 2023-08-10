@@ -1,10 +1,9 @@
-import IconButton from "@mui/material/IconButton";
-import Typography from "@mui/material/Typography";
-import Avatar from "@mui/material/Avatar";
-import Button from "@mui/material/Button";
+import { Grid, Typography, Avatar, Button, IconButton } from "@mui/material";
+
 import { useAppSelector } from "../../redux/hooks/hooks";
-import { Box, Grid, styled } from "@mui/material";
 import { useNavigate } from "react-router-dom";
+
+import { StyledContainer, StyledTypography } from "./Header.styles";
 
 export const Header = () => {
   const user = useAppSelector((state) => state.authReducer.user);
@@ -13,39 +12,23 @@ export const Header = () => {
   return (
     <StyledContainer>
       <Grid container justifyContent={"space-around"} alignItems={"center"}>
-        <Button
-          sx={{
-            color: "white",
-            fontSize: 30,
-            fontFamily: "HarryPotter !important",
-          }}
-          onClick={() => navigate("/campaing")}
-        >
-          Campanha
+        <Button onClick={() => navigate("/campaing")}>
+          <StyledTypography>Campanha</StyledTypography>
         </Button>
-        <Button
-          sx={{
-            color: "white",
-            fontSize: 30,
-            fontFamily: "HarryPotter !important",
-          }}
-          onClick={() => navigate("/almanac")}
-        >
-          Almanaque
+        <Button onClick={() => navigate("/almanac")}>
+          <StyledTypography>Almanaque</StyledTypography>
         </Button>
-        <Button
-          sx={{
-            color: "white",
-            fontSize: 30,
-            fontFamily: "HarryPotter !important",
-          }}
-          onClick={() => navigate("/playerfiles")}
-        >
-          Fichas
+        <Button onClick={() => navigate("/playerfiles")}>
+          <StyledTypography>Fichas</StyledTypography>
         </Button>
       </Grid>
 
-      <Grid container justifyContent={"flex-end"} alignItems={"center"} marginRight={2}>
+      <Grid
+        container
+        justifyContent={"flex-end"}
+        alignItems={"center"}
+        marginRight={2}
+      >
         <Typography
           marginRight={1}
           sx={{
@@ -63,9 +46,3 @@ export const Header = () => {
     </StyledContainer>
   );
 };
-
-const StyledContainer = styled(Box)`
-  display: flex;
-  flex-direction: row;
-  margin-top: 3rem;
-`;

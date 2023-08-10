@@ -2,16 +2,15 @@
   padding: 0;
   margin: 0;
   box-sizing: border-box;
-  font-family: 'Quicksand', sans-serif !important;
+  font-family: "Quicksand", sans-serif !important;
 }
 
 @font-face {
-  font-family: 'HarryPotter';
-  src: url('./assets/fonts/HarryPotter.TTF') format('truetype');
+  font-family: "HarryPotter";
+  src: url("./assets/fonts/HarryPotter.TTF") format("truetype");
 }
 
-
-img {
+.removed-background {
   mix-blend-mode: multiply;
 }
 

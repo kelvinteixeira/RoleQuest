@@ -1,7 +1,10 @@
-import { Box, Container, Typography, styled, Grid } from "@mui/material";
-import { api } from "../../lib/axios";
 import { useState, useEffect } from "react";
-import backgroundVideo from "../../assets/images/backgroundCamaping.mp4";
+
+import { Box, Container, Typography, styled } from "@mui/material";
+
+import { api } from "../../lib/axios";
+
+import backgroundVideo from "../../assets/videos/backgroundCampaing.mp4";
 
 type CampaingProps = {
   title: string;
@@ -95,12 +98,11 @@ const StyledBox = styled(Box)`
   overflow: scroll;
 `;
 
-
-const StyledTypography = styled(Typography) `
+const StyledTypography = styled(Typography)`
   -webkit-text-stroke-width: 2px;
   -webkit-text-stroke-color: #000;
-`
-const StyledTypographyParagraph = styled(Typography) `
-  -webkit-text-stroke-width: .5px;
+`;
+const StyledTypographyParagraph = styled(Typography)`
+  -webkit-text-stroke-width: 0.5px;
   -webkit-text-stroke-color: #8d550b5e;
-`
+`;

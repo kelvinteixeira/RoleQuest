@@ -1,9 +1,8 @@
+import { useState } from "react";
+
 import {
-  Card,
   Typography,
-  Grid,
   Button,
-  styled,
   InputLabel,
   FormControl,
   InputAdornment,
@@ -13,18 +12,24 @@ import {
   createTheme,
   ThemeProvider,
 } from "@mui/material";
-import GoogleIcon from "@mui/icons-material/Google";
-import { useState } from "react";
+
 import { GoogleAuthProvider, signInWithPopup, User } from "firebase/auth";
 import { auth } from "../../services/firebase";
+import { setLogin } from "../../redux/auth/authSlice";
+
 import { useNavigate } from "react-router-dom";
 import { useDispatch } from "react-redux";
-import { setLogin } from "../../redux/auth/authSlice";
-import backgroundVideo from "../../assets/images/backgroundVideoSingIn.mp4";
-import logoImage from "../../assets/images/logo3.png";
-import Visibility from "@mui/icons-material/Visibility";
+
+import backgroundVideo from "../../assets/videos/backgroundSingIn.mp4";
+import logoImage from "../../assets/images/logo.png";
+
 import VisibilityOff from "@mui/icons-material/VisibilityOff";
+import Visibility from "@mui/icons-material/Visibility";
+import GoogleIcon from "@mui/icons-material/Google";
+
 import { grey } from "@mui/material/colors";
+
+import { StyledGrid, StyledCard } from "./SingIn.styles";
 
 const theme = createTheme({
   palette: {
@@ -77,7 +82,7 @@ export const SingIn = () => {
         <video autoPlay muted loop>
           <source src={backgroundVideo} type="video/mp4" />
         </video>
-        <img src={logoImage} style={{ height: 170 }} />
+        <img className="removed-background" src={logoImage} style={{ height: 170 }} />
         <StyledCard>
           <Typography
             fontWeight={"bold"}
@@ -97,7 +102,7 @@ export const SingIn = () => {
             <InputLabel focused htmlFor="email">
               <Typography fontWeight={"bold"}>Email</Typography>
             </InputLabel>
-            <Input id="password" sx={{ color: "white" }} />
+            <Input id="email" sx={{ color: "white" }} />
           </FormControl>
 
           <FormControl variant="standard" color="primary">
@@ -186,22 +191,3 @@ export const SingIn = () => {
     </ThemeProvider>
   );
 };
-
-const StyledGrid = styled(Grid)`
-  height: 100vh;
-  width: 100vw;
-  background-size: cover;
-`;
-
-const StyledCard = styled(Card)`
-  display: flex;
-  flex-direction: column;
-  width: 25rem;
-  padding: 2rem;
-  font-family: "HarryPotter";
-
-  background: rgba(100, 126, 110, 0.1);
-  -webkit-backdrop-filter: blur(15px);
-  backdrop-filter: blur(5px);
-  box-shadow: 0 8px 32px 0 #1f872d5e;
-`;

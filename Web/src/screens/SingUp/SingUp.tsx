@@ -1,9 +1,8 @@
+import { useState } from "react";
+
 import {
-  Card,
   Typography,
-  Grid,
   Button,
-  styled,
   InputLabel,
   FormControl,
   InputAdornment,
@@ -13,18 +12,24 @@ import {
   createTheme,
   ThemeProvider,
 } from "@mui/material";
-import GoogleIcon from "@mui/icons-material/Google";
-import { useState } from "react";
+
 import { GoogleAuthProvider, signInWithPopup, User } from "firebase/auth";
+import { setLogin } from "../../redux/auth/authSlice";
 import { auth } from "../../services/firebase";
+
 import { useNavigate } from "react-router-dom";
 import { useDispatch } from "react-redux";
-import { setLogin } from "../../redux/auth/authSlice";
-import backgroundVideo from "../../assets/images/bakcgourndVideoSingup.mp4";
-import logoImage from "../../assets/images/logo3.png";
-import Visibility from "@mui/icons-material/Visibility";
+
+import backgroundVideo from "../../assets/videos/bakcgourndSingup.mp4";
+import logoImage from "../../assets/images/logo.png";
+
 import VisibilityOff from "@mui/icons-material/VisibilityOff";
+import Visibility from "@mui/icons-material/Visibility";
+import GoogleIcon from "@mui/icons-material/Google";
+
 import { grey } from "@mui/material/colors";
+
+import { StyledGrid, StyledCard } from "./SingUp.styles";
 
 const theme = createTheme({
   palette: {
@@ -41,7 +46,8 @@ export const SingUp = () => {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   const handleClickShowPassword = () => setShowPassword((show) => !show);
-  const handleClickShowConfirmPassword = () => setShowConfirmPassword((show) => !show);
+  const handleClickShowConfirmPassword = () =>
+    setShowConfirmPassword((show) => !show);
 
   const handleMouseDownPassword = (
     event: React.MouseEvent<HTMLButtonElement>
@@ -75,7 +81,6 @@ export const SingUp = () => {
         justifyContent={"space-around"}
         alignItems={"center"}
       >
-        
         <video autoPlay muted loop>
           <source src={backgroundVideo} type="video/mp4" />
         </video>
@@ -136,7 +141,11 @@ export const SingUp = () => {
               }
             />
           </FormControl>
-          <FormControl variant="standard" color="primary" sx={{marginBottom: 2}}>
+          <FormControl
+            variant="standard"
+            color="primary"
+            sx={{ marginBottom: 2 }}
+          >
             <InputLabel focused htmlFor="confirm-password" color="primary">
               <Typography fontWeight={"bold"}>Confirmar senha</Typography>
             </InputLabel>
@@ -213,26 +222,9 @@ export const SingUp = () => {
             </Link>
           </Typography>
         </StyledCard>
-        <img src={logoImage} style={{ height: 170 }} />
+        <img className="removed-background" src={logoImage} style={{ height: 170 }} />
       </StyledGrid>
     </ThemeProvider>
   );
 };
 
-const StyledGrid = styled(Grid)`
-  height: 100vh;
-  width: 100vw;
-  background-size: cover;
-`;
-
-const StyledCard = styled(Card)`
-  display: flex;
-  flex-direction: column;
-  width: 25rem;
-  padding: 2rem;
-
-  background: rgba(68, 64, 99, 0.1);
-  -webkit-backdrop-filter: blur(15px);
-  backdrop-filter: blur(5px);
-  box-shadow: 0 8px 32px 0 #7171995e;
-`;

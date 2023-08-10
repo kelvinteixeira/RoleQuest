@@ -13,7 +13,7 @@ export const AppRoutes = () => {
   return (
     <BrowserRouter>
       {/* {user ? <Header />: null} */}
-      {/* <Header/> */}
+      <Header/>
       <Routes>
         <Route path="/" element={<SingIn />} />
         <Route path="/singup" element={<SingUp />} />

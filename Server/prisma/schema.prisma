@@ -1,4 +1,3 @@
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -117,10 +116,10 @@ model Antecedents {
 }
 
 model Spells {
-  id     String @id @default(auto()) @map("_id") @db.ObjectId
-  name   String
-  efect  String
-  damage String
-  MagicalAttributes   MagicalAttributes? @relation(fields: [magicalAttributesId], references: [id])
+  id                  String             @id @default(auto()) @map("_id") @db.ObjectId
+  name                String
+  efect               String
+  damage              String
+  magicalAttributes   MagicalAttributes? @relation(fields: [magicalAttributesId], references: [id])
   magicalAttributesId String?            @db.ObjectId
 }

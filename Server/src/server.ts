@@ -1,8 +1,7 @@
 import fastify from "fastify";
 import cors from "@fastify/cors";
-import { userController } from "./controller/userController/controller";
 
-
+import { userController } from "./controllers/userController";
 
 const app = fastify();
 app.register(cors, {

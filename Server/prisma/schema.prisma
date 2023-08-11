@@ -8,12 +8,13 @@ datasource db {
 }
 
 model Users {
-  id       String @id @default(auto()) @map("_id") @db.ObjectId
-  name     String
-  email    String @unique
-  password String
-  picture  String
-  token    String
+  id        String      @id @default(auto()) @map("_id") @db.ObjectId
+  name      String
+  email     String      @unique
+  password  String
+  picture   String
+  token     String
+  character Character[]
 }
 
 model Character {
@@ -26,6 +27,8 @@ model Character {
   qualities         Qualities[]
   defects           Defects[]
   antecedents       Antecedents[]
+  users             Users              @relation(fields: [usersId], references: [id])
+  usersId           String             @unique @db.ObjectId
 }
 
 model Info {
@@ -34,7 +37,7 @@ model Info {
   house       String
   galleons    Int
   humanity    Int
-  frame       Int
+  fame        Int
   character   Character @relation(fields: [characterId], references: [id])
   characterId String    @unique @db.ObjectId
 }
@@ -84,7 +87,7 @@ model MagicalAttributes {
 
 model Bag {
   id          String    @id @default(auto()) @map("_id") @db.ObjectId
-  name        String
+  item        String
   quantity    Int
   character   Character @relation(fields: [characterId], references: [id])
   characterId String    @db.ObjectId
@@ -92,7 +95,7 @@ model Bag {
 
 model Qualities {
   id          String    @id @default(auto()) @map("_id") @db.ObjectId
-  name        String
+  title       String
   description String
   character   Character @relation(fields: [characterId], references: [id])
   characterId String    @db.ObjectId
@@ -100,7 +103,7 @@ model Qualities {
 
 model Defects {
   id          String    @id @default(auto()) @map("_id") @db.ObjectId
-  name        String
+  title       String
   description String
   character   Character @relation(fields: [characterId], references: [id])
   characterId String    @db.ObjectId
@@ -108,7 +111,7 @@ model Defects {
 
 model Antecedents {
   id          String    @id @default(auto()) @map("_id") @db.ObjectId
-  name        String
+  title       String
   level       Int
   description String
   character   Character @relation(fields: [characterId], references: [id])
@@ -117,9 +120,11 @@ model Antecedents {
 
 model Spells {
   id                  String             @id @default(auto()) @map("_id") @db.ObjectId
-  name                String
+  pronounce           String
   efect               String
   damage              String
+  mastery             String
+  description         String
   magicalAttributes   MagicalAttributes? @relation(fields: [magicalAttributesId], references: [id])
   magicalAttributesId String?            @db.ObjectId
 }

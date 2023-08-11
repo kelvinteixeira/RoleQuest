@@ -136,3 +136,12 @@ model Campaing {
   description String
   actual      Boolean
 }
+
+
+model Potions {
+  id          String @id @default(auto()) @map("_id") @db.ObjectId
+  name        String
+  ingredients String
+  effect      String
+  price       String
+}

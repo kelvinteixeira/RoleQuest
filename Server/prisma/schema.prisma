@@ -128,3 +128,11 @@ model Spells {
   magicalAttributes   MagicalAttributes? @relation(fields: [magicalAttributesId], references: [id])
   magicalAttributesId String?            @db.ObjectId
 }
+
+model Campaing {
+  id          String  @id @default(auto()) @map("_id") @db.ObjectId
+  title       String
+  ambient     String
+  description String
+  actual      Boolean
+}

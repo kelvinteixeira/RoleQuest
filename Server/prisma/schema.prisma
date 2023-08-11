@@ -1,6 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -10,12 +7,124 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-model User {
-  id      String @id @default(auto()) @map("_id") @db.ObjectId
-  name    String
-  email   String
-  picture String
-  token   String
+model Users {
+  id        String      @id @default(auto()) @map("_id") @db.ObjectId
+  name      String
+  email     String      @unique
+  password  String
+  picture   String
+  token     String
+  character Character[]
 }
 
+model Character {
+  id                String             @id @default(auto()) @map("_id") @db.ObjectId
+  info              Info?
+  fightAttributes   FightAttributes?
+  socialAttributes  SocialAttributes?
+  magicalAttributes MagicalAttributes?
+  bag               Bag[]
+  qualities         Qualities[]
+  defects           Defects[]
+  antecedents       Antecedents[]
+  users             Users              @relation(fields: [usersId], references: [id])
+  usersId           String             @unique @db.ObjectId
+}
 
+model Info {
+  id          String    @id @default(auto()) @map("_id") @db.ObjectId
+  name        String
+  house       String
+  galleons    Int
+  humanity    Int
+  fame        Int
+  character   Character @relation(fields: [characterId], references: [id])
+  characterId String    @unique @db.ObjectId
+}
+
+model FightAttributes {
+  id              String    @id @default(auto()) @map("_id") @db.ObjectId
+  strengh         Int
+  dexterity       Int
+  agility         Int
+  inteligence     Int
+  vigor           Int
+  magicForce      Int
+  magicResistence Int
+  life            Int
+  initiative      Int
+  actions         Int
+  character       Character @relation(fields: [characterId], references: [id])
+  characterId     String    @unique @db.ObjectId
+}
+
+model SocialAttributes {
+  id            String    @id @default(auto()) @map("_id") @db.ObjectId
+  manipulation  Int
+  determination Int
+  intimidation  Int
+  charisma      Int
+  loyalty       Int
+  ambition      Int
+  perception    Int
+  wisdom        Int
+  character     Character @relation(fields: [characterId], references: [id])
+  characterId   String    @unique @db.ObjectId
+}
+
+model MagicalAttributes {
+  id              String    @id @default(auto()) @map("_id") @db.ObjectId
+  fly             Int
+  potions         Int
+  dada            Int
+  spells          Spells[]
+  animalEmpaty    Int
+  transfiguration Int
+  hexes           Int
+  character       Character @relation(fields: [characterId], references: [id])
+  characterId     String    @unique @db.ObjectId
+}
+
+model Bag {
+  id          String    @id @default(auto()) @map("_id") @db.ObjectId
+  item        String
+  quantity    Int
+  character   Character @relation(fields: [characterId], references: [id])
+  characterId String    @db.ObjectId
+}
+
+model Qualities {
+  id          String    @id @default(auto()) @map("_id") @db.ObjectId
+  title       String
+  description String
+  character   Character @relation(fields: [characterId], references: [id])
+  characterId String    @db.ObjectId
+}
+
+model Defects {
+  id          String    @id @default(auto()) @map("_id") @db.ObjectId
+  title       String
+  description String
+  character   Character @relation(fields: [characterId], references: [id])
+  characterId String    @db.ObjectId
+}
+
+model Antecedents {
+  id          String    @id @default(auto()) @map("_id") @db.ObjectId
+  title       String
+  level       Int
+  description String
+  character   Character @relation(fields: [characterId], references: [id])
+  characterId String    @db.ObjectId
+}
+
+model Spells {
+  id                  String             @id @default(auto()) @map("_id") @db.ObjectId
+  pronounce           String
+  efect               String
+  damage              String
+  mastery             String
+  description         String
+  magicalAttributes   MagicalAttributes? @relation(fields: [magicalAttributesId], references: [id])
+  magicalAttributesId String?            @db.ObjectId
+}

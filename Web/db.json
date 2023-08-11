@@ -1,17 +1,90 @@
 {
-	"campaings": 
-		[
-			{
-				"title": "Sombras do passado",
-				"ambient": "A história se passa no mundo mágico de Harry Potter, 15 anos após a grande batalha de Hogwarts, o mundo bruxo se encontra em paz e livre de ameças desde então. Em nossa nova aventura iremos visitar diversos locais, como o Ministério da Magia, Godric's Hollow, Hogwarts, a Floresta proibída, dentre outros, além de lugares inéditos criados para a campanha.",
-				"description": "Uma nova ameaça emerge novamente, causando mortes repentinas e marcas desconhecidas, o pavor e medo tomam conta do mundo bruxo, é preciso agir com cautela e rapidez. O Ministério da Magia, está a par de toda a situação tentando controlar essa praga desconhecida, parece que mais uma vez algo está colocando em risco a harmonia conquistada nos ultimos anos. Agora, cabe aos personagens mergulharem em mistérios antigos, decifrar enigmas ocultos, descobrir alianças e enfrentar inimigos perigosos para proteger a comunidade bruxa mais uma vez, conto com vocês para nos ajudar a enfrentar essa desgraça que paira sobre nós, e lembre-se. Pode se encontrar a felicidade mesmo nas horas mais sombrias, se a pessoa se lembrar de acender a luz.",
-				"actual": true
-			},
-			{
-				"title": "Sombras do futuro",
-				"ambient": "A história se passa no mundo mágico de Harry Potter, 15 anos após a batalha de Hogwarts, abrangendo diversos locais, como o Ministério da Magia, Godric's Hollow, e outros, como lugares inéditos criados para a campanha.",
-				"description": "Uma nova ameaça emerge novamente, causando mortes repentinas e marcas desconhecidas pelo Ministério da Magia, e assim colocando em risco a harmonia conquistada nos ultimos anos. Agora, cabe aos personagens mergulharem em mistérios antigos, descobrir alianças e enfrentar inimigos perigosos para proteger a comunidade bruxa mais uma vez.",
-				"actual": false
-			}
-		]
+	"campaings": [
+		{
+			"title": "Sombras do passado",
+			"ambient": "A história se passa no mundo mágico de Harry Potter, 15 anos após a grande batalha de Hogwarts, o mundo bruxo se encontra em paz e livre de ameças desde então. Em nossa nova aventura iremos visitar diversos locais, como o Ministério da Magia, Godric's Hollow, Hogwarts, a Floresta proibída, dentre outros, além de lugares inéditos criados para a campanha.",
+			"description": "Uma nova ameaça emerge novamente, causando mortes repentinas e marcas desconhecidas, o pavor e medo tomam conta do mundo bruxo, é preciso agir com cautela e rapidez. O Ministério da Magia, está a par de toda a situação tentando controlar essa praga desconhecida, parece que mais uma vez algo está colocando em risco a harmonia conquistada nos ultimos anos. Agora, cabe aos personagens mergulharem em mistérios antigos, decifrar enigmas ocultos, descobrir alianças e enfrentar inimigos perigosos para proteger a comunidade bruxa mais uma vez, conto com vocês para nos ajudar a enfrentar essa desgraça que paira sobre nós, e lembre-se. Pode se encontrar a felicidade mesmo nas horas mais sombrias, se a pessoa se lembrar de acender a luz.",
+			"actual": true
+		},
+		{
+			"title": "Sombras do futuro",
+			"ambient": "A história se passa no mundo mágico de Harry Potter, 15 anos após a batalha de Hogwarts, abrangendo diversos locais, como o Ministério da Magia, Godric's Hollow, e outros, como lugares inéditos criados para a campanha.",
+			"description": "Uma nova ameaça emerge novamente, causando mortes repentinas e marcas desconhecidas pelo Ministério da Magia, e assim colocando em risco a harmonia conquistada nos ultimos anos. Agora, cabe aos personagens mergulharem em mistérios antigos, descobrir alianças e enfrentar inimigos perigosos para proteger a comunidade bruxa mais uma vez.",
+			"actual": false
+		}
+	],
+	"spells": [
+		{
+			"pronounce": "Wingardium Leviosa",
+			"description": "Levita objetos a sua volta",
+			"effect": "-",
+			"mastery": "6",
+			"damage": "-",
+			"type": "charm"
+		},
+		{
+			"pronounce": "Accio",
+			"description": "Conjura objetos em sua direção",
+			"effect": "-",
+			"mastery": "4",
+			"damage": "-",
+			"type": "charm"
+		},
+		{
+			"pronounce": "Aguamenti",
+			"description": "Conjura uma pequena quantidade de água",
+			"effect": "-",
+			"mastery": "5",
+			"damage": "-",
+			"type": "charm"
+		},
+		{
+			"pronounce": "Incendio",
+			"description": "Conjura pequenas chamas",
+			"effect": "-",
+			"mastery": "5",
+			"damage": "-",
+			"type": "charm"
+		},
+		{
+			"pronounce": "Estupefaça",
+			"description": "Estontea alvo causando impacto",
+			"effect": "20% de atordoar por 1 ação",
+			"mastery": "5",
+			"damage": "FM",
+			"type": "hex"
+		},
+		{
+			"pronounce": "Confrigo",
+			"description": "Conjura uma bola de fogo",
+			"effect": "20% de queimar por 1 turno",
+			"mastery": "5",
+			"damage": "FM",
+			"type": "hex"
+		},
+		{
+			"pronounce": "Cruciatus",
+			"description": "Causa imensa dor no alvo atingido",
+			"effect": "-",
+			"mastery": "9",
+			"damage": "2xFM + Int",
+			"type": "curse"
+		},
+		{
+			"pronounce": "Imperius",
+			"description": "Constrola inimigos a seu favor",
+			"effect": "A cada rodada um teste de resistência para dissipar",
+			"mastery": "6",
+			"damage": "-",
+			"type": "curse"
+		},
+		{
+			"pronounce": "Avada kedavra",
+			"description": "Maldição da morte",
+			"effect": "-",
+			"mastery": "10",
+			"damage": "-",
+			"type": "curse"
+		}
+	]
 }

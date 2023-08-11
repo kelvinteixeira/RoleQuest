@@ -1,8 +1,8 @@
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { SingIn } from "./screens/SingIn/SingIn";
-import { Almanac } from "./components/Almanac/Almanac";
-import { PlayerFiles } from "./components/PlayerFiles/PlayerFiles";
-import { Campaing } from "./components/Campaing/Campaing";
+import { Spells } from "./screens/Spells/Spells";
+import { PlayerFiles } from "./screens/PlayerFiles/PlayerFiles";
+import { Campaing } from "./screens/Campaing/Campaing";
 import { Header } from "./components/Header/Header";
 // import { useAppSelector } from "./redux/hooks/hooks";
 import { SingUp } from "./screens/SingUp/SingUp";
@@ -18,7 +18,7 @@ export const AppRoutes = () => {
         <Route path="/" element={<SingIn />} />
         <Route path="/singup" element={<SingUp />} />
         <Route path="/campaing" element={<Campaing />} />
-        <Route path="/almanac" element={<Almanac />} />
+        <Route path="/almanac" element={<Spells />} />
         <Route path="/playerfiles" element={<PlayerFiles />} />
       </Routes>
     </BrowserRouter>

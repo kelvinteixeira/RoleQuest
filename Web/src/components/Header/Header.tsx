@@ -11,15 +11,18 @@ export const Header = () => {
 
   return (
     <StyledContainer>
-      <Grid container justifyContent={"space-around"} alignItems={"center"}>
+      <Grid container justifyContent={"space-evenly"} alignItems={"center"}>
         <Button onClick={() => navigate("/campaing")}>
           <StyledTypography>Campanha</StyledTypography>
         </Button>
         <Button onClick={() => navigate("/almanac")}>
-          <StyledTypography>Almanaque</StyledTypography>
+          <StyledTypography>Feitiços</StyledTypography>
         </Button>
         <Button onClick={() => navigate("/playerfiles")}>
           <StyledTypography>Fichas</StyledTypography>
+        </Button>
+        <Button onClick={() => navigate("/playerfiles")}>
+          <StyledTypography>Poções</StyledTypography>
         </Button>
       </Grid>
 

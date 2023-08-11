@@ -14,7 +14,7 @@ model Users {
   password  String
   picture   String
   token     String
-  character Character[]
+  character Character?
 }
 
 model Character {

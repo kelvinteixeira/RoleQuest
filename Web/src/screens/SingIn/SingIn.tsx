@@ -60,9 +60,9 @@ export const SingIn = () => {
         setUser(result.user);
         dispatch(
           setLogin({
-            name: result.user.displayName!,
-            picture: result.user.photoURL!,
-            email: result.user.email!,
+            name: user.displayName!,
+            picture: user.photoURL!,
+            email: user.email!,
           })
         );
         navigate("/campaing");
@@ -73,16 +73,20 @@ export const SingIn = () => {
   }
   return (
     <ThemeProvider theme={theme}>
+      <video autoPlay muted loop>
+        <source src={backgroundVideo} type="video/mp4" />
+      </video>
       <StyledGrid
         container
         justifyContent={"space-around"}
         alignItems={"center"}
         className="custom-font"
       >
-        <video autoPlay muted loop>
-          <source src={backgroundVideo} type="video/mp4" />
-        </video>
-        <img className="removed-background" src={logoImage} style={{ height: 170 }} />
+        <img
+          className="removed-background"
+          src={logoImage}
+          style={{ height: 170 }}
+        />
         <StyledCard>
           <Typography
             fontWeight={"bold"}

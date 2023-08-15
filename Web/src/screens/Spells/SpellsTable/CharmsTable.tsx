@@ -9,7 +9,11 @@ import {
 } from "@mui/material";
 
 import { api } from "../../../lib/axios";
-import { StyledTableCell, StyledTableItem, StyledTitle } from "../Spells.styles";
+import {
+  StyledTableCell,
+  StyledTableItem,
+  StyledTitle,
+} from "../Spells.styles";
 
 type SpellsProps = {
   pronounce: string;
@@ -19,6 +23,7 @@ type SpellsProps = {
   damage?: string | null;
   type: string;
 };
+const tableHeader = ["Pronuncia", "Descrição", "Efeito", "Maestria", "Dano"];
 
 export const CharmsTable = () => {
   const [spells, setSpells] = useState([]);
@@ -33,11 +38,9 @@ export const CharmsTable = () => {
         <Table>
           <TableHead>
             <TableRow>
-              <StyledTableCell>Pronuncia</StyledTableCell>
-              <StyledTableCell>Descrição</StyledTableCell>
-              <StyledTableCell>Efeito</StyledTableCell>
-              <StyledTableCell>Maestria</StyledTableCell>
-              <StyledTableCell>Dano</StyledTableCell>
+              {tableHeader.map((head, index) => (
+                <StyledTableCell key={index}>{head}</StyledTableCell>
+              ))}
             </TableRow>
           </TableHead>
 

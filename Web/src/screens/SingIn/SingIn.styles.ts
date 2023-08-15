@@ -1,9 +1,7 @@
 import { styled, Grid, Card } from "@mui/material";
 
 export const StyledGrid = styled(Grid)`
-  height: 100vh;
-  width: 100vw;
-  background-size: cover;
+  height: 80vh;
 `;
 
 export const StyledCard = styled(Card)`

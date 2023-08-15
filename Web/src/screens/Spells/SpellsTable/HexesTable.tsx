@@ -20,6 +20,8 @@ type SpellsProps = {
   type: string;
 };
 
+const tableHeader = ["Pronuncia", "Descrição", "Efeito", "Maestria", "Dano"];
+
 export const HexesTable = () => {
   const [spells, setSpells] = useState([]);
 
@@ -31,13 +33,11 @@ export const HexesTable = () => {
       <StyledTitle textAlign={"center"}>Azarações</StyledTitle>
       <TableContainer>
         <Table>
-          <TableHead>
+        <TableHead>
             <TableRow>
-              <StyledTableCell>Pronuncia</StyledTableCell>
-              <StyledTableCell>Descrição</StyledTableCell>
-              <StyledTableCell>Efeito</StyledTableCell>
-              <StyledTableCell>Maestria</StyledTableCell>
-              <StyledTableCell>Dano</StyledTableCell>
+              {tableHeader.map((head, index) => (
+                <StyledTableCell key={index}>{head}</StyledTableCell>
+              ))}
             </TableRow>
           </TableHead>
 

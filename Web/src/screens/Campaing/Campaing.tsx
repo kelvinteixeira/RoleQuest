@@ -1,7 +1,6 @@
 import { useState, useEffect } from "react";
 
-import { Container } from "@mui/material";
-
+import { Grid } from "@mui/material";
 import { api } from "../../lib/axios";
 
 import backgroundVideo from "../../assets/videos/backgroundCampaing.mp4";
@@ -26,8 +25,9 @@ export const Campaing = () => {
   useEffect(() => {
     api.get("/campaings").then((response) => setCampaings(response.data));
   }, []);
+
   return (
-    <Container>
+    <Grid container justifyContent={"center"}>
       <video autoPlay muted loop>
         <source src={backgroundVideo} type="video/mp4" />
       </video>
@@ -47,6 +47,6 @@ export const Campaing = () => {
           </StyledBox>
         ) : null;
       })}
-    </Container>
+    </Grid>
   );
 };

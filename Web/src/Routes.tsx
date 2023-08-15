@@ -6,6 +6,7 @@ import { Campaing } from "./screens/Campaing/Campaing";
 import { Header } from "./components/Header/Header";
 // import { useAppSelector } from "./redux/hooks/hooks";
 import { SingUp } from "./screens/SingUp/SingUp";
+import { Potions } from "./screens/Potions/Potions";
 
 export const AppRoutes = () => {
   // const user = useAppSelector((state) => state.authReducer.user);
@@ -20,6 +21,7 @@ export const AppRoutes = () => {
         <Route path="/campaing" element={<Campaing />} />
         <Route path="/almanac" element={<Spells />} />
         <Route path="/playerfiles" element={<PlayerFiles />} />
+        <Route path="/potions" element={<Potions />} />
       </Routes>
     </BrowserRouter>
   );

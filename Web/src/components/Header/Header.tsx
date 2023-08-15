@@ -21,7 +21,7 @@ export const Header = () => {
         <Button onClick={() => navigate("/playerfiles")}>
           <StyledTypography>Fichas</StyledTypography>
         </Button>
-        <Button onClick={() => navigate("/playerfiles")}>
+        <Button onClick={() => navigate("/potions")}>
           <StyledTypography>Poções</StyledTypography>
         </Button>
       </Grid>
@@ -36,8 +36,10 @@ export const Header = () => {
           marginRight={1}
           sx={{
             color: "white",
-            fontSize: 30,
+            fontSize: 35,
             fontFamily: "HarryPotter !important",
+            WebkitTextStrokeWidth: 1,
+            WebkitTextStrokeColor: "#000",
           }}
         >
           Bem vindo {user?.name}

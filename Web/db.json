@@ -86,5 +86,25 @@
 			"damage": "-",
 			"type": "curse"
 		}
+	],
+	"potions": [
+		{
+			"name": "Essência de murtisco",
+			"ingredients": "Sangue de murtisco e álcool",
+			"effect": "Cura a vida em 10 pontos",
+			"price": "10"
+		},
+		{
+			"name": "Veritasserum",
+			"ingredients": "Alcachofra venenosa e cascas de sanguessuga",
+			"effect": "Faz com que a vítima fale apenas a verdade",
+			"price": "20"
+		},
+		{
+			"name": "Poção da paz",
+			"ingredients": "Hidromel e xarope de Helébaro",
+			"effect": "Acalma a quem beber",
+			"price": "15"
+		}
 	]
 }

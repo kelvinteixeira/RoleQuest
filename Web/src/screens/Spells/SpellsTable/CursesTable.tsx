@@ -20,6 +20,8 @@ type SpellsProps = {
   type: string;
 };
 
+const tableHeader = ["Pronuncia", "Descrição", "Efeito", "Maestria", "Dano"];
+
 export const CursesTable = () => {
   const [spells, setSpells] = useState([]);
 
@@ -33,11 +35,9 @@ export const CursesTable = () => {
         <Table>
           <TableHead>
             <TableRow>
-              <StyledTableCell>Pronuncia</StyledTableCell>
-              <StyledTableCell>Descrição</StyledTableCell>
-              <StyledTableCell>Efeito</StyledTableCell>
-              <StyledTableCell>Maestria</StyledTableCell>
-              <StyledTableCell>Dano</StyledTableCell>
+              {tableHeader.map((head, index) => (
+                <StyledTableCell key={index}>{head}</StyledTableCell>
+              ))}
             </TableRow>
           </TableHead>
 

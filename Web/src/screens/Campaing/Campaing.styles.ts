@@ -3,7 +3,7 @@ import { styled, Box, Typography } from "@mui/material";
 export const StyledBox = styled(Box)`
   width: 90vw;
   margin-top: 2rem;
-  height: 74vh;
+  max-height: 75vh;
   padding: 2rem;
   background: rgba(90, 86, 60, 0.1);
   -webkit-backdrop-filter: blur(15px);

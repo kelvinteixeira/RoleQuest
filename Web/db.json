@@ -106,5 +106,129 @@
 			"effect": "Acalma a quem beber",
 			"price": "15"
 		}
+	],
+	"characters": [
+		{
+			"id": 1,
+			"playerName": "Kelvin",
+			"fightAttributes": {
+				"id": 1,
+				"strengh": "1",
+				"dexterity": "2",
+				"agility": "3",
+				"inteligence": "4",
+				"vigor": "1",
+				"magicForce": "2",
+				"magicResistence": "3",
+				"life": "152",
+				"initiative": "12",
+				"actions": "12"
+			},
+			"socialAttributes": {
+				"id": 1,
+				"courage": "2",
+				"ambition": "2",
+				"loyalty": "2",
+				"wisdom": "1",
+				"manipulation": "1",
+				"intimidation": "1",
+				"charisma": "3",
+				"perception": "3"
+			},
+			"magicalAttributes": {
+				"id": 1,
+				"fly": "1",
+				"potions": "1",
+				"dada": "2",
+				"spells": "1",
+				"animalEmpaty": "2",
+				"transfiguration": "2",
+				"hexes": "1",
+				"herbology": "3"
+			},
+			"qualities": [
+				{
+					"id": 1,
+					"title": "Sou foda",
+					"description": "Fodastico mano"
+				}
+			],
+			"defects": [
+				{
+					"id": 1,
+					"title": "Nenhum",
+					"description": "Nenhum man"
+				}
+			],
+			"antecedents": [
+				{
+					"id": 1,
+					"title": "todos",
+					"level": "99",
+					"description": "É peso"
+				}
+			]
+		},
+		{
+			"id": 2,
+			"playerName": "Mateus",
+			"fightAttributes": {
+				"id": 2,
+				"strengh": "5",
+				"dexterity": "6",
+				"agility": "3",
+				"inteligence": "5",
+				"vigor": "3",
+				"magicForce": "2",
+				"magicResistence": "3",
+				"life": "15",
+				"initiative": "2",
+				"actions": "2"
+			},
+			"socialAttributes": {
+				"id": 2,
+				"courage": "22",
+				"ambition": "12",
+				"loyalty": "22",
+				"wisdom": "13",
+				"manipulation": "21",
+				"intimidation": "12",
+				"charisma": "13",
+				"perception": "31"
+			},
+			"magicalAttributes": {
+				"id": 2,
+				"fly": "1",
+				"potions": "1",
+				"dada": "2",
+				"herbology": "2",
+				"spells": "1",
+				"animalEmpaty": "2",
+				"transfiguration": "2",
+				"hexes": "1"
+			},
+			"qualities": [
+				{
+					"id": 1,
+					"title": "Sou foda",
+					"description": "Fodastico mano"
+				}
+			],
+			"defects": [
+				{
+					"id": 1,
+					"title": "Nenhum",
+					"description": "Nenhum man"
+				}
+			],
+			"antecedents": [
+				{
+					"id": 1,
+					"title": "todos",
+					"level": "99",
+					"description": "É peso"
+				}
+			]
+		}
 	]
 }

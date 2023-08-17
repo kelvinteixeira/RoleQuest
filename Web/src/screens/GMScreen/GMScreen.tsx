@@ -3,7 +3,7 @@ import { Grid } from "@mui/material";
 import backgroundImage from "../../assets/images/backgroundPlayerfiles.png";
 import { PlayerCard } from "../../components/PlayerCard/PlayerCard";
 
-export const PlayerFiles = () => {
+export const GMScreen = () => {
   return (
     <Grid container justifyContent={"center"} alignItems={"center"}>
       <img

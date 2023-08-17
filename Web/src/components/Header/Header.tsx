@@ -1,4 +1,11 @@
-import { Grid, Typography, Avatar, Button, IconButton } from "@mui/material";
+import {
+  Grid,
+  Typography,
+  Avatar,
+  Button,
+  IconButton,
+  Box,
+} from "@mui/material";
 
 import { useAppSelector } from "../../redux/hooks/hooks";
 import { useNavigate } from "react-router-dom";
@@ -11,42 +18,28 @@ export const Header = () => {
 
   return (
     <StyledContainer>
-      <Grid container justifyContent={"space-evenly"} alignItems={"center"}>
+      <Grid container justifyContent={"space-around"} alignItems={"center"}>
         <Button onClick={() => navigate("/campaing")}>
           <StyledTypography>Campanha</StyledTypography>
+        </Button>
+        <Button onClick={() => navigate("/playerfiles")}>
+          <StyledTypography>Tela do mestre</StyledTypography>
         </Button>
         <Button onClick={() => navigate("/almanac")}>
           <StyledTypography>Feitiços</StyledTypography>
         </Button>
-        <Button onClick={() => navigate("/playerfiles")}>
-          <StyledTypography>Fichas</StyledTypography>
-        </Button>
         <Button onClick={() => navigate("/potions")}>
           <StyledTypography>Poções</StyledTypography>
         </Button>
-      </Grid>
+        <Button onClick={() => navigate("/myfile")}>
+          <StyledTypography>Ficha</StyledTypography>
+        </Button>
 
-      <Grid
-        container
-        justifyContent={"flex-end"}
-        alignItems={"center"}
-        marginRight={2}
-      >
-        <Typography
-          marginRight={1}
-          sx={{
-            color: "white",
-            fontSize: 35,
-            fontFamily: "HarryPotter !important",
-            WebkitTextStrokeWidth: 1,
-            WebkitTextStrokeColor: "#000",
-          }}
-        >
-          Bem vindo {user?.name}
-        </Typography>
-        <IconButton>
-          <Avatar alt="picture user" src={user?.picture} />
-        </IconButton>
+        <Box sx={{ display: "flex" }}>
+          <IconButton>
+            <Avatar alt="picture user" src={user?.picture} />
+          </IconButton>
+        </Box>
       </Grid>
     </StyledContainer>
   );

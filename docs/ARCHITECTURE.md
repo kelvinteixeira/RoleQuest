@@ -130,6 +130,11 @@ Regras:
 - `features/character-sheet/model`: `sheet.ts` (ficha padrão a partir do modelo, mescla de fichas antigas, modificadores, carga) e `checks.ts` (resolvedor de testes por mecânica de dados). Puro, sem React.
 - `services/character.service.ts`: CRUD, vínculo com a campanha e permissões (dono edita conforme a política da campanha; mestre vê e edita tudo; anotações privadas só para dono e mestre).
 - `hooks/use-character-sheet.ts`: rascunho local com salvamento automático (debounce).
+- Aba **Combate** da ficha (`SheetCombat`): defesa (automática a partir dos atributos ou manual), armadura, deslocamento e ataques (atributo, perícia, bônus, dano com `@mod`/`@value`, alcance). Ataque novo vem com o atributo/perícia corpo a corpo do sistema (`model/combat-defaults.ts`).
+
+### Combate por sistema (Fase 3)
+- `features/combat/model`: `rules.ts` resolve ataques pela mecânica do sistema — d20 contra defesa fixa (D&D, Pathfinder com crítico por +10, Tormenta20, Ordem com d20 mantém o maior), d100 contra Esquivar com níveis de sucesso (CoC), parada contra parada com dano pela margem (Vampiro/Lobisomem), 1d6+FA contra 1d6+FD (3D&T), 1d10 contra 1d10 com explosão (Cyberpunk RED) e 3d6 com defesa ativa (GURPS). Também iniciativa por sistema e a tradução das fichas de NPC (escritas em termos d20, `NpcStatBlock`) para cada escala. `profile.ts` transforma a ficha no bloco de combate do token. Puro, testado com dados roteirizados (`src/test/rng.ts`).
+- A sala guarda `rules` (sistema da campanha). Tokens de jogador seguem a ficha (`token.synced`, ao abrir a sala e ao editar a ficha dentro dela); inimigos e bots guardam o `npc` e são recalculados em `rules.set`. Salas salvas antes disso são migradas em `model/room-migration.ts` (versão 1 da store persistida).
 
 ### Mapas (Fase 3)
 - `features/map`: `MapDocument` serializável (terreno e elevação por célula + objetos), formas geométricas na grade (`model/shapes.ts`), modelos prontos e o renderizador 3D (`components/map-scene.tsx`, react-three-fiber). Terreno em dois `InstancedMesh` (corpo + topo), água num único plano com shader, objetos GLB normalizados ao tamanho da célula.

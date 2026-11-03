@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { Bot, Crown, Dices, EyeOff, Lock, Minus, Plus, ScrollText, Send, Shield, Sparkles, Star, Swords, X, Zap } from "lucide-react";
+import { Bot, Crown, Dices, EyeOff, Lock, Minus, Plus, ScrollText, Send, Shield, ShieldHalf, Sparkles, Star, Swords, X, Zap } from "lucide-react";
 import { Modal } from "@/components/ui/modal";
 import { SheetEditor } from "@/features/character-sheet/components/sheet-editor";
 import { Button } from "@/components/ui/button";
@@ -11,6 +11,7 @@ import { cn } from "@/lib/cn";
 import { formatTime } from "@/lib/format";
 import { DIE_TYPES } from "@/types/system";
 import { supportsAdvantage, type RollMode } from "@/features/dice/dice-engine";
+import { formatAttackValue, formatDefense, formatInitiative } from "@/features/combat/model/rules";
 import { CHARACTER_GROUP_LABEL, CHARACTER_MODELS, modelFor, type CharacterModel } from "../model/character-models";
 import { gridDistance } from "../model/map";
 import { currentTurnToken, isDown } from "../model/room-engine";
@@ -365,9 +366,12 @@ export function TokenInspector({ room, token, actions }: { room: RoomState; toke
   const select = useRoomStore((s) => s.select);
   const [amount, setAmount] = useState(5);
   const [sheetOpen, setSheetOpen] = useState(false);
-  const adjacentFoes = room.tokens.filter(
-    (t) => !isDown(t) && !isDown(token) && (token.kind === "enemy" ? t.kind !== "enemy" : t.kind === "enemy") && gridDistance(t, token) <= 1,
-  );
+  const [attackId, setAttackId] = useState<string | null>(null);
+  const { rules } = room;
+  const chosen = token.stats.attacks.find((a) => a.id === attackId) ?? token.stats.attacks[0];
+  const foesInReach = chosen
+    ? room.tokens.filter((t) => !isDown(t) && !isDown(token) && (token.kind === "enemy" ? t.kind !== "enemy" : t.kind === "enemy") && gridDistance(t, token) <= chosen.range)
+    : [];
 
   return (
     <AnimatePresence mode="wait">
@@ -433,11 +437,37 @@ export function TokenInspector({ room, token, actions }: { room: RoomState; toke
         </div>
 
         <dl className="mt-3 grid grid-cols-4 gap-1.5 text-center">
-          <Stat icon={<Shield className="size-3" />} label="Def" value={token.stats.defense} />
-          <Stat icon={<Swords className="size-3" />} label="Atq" value={`+${token.stats.attackBonus}`} />
-          <Stat icon={<Zap className="size-3" />} label="Dano" value={token.stats.damage} />
-          <Stat icon={<Sparkles className="size-3" />} label="Desl." value={`${token.stats.speed}□`} />
+          <Stat icon={<Shield className="size-3" />} label="Def" title={rules.defenseLabel} value={formatDefense(rules, token.stats.defense)} />
+          <Stat icon={<ShieldHalf className="size-3" />} label="Arm." title="Armadura: reduz o dano" value={token.stats.armor} />
+          <Stat icon={<Zap className="size-3" />} label="Inic." title="Iniciativa" value={formatInitiative(rules, token.stats)} />
+          <Stat icon={<Sparkles className="size-3" />} label="Desl." title="Deslocamento por turno" value={`${token.stats.speed}□`} />
         </dl>
+
+        {token.stats.attacks.length > 0 ? (
+          <div className="mt-2 flex flex-col gap-1" role="radiogroup" aria-label="Ataque">
+            {token.stats.attacks.map((a) => (
+              <button
+                key={a.id}
+                type="button"
+                role="radio"
+                aria-checked={a.id === chosen?.id}
+                onClick={() => setAttackId(a.id)}
+                className={cn(
+                  "flex items-center gap-2 rounded-md border px-2 py-1.5 text-left text-xs transition-colors",
+                  a.id === chosen?.id ? "border-accent/50 bg-accent/10 text-fg" : "border-line text-fg-muted hover:text-fg",
+                )}
+              >
+                <Swords className="size-3 shrink-0" />
+                <span className="min-w-0 flex-1 truncate">{a.name}</span>
+                <span className="font-mono text-accent">{formatAttackValue(rules, a)}</span>
+                <span className="font-mono text-fg-subtle">{a.damage}</span>
+                <span className="text-fg-subtle">{a.range > 1 ? `${a.range}□` : "c.a.c."}</span>
+              </button>
+            ))}
+          </div>
+        ) : (
+          <p className="mt-2 text-[11px] text-fg-subtle">Sem ataques{token.characterId ? " na ficha (aba Combate)." : "."}</p>
+        )}
 
         <div className="mt-3 flex flex-wrap gap-1">
           {CONDITIONS.map((c) => (
@@ -448,10 +478,10 @@ export function TokenInspector({ room, token, actions }: { room: RoomState; toke
           {token.conditions.includes("Caído") && <Badge tone="danger">Caído</Badge>}
         </div>
 
-        {token.controller !== "bot" && adjacentFoes.length > 0 && (
+        {token.controller !== "bot" && chosen && foesInReach.length > 0 && (
           <div className="mt-3 flex flex-wrap gap-1.5 border-t border-line pt-3">
-            {adjacentFoes.map((foe) => (
-              <Button key={foe.id} size="sm" variant="secondary" leadingIcon={<Swords className="size-3.5" />} onClick={() => actions.attackWith(token, foe)}>
+            {foesInReach.map((foe) => (
+              <Button key={foe.id} size="sm" variant="secondary" leadingIcon={<Swords className="size-3.5" />} onClick={() => actions.attackWith(token, foe, chosen.id)}>
                 Atacar {foe.name}
               </Button>
             ))}
@@ -464,7 +494,7 @@ export function TokenInspector({ room, token, actions }: { room: RoomState; toke
         )}
         {token.characterId && (
           <Modal open={sheetOpen} onClose={() => setSheetOpen(false)} title={`Ficha · ${token.name}`} description="Testes rolados aqui vão para o chat da mesa." placement="right">
-            <SheetEditor characterId={token.characterId} embedded onRoll={(check) => actions.postCheck(token, check)} />
+            <SheetEditor characterId={token.characterId} embedded onRoll={(check) => actions.postCheck(token, check)} onChange={(data) => actions.applySheetSoon(token.id, data)} />
           </Modal>
         )}
         {token.controller === "gm" && token.kind !== "enemy" && <p className="mt-2 inline-flex items-center gap-1 text-[11px] text-fg-subtle"><Crown className="size-3" /> Controlado pelo mestre</p>}
@@ -473,9 +503,9 @@ export function TokenInspector({ room, token, actions }: { room: RoomState; toke
   );
 }
 
-function Stat({ icon, label, value }: { icon: React.ReactNode; label: string; value: React.ReactNode }) {
+function Stat({ icon, label, value, title }: { icon: React.ReactNode; label: string; value: React.ReactNode; title?: string }) {
   return (
-    <div className="rounded-md bg-surface-3/60 px-1 py-1.5">
+    <div className="rounded-md bg-surface-3/60 px-1 py-1.5" title={title}>
       <dt className="flex items-center justify-center gap-1 text-[10px] text-fg-subtle">
         {icon}
         {label}

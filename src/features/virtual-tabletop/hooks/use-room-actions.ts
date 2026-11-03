@@ -6,6 +6,9 @@ import { toast } from "@/stores/toast.store";
 import { botJoinEvents } from "../model/bots";
 import type { Cell } from "../model/map";
 import type { CheckResult } from "@/features/character-sheet/model/checks";
+import { combatProfile, sheetHitPoints } from "@/features/combat/model/profile";
+import type { CombatRules } from "@/features/combat/model/types";
+import { characterService, type EditableCharacter } from "@/services/character.service";
 import {
   announce,
   authorOf,
@@ -21,6 +24,9 @@ import {
 import type { MapDocument } from "@/features/map/model/map-document";
 import type { Author, MessageVisibility, RoomEvent, RoomToken } from "../model/types";
 import { useRoomStore } from "../store/room.store";
+
+const SHEET_SYNC_MS = 400;
+const sheetTimers = new Map<string, ReturnType<typeof setTimeout>>();
 
 /** GM actions for one room. Each one becomes RoomEvents through the store. */
 export function useRoomActions(campaignId: string, gm: Author) {
@@ -72,8 +78,43 @@ export function useRoomActions(campaignId: string, gm: Author) {
       send([{ type: "token.condition", tokenId: token.id, condition, on: !token.conditions.includes(condition) }]);
     }
 
-    function attackWith(attacker: RoomToken, target: RoomToken) {
-      send(attack(attacker, target).events, attacker.id);
+    function attackWith(attacker: RoomToken, target: RoomToken, attackId?: string) {
+      const state = room();
+      if (state) send(attack(state, attacker, target, { attackId }).events, attacker.id);
+    }
+
+    function setRules(rules: CombatRules) {
+      send([{ type: "rules.set", rules }], "system");
+    }
+
+    /** Refreshes a player token from its sheet (attacks, defense, max HP) when something changed. */
+    function applySheet(tokenId: string, { character, system }: Pick<EditableCharacter, "character" | "system">) {
+      const token = room()?.tokens.find((t) => t.id === tokenId);
+      if (!token) return;
+      const stats = { ...combatProfile(system, character.sheet, character.level), heals: token.stats.heals };
+      const hpMax = sheetHitPoints(system, character.sheet)?.max ?? token.hp.max;
+      if (hpMax === token.hp.max && JSON.stringify(stats) === JSON.stringify(token.stats)) return;
+      send([{ type: "token.synced", tokenId, stats, hpMax }], "system");
+    }
+
+    /** Sheet edits arrive per keystroke; the token follows a moment later. */
+    function applySheetSoon(tokenId: string, data: Pick<EditableCharacter, "character" | "system">) {
+      clearTimeout(sheetTimers.get(tokenId));
+      sheetTimers.set(tokenId, setTimeout(() => applySheet(tokenId, data), SHEET_SYNC_MS));
+    }
+
+    /** Pulls every player token's sheet (edited outside the room since it was set up). */
+    async function syncSheets() {
+      const tokens = room()?.tokens.filter((t) => t.characterId) ?? [];
+      await Promise.all(
+        tokens.map(async (t) => {
+          try {
+            applySheet(t.id, await characterService.get(t.characterId!, { id: gm.id }));
+          } catch {
+            // Sheet no longer reachable (deleted, left the campaign): keep the token as it is.
+          }
+        }),
+      );
     }
 
     function startCombat() {
@@ -128,7 +169,7 @@ export function useRoomActions(campaignId: string, gm: Author) {
       toast.success("Mapa aplicado", map.name);
     }
 
-    return { postCheck, setAppearance, replaceMap, rollDice, sendChat, moveToken, adjustHp, toggleCondition, attackWith, startCombat, nextTurn, endCombat, addBots, removeBots, markEpic };
+    return { setRules, applySheetSoon, syncSheets, postCheck, setAppearance, replaceMap, rollDice, sendChat, moveToken, adjustHp, toggleCondition, attackWith, startCombat, nextTurn, endCombat, addBots, removeBots, markEpic };
   }, [campaignId, gm, dispatch]);
 }
 

@@ -13,6 +13,7 @@ import { useAsync } from "@/hooks/use-async";
 import { campaignService, type CampaignOverview } from "@/services/campaign.service";
 import { useCurrentUser } from "@/features/authentication/hooks/use-auth";
 import { LogoMark } from "@/components/brand/logo";
+import { rulesFor } from "@/features/combat/model/rules";
 import { createInitialRoom } from "../model/room-factory";
 import type { Author } from "../model/types";
 import { useBotDirector } from "../hooks/use-bot-director";
@@ -71,6 +72,18 @@ function Room({ overview }: { overview: CampaignOverview }) {
   );
   const actions = useRoomActions(campaignId, gm);
   useBotDirector(campaignId, gm);
+
+  // The room follows the campaign system (older rooms were saved with the default rules)…
+  const ruleSystem = room?.rules.systemId;
+  useEffect(() => {
+    if (ruleSystem && ruleSystem !== overview.system.id) actions.setRules(rulesFor(overview.system));
+  }, [ruleSystem, overview.system, actions]);
+  // …and player tokens follow their sheets, which may have changed since the room was set up.
+  const ready = !!room;
+  const createdAt = room?.createdAt;
+  useEffect(() => {
+    if (ready) void actions.syncSheets();
+  }, [ready, createdAt, actions]);
 
   if (!room) return <LoadingState label="Preparando a mesa…" className="min-h-dvh" />;
 

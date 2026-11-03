@@ -35,7 +35,7 @@ Legenda: ✅ entregue · 🟡 parcial · ⬜ pendente
 - ✅ Chat geral, privado mestre ↔ jogador e mensagens do sistema; "Momento épico" registrado no log
 - ✅ Bots de teste locais (jogam turnos, curam, conversam, respondem sussurros) e inimigos automáticos
 - ⬜ Biblioteca de mapas salvos por campanha, importação de imagens, camadas, fog of war, iluminação dinâmica, portas e armadilhas
-- ⬜ Regras de combate por sistema a partir das fichas (hoje: regra simplificada de teste)
+- ✅ Regras de combate por sistema a partir das fichas: aba Combate na ficha (defesa, armadura, deslocamento, ataques com alcance), ataque e defesa pela mecânica de cada sistema, iniciativa por sistema, inimigos e bots convertidos para a escala do sistema
 - ⬜ Dados 3D e efeitos sonoros
 
 ## Fase 4 — Comunicação ⬜
@@ -54,5 +54,6 @@ Auth real, Postgres + RLS, Storage, Realtime, troca de `DATA_SOURCE` para `supab
 ```bash
 npm run typecheck
 npm run lint
+npm test
 npm run build
 ```

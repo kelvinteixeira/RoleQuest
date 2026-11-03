@@ -28,7 +28,7 @@ function dice(count: number, sides: number, rng: Rng) {
   return Array.from({ length: count }, () => rng(sides));
 }
 
-export function resolveCheck(system: SystemTemplate, sheet: CharacterSheet, level: number | null, req: CheckRequest, rng: Rng = cryptoRng): CheckResult {
+function checkInputs(system: SystemTemplate, sheet: CharacterSheet, req: Pick<CheckRequest, "attributeKey" | "skillKey">) {
   const skillDef = req.skillKey ? system.skills.find((s) => s.key === req.skillKey) : undefined;
   const sheetSkill = req.skillKey ? sheet.skills[req.skillKey] : undefined;
   // Percentile/roll-under skills are their own target; other mechanics add an attribute.
@@ -39,13 +39,45 @@ export function resolveCheck(system: SystemTemplate, sheet: CharacterSheet, leve
   const attrValue = attrDef ? (sheet.attributes[attrDef.key] ?? attrDef.defaultValue) : 0;
   const skill = req.skillKey ? (sheet.skills[req.skillKey] ?? { trained: false, bonus: 0 }) : null;
   const label = skillDef ? `${skillDef.label}${attrDef ? ` (${attrDef.abbreviation})` : ""}` : (attrDef?.label ?? "Teste");
+  return { attrDef, attrValue, skill, label };
+}
+
+/**
+ * The number a check adds to (or rolls under) with this system's mechanic:
+ * modifier + proficiency, skill %, pool size, target… `dice` is the d20 count of keep-highest pools.
+ * Attacks reuse it, so a weapon skill counts the same as on a check.
+ */
+export function checkValue(system: SystemTemplate, sheet: CharacterSheet, level: number | null, req: Pick<CheckRequest, "attributeKey" | "skillKey">): { value: number; dice?: number } {
+  const { attrDef, attrValue, skill } = checkInputs(system, sheet, req);
+  const bonus = skill?.bonus ?? 0;
+  switch (system.dice.mechanic) {
+    case "d20-plus-modifier":
+      return { value: (attrDef ? attributeModifier(attrDef, attrValue) : 0) + (skill?.trained ? proficiencyBonus(system, level) : 0) + bonus };
+    case "d100-roll-under":
+      return { value: skill ? skill.bonus : attrValue };
+    case "d10-dice-pool":
+      return { value: Math.max(1, attrValue + bonus) };
+    case "d20-pool-keep-highest":
+      return { value: bonus, dice: attrValue };
+    case "d6-plus-attribute":
+      return { value: attrValue + (skill?.trained ? 2 : 0) + bonus };
+    case "d10-plus-stat-skill":
+      return { value: attrValue + bonus };
+    case "3d6-roll-under":
+      return { value: skill ? skill.bonus || attrValue : attrValue };
+    case "custom":
+    default:
+      return { value: attrValue + bonus + (skill?.trained ? 2 : 0) };
+  }
+}
+
+export function resolveCheck(system: SystemTemplate, sheet: CharacterSheet, level: number | null, req: CheckRequest, rng: Rng = cryptoRng): CheckResult {
+  const { label } = checkInputs(system, sheet, req);
+  const { value, dice: poolDice = 0 } = checkValue(system, sheet, level, req);
 
   switch (system.dice.mechanic) {
     case "d20-plus-modifier": {
-      const mod = attrDef ? attributeModifier(attrDef, attrValue) : 0;
-      const prof = skill?.trained ? proficiencyBonus(system, level) : 0;
-      const total = mod + prof + (skill?.bonus ?? 0);
-      const result = roll(`1d20${signed(total)}`, req.mode ?? "normal", rng);
+      const result = roll(`1d20${signed(value)}`, req.mode ?? "normal", rng);
       const nat = result.natural;
       return {
         label,
@@ -56,7 +88,7 @@ export function resolveCheck(system: SystemTemplate, sheet: CharacterSheet, leve
     }
 
     case "d100-roll-under": {
-      const target = skill ? skill.bonus : attrValue;
+      const target = value;
       // Bonus/penalty die: roll an extra tens die and keep the lower/higher result.
       const units = rng(10) - 1;
       const tensRolls = dice(req.mode && req.mode !== "normal" ? 2 : 1, 10, rng).map((t) => (t - 1) * 10);
@@ -82,7 +114,7 @@ export function resolveCheck(system: SystemTemplate, sheet: CharacterSheet, leve
     }
 
     case "d10-dice-pool": {
-      const pool = Math.max(1, attrValue + (skill?.bonus ?? 0));
+      const pool = value;
       const values = dice(pool, 10, rng);
       const successes = values.filter((v) => v >= 6).length;
       const tens = values.filter((v) => v === 10).length;
@@ -97,13 +129,13 @@ export function resolveCheck(system: SystemTemplate, sheet: CharacterSheet, leve
     }
 
     case "d20-pool-keep-highest": {
-      const n = attrValue <= 0 ? 2 : attrValue;
+      const n = poolDice <= 0 ? 2 : poolDice;
       const values = dice(n, 20, rng);
-      const kept = attrValue <= 0 ? Math.min(...values) : Math.max(...values);
+      const kept = poolDice <= 0 ? Math.min(...values) : Math.max(...values);
       let keptOnce = false;
-      const bonus = skill?.bonus ?? 0;
+      const bonus = value;
       const result: RollResult = {
-        formula: `${n}d20${attrValue <= 0 ? "kl1" : "kh1"}${bonus ? signed(bonus) : ""}`,
+        formula: `${n}d20${poolDice <= 0 ? "kl1" : "kh1"}${bonus ? signed(bonus) : ""}`,
         mode: "normal",
         dice: values.map((v) => {
           const keep = !keptOnce && v === kept;
@@ -118,23 +150,22 @@ export function resolveCheck(system: SystemTemplate, sheet: CharacterSheet, leve
     }
 
     case "d6-plus-attribute": {
-      const total = attrValue + (skill?.trained ? 2 : 0) + (skill?.bonus ?? 0);
-      const result = roll(`1d6${signed(total)}`, "normal", rng);
+      const result = roll(`1d6${signed(value)}`, "normal", rng);
       const six = result.dice[0]?.value === 6;
       return { label, result, outcome: six ? "6 no dado: crítico!" : null, tone: six ? "critical" : "neutral" };
     }
 
     case "d10-plus-stat-skill": {
-      const base = attrValue + (skill?.bonus ?? 0);
+      const base = value;
       const first = rng(10);
       const extra = first === 10 || first === 1 ? rng(10) : 0;
-      const value = first === 10 ? first + extra : first === 1 ? first - extra : first;
+      const rolled = first === 10 ? first + extra : first === 1 ? first - extra : first;
       const result: RollResult = {
         formula: `1d10${signed(base)}`,
         mode: "normal",
         dice: [{ sides: 10, value: first, kept: true }, ...(extra ? [{ sides: 10, value: extra, kept: true }] : [])],
         modifier: base,
-        total: value + base,
+        total: rolled + base,
         natural: null,
       };
       return {
@@ -146,7 +177,7 @@ export function resolveCheck(system: SystemTemplate, sheet: CharacterSheet, leve
     }
 
     case "3d6-roll-under": {
-      const target = skill ? skill.bonus || attrValue : attrValue;
+      const target = value;
       const result = roll("3d6", "normal", rng);
       const r = result.total;
       const [outcome, tone]: [string, CheckResult["tone"]] =
@@ -156,8 +187,7 @@ export function resolveCheck(system: SystemTemplate, sheet: CharacterSheet, leve
 
     case "custom":
     default: {
-      const total = attrValue + (skill?.bonus ?? 0) + (skill?.trained ? 2 : 0);
-      const result = roll(`1${system.dice.primaryDie}${signed(total)}`, req.mode ?? "normal", rng);
+      const result = roll(`1${system.dice.primaryDie}${signed(value)}`, req.mode ?? "normal", rng);
       return { label, result, outcome: null, tone: "neutral" };
     }
   }

@@ -1,5 +1,8 @@
 import { createId } from "@/lib/id";
 import type { CampaignOverview } from "@/services/campaign.service";
+import { ensureSheet } from "@/features/character-sheet/model/sheet";
+import { combatProfile, sheetHitPoints } from "@/features/combat/model/profile";
+import { rulesFor } from "@/features/combat/model/rules";
 import { createEncounterTokens } from "./bots";
 import { riverGladeMap } from "@/features/map/model/templates";
 import { defaultModelId } from "./character-models";
@@ -8,17 +11,21 @@ import { announce, applyEvents } from "./room-engine";
 import type { RoomState, RoomToken } from "./types";
 
 /**
- * Builds a fresh room for a campaign: starter map, a test encounter and a
- * token for every player whose character is linked to the campaign.
+ * Builds a fresh room for a campaign: starter map, the system's combat rules,
+ * a test encounter and a token (stats from the sheet) for every player whose
+ * character is linked to the campaign.
  */
 export function createInitialRoom(overview: CampaignOverview): RoomState {
   const map = riverGladeMap();
+  const { system } = overview;
+  const rules = rulesFor(system);
   const placed: RoomToken[] = [];
   const players: RoomToken[] = overview.members
     .filter((m) => m.role === "player" && m.character)
     .map((m, i) => {
       const character = m.character!;
-      const hp = character.resources[0];
+      const sheet = ensureSheet(character, system);
+      const hp = sheetHitPoints(system, sheet) ?? { current: 20, max: 20 };
       const spawn = freeCellNear(map, placed, PLAYER_SPAWNS[i % PLAYER_SPAWNS.length]);
       const token: RoomToken = {
         id: createId("tok"),
@@ -32,8 +39,8 @@ export function createInitialRoom(overview: CampaignOverview): RoomState {
         color: character.portraitColor,
         x: spawn.x,
         y: spawn.y,
-        hp: { current: hp?.current ?? 20, max: hp?.max ?? 20 },
-        stats: { defense: 14, attackBonus: 5, damage: "1d8+3", speed: 6, initiativeBonus: 2 },
+        hp,
+        stats: combatProfile(system, sheet, character.level),
         conditions: [],
       };
       placed.push(token);
@@ -42,8 +49,9 @@ export function createInitialRoom(overview: CampaignOverview): RoomState {
 
   const base: RoomState = {
     campaignId: overview.campaign.id,
+    rules,
     map,
-    tokens: [...players, ...createEncounterTokens(map, players)],
+    tokens: [...players, ...createEncounterTokens(map, rules, players)],
     messages: [],
     combat: { active: false, round: 0, turn: 0, order: [] },
     log: [],

@@ -59,7 +59,7 @@ export function NumberField({
   );
 }
 
-function RollButton({ onClick, label }: { onClick: () => void; label: string }) {
+export function RollButton({ onClick, label }: { onClick: () => void; label: string }) {
   return (
     <button
       type="button"
@@ -85,7 +85,7 @@ export function SheetSection({ title, action, children }: { title: string; actio
   );
 }
 
-const textInput =
+export const textInput =
   "h-8 w-full min-w-0 rounded-md border border-line bg-surface-2/60 px-2 text-sm text-fg outline-none focus:border-accent/60 read-only:opacity-70";
 
 /* ---------- Attributes, resources, conditions ---------- */

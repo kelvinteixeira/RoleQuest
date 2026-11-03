@@ -3,8 +3,10 @@
  * events for common actions (rolls, attacks, initiative). No React, no store.
  */
 import { createId } from "@/lib/id";
-import { critFormula, roll, type RollMode, type RollResult } from "@/features/dice/dice-engine";
-import { canStand, freeCellNear } from "./map";
+import { roll, type RollMode, type RollResult, type Rng } from "@/features/dice/dice-engine";
+import { adaptNpcStats, resolveAttack, rollInitiativeFor } from "@/features/combat/model/rules";
+import type { TokenAttack } from "@/features/combat/model/types";
+import { canStand, freeCellNear, gridDistance } from "./map";
 import type { Author, ChatMessage, CombatState, LoggedEvent, MessageVisibility, RoomEvent, RoomState, RoomToken } from "./types";
 
 const LOG_LIMIT = 400;
@@ -26,6 +28,13 @@ export function currentTurnToken(state: RoomState): RoomToken | null {
 
 function updateToken(state: RoomState, id: string, fn: (t: RoomToken) => RoomToken): RoomState {
   return { ...state, tokens: state.tokens.map((t) => (t.id === id ? fn(t) : t)) };
+}
+
+/** New max HP: keeps the wound proportion (system change) or the current value (sheet edit, capped). */
+function rescaleHp(hp: RoomToken["hp"], max: number, proportional: boolean): RoomToken["hp"] {
+  if (hp.max === max) return hp;
+  if (proportional) return { current: hp.current <= 0 ? 0 : Math.max(1, Math.round((hp.current / hp.max) * max)), max };
+  return { current: hp.current >= hp.max ? max : Math.min(hp.current, max), max };
 }
 
 function nextTurn(state: RoomState): CombatState {
@@ -74,6 +83,18 @@ export function applyEvent(state: RoomState, event: RoomEvent): RoomState {
       return updateToken(state, event.tokenId, (t) => ({ ...t, modelId: event.modelId }));
     case "token.stats":
       return updateToken(state, event.tokenId, (t) => ({ ...t, stats: { ...t.stats, ...event.stats } }));
+    case "token.synced":
+      return updateToken(state, event.tokenId, (t) => ({ ...t, stats: event.stats, hp: rescaleHp(t.hp, event.hpMax, false) }));
+    case "rules.set":
+      return {
+        ...state,
+        rules: event.rules,
+        tokens: state.tokens.map((t) => {
+          if (!t.npc) return t;
+          const { stats, hp } = adaptNpcStats(event.rules, t.npc);
+          return { ...t, stats: { ...stats, heals: t.stats.heals ?? stats.heals }, hp: rescaleHp(t.hp, hp, true) };
+        }),
+      };
     case "message.posted":
       return { ...state, messages: [...state.messages, event.message].slice(-MESSAGE_LIMIT) };
     case "combat.started":
@@ -142,22 +163,28 @@ export function rollEvent(
 }
 
 /** Publishes an already-resolved roll (e.g. a check from a character sheet). */
-export function checkEvent(author: Author, result: RollResult, label: string, visibility: MessageVisibility = "public"): RoomEvent {
-  return message({ kind: "roll", author, text: label, roll: { ...result, label }, visibility });
+export function checkEvent(author: Author, result: RollResult, label: string, visibility: MessageVisibility = "public", targetId?: string): RoomEvent {
+  return message({ kind: "roll", author, text: label, roll: { ...result, label }, visibility, targetId });
 }
 
 export const authorOf = (token: RoomToken): Author => ({ id: token.id, name: token.name, color: token.color });
 
 /* ---------- Combat actions ---------- */
 
-export function rollInitiative(state: RoomState): RoomEvent[] {
+export function rollInitiative(state: RoomState, rng?: Rng): RoomEvent[] {
   const living = state.tokens.filter((t) => !isDown(t));
-  const results = living.map((t) => ({ token: t, result: roll(`1d20${t.stats.initiativeBonus >= 0 ? "+" : ""}${t.stats.initiativeBonus}`) }));
+  const results = living.map((t) => ({ token: t, total: rollInitiativeFor(state.rules, t.stats, rng), tiebreak: Math.random() }));
   const order = results
-    .sort((a, b) => b.result.total - a.result.total || b.token.stats.initiativeBonus - a.token.stats.initiativeBonus)
-    .map(({ token, result }) => ({ tokenId: token.id, initiative: result.total }));
-  const summary = results.map(({ token, result }) => `${token.name} ${result.total}`).join(" · ");
+    .sort((a, b) => b.total - a.total || b.token.stats.initiative - a.token.stats.initiative || a.tiebreak - b.tiebreak)
+    .map(({ token, total }) => ({ tokenId: token.id, initiative: total }));
+  const summary = results.map(({ token, total }) => `${token.name} ${Number.isInteger(total) ? total : total.toFixed(2)}`).join(" · ");
   return [{ type: "combat.started", order }, announce(`Combate! Iniciativa: ${summary}`)];
+}
+
+/** Attacks of `attacker` that reach `target` from where it stands. */
+export function attacksInReach(attacker: RoomToken, target: { x: number; y: number }): TokenAttack[] {
+  const distance = gridDistance(attacker, target);
+  return attacker.stats.attacks.filter((a) => a.range >= distance);
 }
 
 export interface AttackOutcome {
@@ -168,23 +195,36 @@ export interface AttackOutcome {
   downed: boolean;
 }
 
-/** d20 + attack bonus vs. defense; natural 20 always hits and doubles damage dice, natural 1 always misses. */
-export function attack(attacker: RoomToken, target: RoomToken, mode: RollMode = "normal"): AttackOutcome {
-  const bonus = attacker.stats.attackBonus;
-  const toHit = rollEvent(authorOf(attacker), `1d20${bonus >= 0 ? "+" : ""}${bonus}`, { mode, label: `Ataque em ${target.name}`, targetId: target.id });
-  const natural = toHit.result.natural;
-  const critical = natural === 20;
-  const hit = critical || (natural !== 1 && toHit.result.total >= target.stats.defense);
-  const events: RoomEvent[] = [toHit.event];
-  if (!hit) return { events, hit, critical, damage: 0, downed: false };
+/**
+ * One attack resolved with the room's system rules (see combat/model/rules.ts):
+ * the attacker's roll, the defender's roll where the system has one, damage after armor.
+ */
+export function attack(
+  state: Pick<RoomState, "rules">,
+  attacker: RoomToken,
+  target: RoomToken,
+  options: { attackId?: string; mode?: RollMode; rng?: Rng } = {},
+): AttackOutcome {
+  const chosen = attacker.stats.attacks.find((a) => a.id === options.attackId) ?? attacker.stats.attacks[0];
+  if (!chosen) return { events: [announce(`${attacker.name} não tem ataques.`)], hit: false, critical: false, damage: 0, downed: false };
 
-  const dmg = rollEvent(authorOf(attacker), critical ? critFormula(attacker.stats.damage) : attacker.stats.damage, {
-    label: critical ? `Dano crítico em ${target.name}` : `Dano em ${target.name}`,
-    targetId: target.id,
-  });
-  const damage = Math.max(1, dmg.result.total);
-  const downed = target.hp.current - damage <= 0;
-  events.push(dmg.event, { type: "token.hp", tokenId: target.id, delta: -damage });
+  const resolution = resolveAttack(state.rules, chosen, target.stats, { mode: options.mode, rng: options.rng });
+  const events: RoomEvent[] = [];
+  for (const r of resolution.rolls) {
+    const outcome = r.outcome ? ` — ${r.outcome}` : "";
+    if (r.kind === "attack") {
+      const weapon = attacker.stats.attacks.length > 1 || chosen.name !== "Ataque" ? ` · ${chosen.name}` : "";
+      events.push(checkEvent(authorOf(attacker), r.result, `Ataque em ${target.name}${weapon}${outcome}`, "public", target.id));
+    } else if (r.kind === "defense") {
+      events.push(checkEvent(authorOf(target), r.result, `Defesa de ${target.name}${outcome}`));
+    } else {
+      const absorbed = resolution.absorbed > 0 ? ` (armadura absorveu ${resolution.absorbed})` : "";
+      events.push(checkEvent(authorOf(attacker), r.result, `${resolution.critical ? "Dano crítico" : "Dano"} em ${target.name}${absorbed}`, "public", target.id));
+    }
+  }
+  const { hit, critical, damage } = resolution;
+  const downed = hit && damage > 0 && target.hp.current - damage <= 0;
+  if (damage > 0) events.push({ type: "token.hp", tokenId: target.id, delta: -damage });
   if (downed) events.push(announce(target.kind === "enemy" ? `${target.name} está fora de combate.` : `${target.name} caiu!`));
   return { events, hit, critical, damage, downed };
 }

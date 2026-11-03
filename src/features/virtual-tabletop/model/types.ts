@@ -1,25 +1,12 @@
 import type { RollResult } from "@/features/dice/dice-engine";
 import type { MapDocument } from "@/features/map/model/map-document";
+import type { CombatRules, CombatStats, NpcStatBlock } from "@/features/combat/model/types";
 
 export type TokenKind = "pc" | "npc" | "enemy";
 /** Who drives the token: the GM, a (future) human player, or a local test bot. */
 export type TokenController = "gm" | "player" | "bot";
 
-/**
- * Simplified combat block used by the first room version. Real per-system
- * stats come from character sheets (Phase 2); until then every system uses
- * "d20 + attack bonus vs. defense".
- */
-export interface CombatStats {
-  defense: number;
-  attackBonus: number;
-  damage: string;
-  /** Squares per turn. */
-  speed: number;
-  initiativeBonus: number;
-  /** Healing uses per combat (bots with a support role). */
-  heals?: number;
-}
+export type { CombatStats } from "@/features/combat/model/types";
 
 export interface RoomToken {
   id: string;
@@ -39,8 +26,10 @@ export interface RoomToken {
   botId?: string;
   /** 3D model (see character-models.ts); falls back to a guess from the concept. */
   modelId?: string;
-  /** Linked character sheet (player characters). */
+  /** Linked character sheet (player characters); its combat block feeds `stats`. */
   characterId?: string;
+  /** Enemies and bots: stat block in d20 terms, re-derived for the room's system. */
+  npc?: NpcStatBlock;
 }
 
 /** The room plays on a square-tile map document (terrain, elevation, props). */
@@ -87,6 +76,10 @@ export type RoomEvent =
   | { type: "token.condition"; tokenId: string; condition: string; on: boolean }
   | { type: "token.stats"; tokenId: string; stats: Partial<CombatStats> }
   | { type: "token.appearance"; tokenId: string; modelId: string }
+  /** Combat block and max HP refreshed from the linked sheet. */
+  | { type: "token.synced"; tokenId: string; stats: CombatStats; hpMax: number }
+  /** The room follows the campaign system; NPC stats are re-derived for it. */
+  | { type: "rules.set"; rules: CombatRules }
   | { type: "message.posted"; message: ChatMessage }
   | { type: "combat.started"; order: CombatState["order"] }
   | { type: "combat.turn" }
@@ -102,6 +95,8 @@ export interface LoggedEvent {
 
 export interface RoomState {
   campaignId: string;
+  /** Combat rules of the campaign's system. */
+  rules: CombatRules;
   map: RoomMap;
   tokens: RoomToken[];
   messages: ChatMessage[];

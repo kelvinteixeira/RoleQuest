@@ -6,6 +6,7 @@
 import { createId } from "@/lib/id";
 import type { Character, CharacterResourceValue, CharacterSheet, SheetItem } from "@/types/character";
 import type { AttributeDefinition, SystemTemplate } from "@/types/system";
+import { defaultCombat } from "./combat-defaults";
 
 const EMPTY_STORY: CharacterSheet["story"] = { background: "", personality: "", appearance: "", relationships: "", history: "" };
 
@@ -45,7 +46,7 @@ export function createSheet(system: SystemTemplate): CharacterSheet {
   const currency = Object.fromEntries(system.inventory.currencies.map((c) => [c, 0]));
   // Call of Cthulhu style: sanity starts at POW.
   if (resources.san && attributes.pow !== undefined && system.dice.mechanic === "d100-roll-under") resources.san = { current: attributes.pow, max: attributes.pow };
-  return { attributes, resources, skills, abilities: [], inventory: [], currency, custom, conditions: [], story: { ...EMPTY_STORY }, privateNotes: "" };
+  return { attributes, resources, skills, abilities: [], inventory: [], currency, custom, combat: defaultCombat(system), conditions: [], story: { ...EMPTY_STORY }, privateNotes: "" };
 }
 
 /** Fills keys missing from older sheets (or added to the template later) without touching existing values. */
@@ -65,6 +66,8 @@ export function ensureSheet(character: Character, system: SystemTemplate): Chara
     skills: { ...defaults.skills, ...sheet.skills },
     currency: { ...defaults.currency, ...sheet.currency },
     custom: { ...defaults.custom, ...sheet.custom },
+    // Sheets saved before the combat tab get the default attack.
+    combat: sheet.combat ? { ...defaults.combat, ...sheet.combat } : defaults.combat,
     story: { ...EMPTY_STORY, ...sheet.story },
   };
 }

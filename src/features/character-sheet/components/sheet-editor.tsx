@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { AnimatePresence, motion } from "framer-motion";
 import { AlertCircle, Check, Cloud, Eye, Loader2 } from "lucide-react";
@@ -15,28 +15,40 @@ import type { EditableCharacter } from "@/services/character.service";
 import { checkHint, resolveCheck, type CheckRequest, type CheckResult } from "../model/checks";
 import { useCharacterSheet, type SaveStatus } from "../hooks/use-character-sheet";
 import { AbilitiesSection, AttributesSection, CustomFieldsSection, InventorySection, SkillsSection, StorySection, type SectionProps } from "./sheet-sections";
+import { CombatSection } from "./combat-section";
 
-type Tab = "main" | "skills" | "abilities" | "inventory" | "custom" | "story";
+type Tab = "main" | "combat" | "skills" | "abilities" | "inventory" | "custom" | "story";
 
 /**
  * Full character sheet. Used on its own page and, embedded, inside the game
- * room (where `onRoll` publishes checks to the table chat).
+ * room (where `onRoll` publishes checks to the table chat and `onChange`
+ * keeps the token's combat block in step with the sheet).
  */
 export function SheetEditor({
   characterId,
   embedded = false,
   onRoll,
+  onChange,
   actions,
 }: {
   characterId: string;
   embedded?: boolean;
   onRoll?: (check: CheckResult, character: EditableCharacter["character"]) => void;
+  /** Called with the edited character after every local change. */
+  onChange?: (data: EditableCharacter) => void;
   actions?: (data: EditableCharacter) => React.ReactNode;
 }) {
   const { data, error, reload, status, saveError, updateSheet, updateIdentity } = useCharacterSheet(characterId);
   const [tab, setTab] = useState<Tab>("main");
   const [mode, setMode] = useState<RollMode>("normal");
   const [last, setLast] = useState<{ id: number; check: CheckResult } | null>(null);
+  const onChangeRef = useRef(onChange);
+  useEffect(() => {
+    onChangeRef.current = onChange;
+  });
+  useEffect(() => {
+    if (data) onChangeRef.current?.(data);
+  }, [data]);
 
   if (error && !data) return <ErrorState error={error} onRetry={reload} />;
   if (!data) return <LoadingState label="Abrindo ficha…" />;
@@ -113,6 +125,7 @@ export function SheetEditor({
             onChange={setTab}
             items={[
               { value: "main", label: "Ficha" },
+              { value: "combat", label: "Combate", count: character.sheet.combat.attacks.length || undefined },
               { value: "skills", label: "Perícias", count: system.skills.length || undefined },
               { value: "abilities", label: "Habilidades", count: character.sheet.abilities.length || undefined },
               { value: "inventory", label: "Inventário", count: character.sheet.inventory.length || undefined },
@@ -121,6 +134,7 @@ export function SheetEditor({
             ]}
           />
           {tab === "main" && <AttributesSection {...props} />}
+          {tab === "combat" && <CombatSection {...props} level={character.level} />}
           {tab === "skills" && <SkillsSection {...props} />}
           {tab === "abilities" && <AbilitiesSection {...props} />}
           {tab === "inventory" && <InventorySection {...props} />}

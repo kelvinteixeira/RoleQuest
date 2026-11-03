@@ -31,6 +31,32 @@ export interface SheetAbility {
 
 export type CustomFieldValue = string | number | boolean | string[];
 
+/** A weapon or attack on the sheet. The room turns it into a to-hit value with the system's mechanic. */
+export interface SheetAttack {
+  id: ID;
+  name: string;
+  attributeKey: string | null;
+  skillKey: string | null;
+  /** d20 systems without weapon skills: adds the proficiency bonus. */
+  proficient: boolean;
+  /** Extra to-hit bonus (magic weapon, aim, house rule). */
+  bonus: number;
+  /** "1d8+@mod", "2d6", "1" — `@mod`/`@value` are the attack attribute's modifier/value. */
+  damage: string;
+  /** Reach in squares; 1 = melee. */
+  range: number;
+}
+
+export interface SheetCombat {
+  /** null = derived from attributes (see `deriveDefense`). */
+  defense: number | null;
+  /** Damage reduction (armor SP, DR). */
+  armor: number;
+  /** Squares per turn. */
+  speed: number;
+  attacks: SheetAttack[];
+}
+
 /**
  * Editable sheet. Keys follow the system template (attribute/resource/skill
  * keys), so a template change never loses data: unknown keys are kept.
@@ -44,6 +70,7 @@ export interface CharacterSheet {
   inventory: SheetItem[];
   currency: Record<string, number>;
   custom: Record<string, CustomFieldValue>;
+  combat: SheetCombat;
   conditions: string[];
   story: { background: string; personality: string; appearance: string; relationships: string; history: string };
   /** Visible to the owner and the game master only. */

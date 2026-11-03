@@ -6,6 +6,8 @@
 import { createId } from "@/lib/id";
 import type { MapDocument } from "@/features/map/model/map-document";
 import { ENEMY_SPAWNS, freeCellNear, gridDistance, pathToAdjacent, PLAYER_SPAWNS } from "./map";
+import { adaptNpcStats, healFormula } from "@/features/combat/model/rules";
+import type { CombatRules, NpcStatBlock } from "@/features/combat/model/types";
 import { attack, authorOf, isDown, rollEvent, say, whisper, announce } from "./room-engine";
 import type { RoomEvent, RoomState, RoomToken } from "./types";
 
@@ -16,8 +18,8 @@ interface BotPersona {
   ownerName: string;
   concept: string;
   color: string;
-  hp: number;
-  stats: RoomToken["stats"];
+  /** d20-style block, adapted to the room's system. */
+  npc: NpcStatBlock;
   lines: { idle: string[]; hit: string[]; miss: string[]; kill: string[]; heal: string[]; whisper: string[] };
 }
 
@@ -29,8 +31,7 @@ export const BOT_ROSTER: readonly BotPersona[] = [
     ownerName: "Bot · Ana",
     concept: "Guerreira humana",
     color: "oklch(0.6 0.13 240)",
-    hp: 34,
-    stats: { defense: 17, attackBonus: 6, damage: "1d10+4", speed: 6, initiativeBonus: 1 },
+    npc: { hp: 34, defense: 17, attackBonus: 6, damage: "1d10+4", speed: 6, initiativeBonus: 1, attackName: "Espada longa" },
     lines: {
       idle: ["Alguém mais ouviu passos lá dentro?", "Eu vou na frente. Fiquem atrás do escudo.", "Esse cofre não me cheira bem."],
       hit: ["Toma essa!", "Linha de frente segurando!", "Mais um passo e você conhece meu escudo de perto."],
@@ -47,8 +48,7 @@ export const BOT_ROSTER: readonly BotPersona[] = [
     ownerName: "Bot · Breno",
     concept: "Clérigo anão",
     color: "oklch(0.62 0.12 70)",
-    hp: 30,
-    stats: { defense: 16, attackBonus: 5, damage: "1d8+3", speed: 5, initiativeBonus: 0, heals: 3 },
+    npc: { hp: 30, defense: 16, attackBonus: 5, damage: "1d8+3", speed: 5, initiativeBonus: 0, heals: 3, attackName: "Martelo" },
     lines: {
       idle: ["Pela pedra e pela forja, que essa joia valha a viagem.", "Quem trouxe as tochas extras?", "Lembrem: eu curo, mas não ressuscito por esporte."],
       hit: ["A martelada da fé!", "Isso foi pela minha barba."],
@@ -65,8 +65,7 @@ export const BOT_ROSTER: readonly BotPersona[] = [
     ownerName: "Bot · Clara",
     concept: "Ladina elfa",
     color: "oklch(0.6 0.16 330)",
-    hp: 24,
-    stats: { defense: 15, attackBonus: 7, damage: "2d6+4", speed: 7, initiativeBonus: 4 },
+    npc: { hp: 24, defense: 15, attackBonus: 7, damage: "1d8+4", speed: 7, initiativeBonus: 4, attackName: "Arco curto", range: 6 },
     lines: {
       idle: ["Eu checo as armadilhas. Ninguém encosta em nada.", "Se a joia sumir, não fui eu. Provavelmente.", "Shhh."],
       hit: ["Pelas costas, sempre.", "Nem viu de onde veio."],
@@ -83,16 +82,22 @@ const ENEMY_LINES = {
   miss: ["Grr…"],
 };
 
-const ENEMIES: { name: string; concept: string; modelId: string; hp: number; stats: RoomToken["stats"] }[] = [
-  { name: "Esqueleto guerreiro", concept: "Morto-vivo · espada enferrujada", modelId: "skeleton-warrior", hp: 13, stats: { defense: 13, attackBonus: 4, damage: "1d6+2", speed: 6, initiativeBonus: 2 } },
-  { name: "Esqueleto guerreiro", concept: "Morto-vivo · espada enferrujada", modelId: "skeleton-warrior", hp: 13, stats: { defense: 13, attackBonus: 4, damage: "1d6+2", speed: 6, initiativeBonus: 2 } },
-  { name: "Morcego-vampiro", concept: "Criatura · voa e drena sangue", modelId: "vampire-bat", hp: 11, stats: { defense: 12, attackBonus: 5, damage: "1d8+2", speed: 8, initiativeBonus: 3 } },
-  { name: "Guardião da joia", concept: "Chefe · necromante", modelId: "skeleton-mage", hp: 38, stats: { defense: 15, attackBonus: 6, damage: "2d6+3", speed: 4, initiativeBonus: -1 } },
+const ENEMIES: { name: string; concept: string; modelId: string; npc: NpcStatBlock }[] = [
+  { name: "Esqueleto guerreiro", concept: "Morto-vivo · espada enferrujada", modelId: "skeleton-warrior", npc: { hp: 13, defense: 13, attackBonus: 4, damage: "1d6+2", speed: 6, initiativeBonus: 2, attackName: "Espada enferrujada" } },
+  { name: "Esqueleto guerreiro", concept: "Morto-vivo · espada enferrujada", modelId: "skeleton-warrior", npc: { hp: 13, defense: 13, attackBonus: 4, damage: "1d6+2", speed: 6, initiativeBonus: 2, attackName: "Espada enferrujada" } },
+  { name: "Morcego-vampiro", concept: "Criatura · voa e drena sangue", modelId: "vampire-bat", npc: { hp: 11, defense: 12, attackBonus: 5, damage: "1d8+2", speed: 8, initiativeBonus: 3, attackName: "Mordida" } },
+  { name: "Guardião da joia", concept: "Chefe · necromante", modelId: "skeleton-mage", npc: { hp: 38, defense: 15, attackBonus: 6, damage: "2d6+3", speed: 4, initiativeBonus: -1, attackName: "Raio necrótico", range: 5 } },
 ];
 
 const ENEMY_COLOR = "oklch(0.55 0.19 25)";
 
-export function createEncounterTokens(map: MapDocument, existing: RoomToken[] = []): RoomToken[] {
+/** HP, stats and the source block of an NPC token in the room's system. */
+function npcFields(rules: CombatRules, npc: NpcStatBlock): Pick<RoomToken, "hp" | "stats" | "npc"> {
+  const { stats, hp } = adaptNpcStats(rules, npc);
+  return { hp: { current: hp, max: hp }, stats, npc: { ...npc } };
+}
+
+export function createEncounterTokens(map: MapDocument, rules: CombatRules, existing: RoomToken[] = []): RoomToken[] {
   const counts = new Map<string, number>();
   const placed: RoomToken[] = [...existing];
   return ENEMIES.map((e, i) => {
@@ -111,8 +116,7 @@ export function createEncounterTokens(map: MapDocument, existing: RoomToken[] = 
       color: ENEMY_COLOR,
       x: cell.x,
       y: cell.y,
-      hp: { current: e.hp, max: e.hp },
-      stats: { ...e.stats },
+      ...npcFields(rules, e.npc),
       conditions: [],
     };
     placed.push(token);
@@ -141,8 +145,7 @@ export function botJoinEvents(state: RoomState): RoomEvent[] {
       color: persona.color,
       x: cell.x,
       y: cell.y,
-      hp: { current: persona.hp, max: persona.hp },
-      stats: { ...persona.stats },
+      ...npcFields(state.rules, persona.npc),
       conditions: [],
     };
     tokens = [...tokens, token];
@@ -179,23 +182,32 @@ export function decideTurn(state: RoomState, actor: RoomToken): BotStep[] {
       .filter((t) => t.kind !== "enemy" && t.id !== actor.id && gridDistance(t, actor) <= 6 && t.hp.current / t.hp.max < 0.4)
       .sort((a, b) => a.hp.current - b.hp.current)[0];
     if (ally) {
-      const heal = rollEvent(authorOf(actor), "1d8+3", { label: `Cura em ${ally.name}`, targetId: ally.id });
+      const heal = rollEvent(authorOf(actor), healFormula(state.rules), { label: `Cura em ${ally.name}`, targetId: ally.id });
       return [
-        { delay: 500, events: [heal.event, { type: "token.hp", tokenId: ally.id, delta: heal.result.total }, { type: "token.stats", tokenId: actor.id, stats: { heals: (actor.stats.heals ?? 1) - 1 } }] },
+        { delay: 500, events: [heal.event, { type: "token.hp", tokenId: ally.id, delta: Math.max(1, heal.result.total) }, { type: "token.stats", tokenId: actor.id, stats: { heals: (actor.stats.heals ?? 1) - 1 } }] },
         { delay: 500, events: chatter(lines.heal, 0.8) },
       ];
     }
   }
 
+  // Longest reach first: archers and casters shoot from where they are.
+  const weapon = [...actor.stats.attacks].sort((a, b) => b.range - a.range)[0];
+  if (!weapon) return [{ delay: 400, events: chatter(lines.idle, 0.3) }];
   const targets = opponentsOf(state, actor).sort((a, b) => gridDistance(a, actor) - gridDistance(b, actor));
   for (const target of targets) {
-    const path = pathToAdjacent(state.map, state.tokens, actor, target);
-    if (path === null) continue;
-    const move = path.slice(0, actor.stats.speed);
-    const end = move[move.length - 1] ?? { x: actor.x, y: actor.y };
-    if (move.length > 0) steps.push({ delay: 400, events: [{ type: "token.moved", tokenId: actor.id, x: end.x, y: end.y }] });
-    if (gridDistance(end, target) <= 1) {
-      const outcome = attack({ ...actor, ...end }, target);
+    let end = { x: actor.x, y: actor.y };
+    if (gridDistance(end, target) > weapon.range) {
+      const path = pathToAdjacent(state.map, state.tokens, actor, target);
+      if (path === null) continue;
+      // Walk only until the target is in reach (or the speed runs out).
+      const walk = path.slice(0, actor.stats.speed);
+      const inReach = walk.findIndex((cell) => gridDistance(cell, target) <= weapon.range);
+      const move = inReach === -1 ? walk : walk.slice(0, inReach + 1);
+      end = move[move.length - 1] ?? end;
+      if (move.length > 0) steps.push({ delay: 400, events: [{ type: "token.moved", tokenId: actor.id, x: end.x, y: end.y }] });
+    }
+    if (gridDistance(end, target) <= weapon.range) {
+      const outcome = attack(state, { ...actor, ...end }, target, { attackId: weapon.id });
       steps.push({ delay: 700, events: outcome.events });
       const reaction = outcome.downed ? lines.kill : outcome.hit ? lines.hit : lines.miss;
       steps.push({ delay: 500, events: chatter(reaction, outcome.downed ? 0.9 : 0.4) });

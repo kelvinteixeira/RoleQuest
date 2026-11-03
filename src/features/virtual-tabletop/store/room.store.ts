@@ -2,6 +2,7 @@ import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 import { createId } from "@/lib/id";
 import { applyEvents } from "../model/room-engine";
+import { upgradeRooms } from "../model/room-migration";
 import type { RoomEvent, RoomState } from "../model/types";
 
 export type BotSpeed = "slow" | "normal" | "fast";
@@ -94,6 +95,12 @@ export const useRoomStore = create<RoomStore>()(
     }),
     {
       name: "rq:rooms:v2",
+      // v1: per-system combat (rules on the room, attacks on tokens).
+      version: 1,
+      migrate: (persisted) => {
+        const state = (persisted ?? {}) as Partial<RoomStore> & { rooms?: Parameters<typeof upgradeRooms>[0] };
+        return { ...state, rooms: upgradeRooms(state.rooms) } as RoomStore;
+      },
       storage: createJSONStorage(() => localStorage),
       partialize: ({ rooms, botSpeed, autoEnemies }) => ({ rooms, botSpeed, autoEnemies }),
       skipHydration: true,

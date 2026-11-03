@@ -1,0 +1,52 @@
+# Role Quest — Plano de desenvolvimento
+
+Legenda: ✅ entregue · 🟡 parcial · ⬜ pendente
+
+## Fase 1 — Fundação ✅
+- ✅ Next.js 16 + TypeScript strict + Tailwind v4
+- ✅ Estrutura de pastas por domínio
+- ✅ Design system (tokens, tipografia, primitivos de UI)
+- ✅ Layout global (sidebar, topbar, navegação mobile)
+- ✅ Autenticação visual funcional em modo local: login, cadastro, recuperação de senha, configuração de perfil
+- ✅ Dashboard com campanhas, convites, sessões, personagens, sistemas e bibliotecas
+- ✅ Camada de dados: contratos de repositório, implementação mock persistida, services
+- ✅ Biblioteca dos 10 sistemas (modelos estruturais) + modelo "sistema próprio"
+
+## Fase 2 — Campanhas e personagens 🟡
+- ✅ Assistente de criação de campanha (7 etapas, prévia ao vivo) + opção "começar do zero"
+- ✅ Página da campanha (visão geral, membros, sessões)
+- ✅ Aceitar/recusar convites
+- ⬜ Editor completo de "sistema próprio" (atributos, perícias, classes, progressão)
+- ⬜ Criação/edição de personagens com fichas configuráveis
+- ⬜ Inventário e equipamentos
+- ⬜ Gerenciamento de jogadores e permissões por campanha
+
+## Fase 3 — Virtual Tabletop 🟡
+- ✅ Sala de jogo em tela cheia (`/campaign/[id]/session`), estado por eventos (`RoomEvent`) salvo no navegador
+- ✅ Mapa em grid com paredes, pan, zoom, tokens arrastáveis, linha de movimento, distância e alcance
+- ✅ Combate: iniciativa, turnos, PV com feedback visual, condições, ataque simplificado (d20 + bônus × defesa)
+- ✅ Rolador de dados (d4–d100, múltiplos, modificador, vantagem/desvantagem, pública/só mestre) e comandos no chat
+- ✅ Chat geral, privado mestre ↔ jogador e mensagens do sistema; "Momento épico" registrado no log
+- ✅ Bots de teste locais (jogam turnos, curam, conversam, respondem sussurros) e inimigos automáticos
+- ⬜ Editor de mapas por tiles, camadas, fog of war, iluminação, portas e armadilhas
+- ⬜ Regras de combate por sistema a partir das fichas (hoje: regra simplificada de teste)
+- ⬜ Dados 3D e efeitos sonoros
+
+## Fase 4 — Comunicação ⬜
+Chat geral/privado/sistema/anotações, voz WebRTC (LiveKit), presença, sincronização em tempo real, central de áudio.
+
+## Fase 5 — Ferramentas avançadas do mestre ⬜
+NPCs com conhecimento revelável, encontros, combate e iniciativa, linha do tempo, diário, geradores.
+
+## Fase 6 — Chronicles Studio ⬜
+Log de eventos, momentos épicos, diário automático, roteiro estruturado, editor de episódios, composições Remotion.
+
+## Fase 7 — Supabase ⬜
+Auth real, Postgres + RLS, Storage, Realtime, troca de `DATA_SOURCE` para `supabase`.
+
+## Como verificar cada entrega
+```bash
+npm run typecheck
+npm run lint
+npm run build
+```

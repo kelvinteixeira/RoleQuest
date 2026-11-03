@@ -1,0 +1,224 @@
+/**
+ * Local implementations of the repository contracts.
+ * Behaviour mirrors what the Supabase versions must guarantee (unique e-mails,
+ * no account enumeration on password reset, copies instead of live references).
+ */
+import type {
+  AuthRepository,
+  CampaignRepository,
+  CharacterRepository,
+  InviteRepository,
+  LibraryRepository,
+  Repositories,
+  SessionRepository,
+  SystemRepository,
+  UserRepository,
+} from "../contracts";
+import type { AuthSession, UserProfile } from "@/types/user";
+import { AppError } from "@/lib/errors";
+import { createId, slugify } from "@/lib/id";
+import { sha256Hex } from "@/lib/crypto";
+import { AVATAR_COLORS } from "@/constants/campaign";
+import { commit, getDb, nowIso, respond } from "./database";
+
+const SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+
+const normalizeEmail = (email: string) => email.trim().toLowerCase();
+const hashPassword = (email: string, password: string) => sha256Hex(`${normalizeEmail(email)}:${password}`);
+
+function issueSession(profile: UserProfile): AuthSession {
+  return {
+    userId: profile.id,
+    email: profile.email,
+    accessToken: createId("local_token"),
+    expiresAt: new Date(Date.now() + SESSION_TTL_MS).toISOString(),
+  };
+}
+
+function uniqueUsername(base: string): string {
+  const db = getDb();
+  const root = slugify(base).replace(/-/g, ".") || "aventureiro";
+  let candidate = root;
+  let n = 1;
+  while (db.users.some((u) => u.profile.username === candidate)) candidate = `${root}${++n}`;
+  return candidate;
+}
+
+const auth: AuthRepository = {
+  async signIn(email, password) {
+    const record = getDb().users.find((u) => u.profile.email === normalizeEmail(email));
+    const hash = await hashPassword(email, password);
+    if (!record || !record.passwordHash || record.passwordHash !== hash) {
+      await respond(null);
+      throw new AppError("invalid_credentials");
+    }
+    return respond(issueSession(record.profile));
+  },
+
+  async signUp({ email, password, displayName }) {
+    const db = getDb();
+    const normalized = normalizeEmail(email);
+    if (db.users.some((u) => u.profile.email === normalized)) {
+      await respond(null);
+      throw new AppError("email_taken", undefined, { email: "Já existe uma conta com este e-mail." });
+    }
+    const now = nowIso();
+    const profile: UserProfile = {
+      id: createId("user"),
+      email: normalized,
+      displayName: displayName.trim(),
+      username: uniqueUsername(normalized.split("@")[0]),
+      avatarUrl: null,
+      avatarColor: AVATAR_COLORS[db.users.length % AVATAR_COLORS.length],
+      bio: "",
+      playStyle: "both",
+      favoriteSystemIds: [],
+      timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+      onboardingCompleted: false,
+      createdAt: now,
+      updatedAt: now,
+    };
+    db.users.push({ profile, passwordHash: await hashPassword(normalized, password) });
+    commit();
+    return respond(issueSession(profile));
+  },
+
+  async signOut() {
+    return respond(undefined);
+  },
+
+  async requestPasswordReset() {
+    // Local mode sends no e-mail. Supabase Auth will deliver the reset link.
+    return respond(undefined);
+  },
+};
+
+const users: UserRepository = {
+  async getById(id) {
+    return respond(getDb().users.find((u) => u.profile.id === id)?.profile ?? null);
+  },
+  async getMany(ids) {
+    const set = new Set(ids);
+    return respond(getDb().users.filter((u) => set.has(u.profile.id)).map((u) => u.profile));
+  },
+  async update(id, patch) {
+    const record = getDb().users.find((u) => u.profile.id === id);
+    if (!record) throw new AppError("not_found");
+    record.profile = { ...record.profile, ...patch, updatedAt: nowIso() };
+    commit();
+    return respond(record.profile);
+  },
+  async isUsernameTaken(username, exceptUserId) {
+    return respond(getDb().users.some((u) => u.profile.username === username && u.profile.id !== exceptUserId));
+  },
+};
+
+const campaigns: CampaignRepository = {
+  async listForUser(userId) {
+    return respond(getDb().campaigns.filter((c) => c.members.some((m) => m.userId === userId)));
+  },
+  async getById(id) {
+    return respond(getDb().campaigns.find((c) => c.id === id) ?? null);
+  },
+  async create(input) {
+    const now = nowIso();
+    const campaign = { ...input, id: createId("c"), lastPlayedAt: null, createdAt: now, updatedAt: now };
+    getDb().campaigns.push(campaign);
+    commit();
+    return respond(campaign);
+  },
+  async update(id, patch) {
+    const db = getDb();
+    const index = db.campaigns.findIndex((c) => c.id === id);
+    if (index < 0) throw new AppError("not_found");
+    db.campaigns[index] = { ...db.campaigns[index], ...patch, updatedAt: nowIso() };
+    commit();
+    return respond(db.campaigns[index]);
+  },
+  async addMember(campaignId, member) {
+    const campaign = getDb().campaigns.find((c) => c.id === campaignId);
+    if (!campaign) throw new AppError("not_found");
+    if (!campaign.members.some((m) => m.userId === member.userId)) {
+      campaign.members.push(member);
+      campaign.updatedAt = nowIso();
+      commit();
+    }
+    return respond(campaign);
+  },
+};
+
+const sessions: SessionRepository = {
+  async listForCampaigns(campaignIds) {
+    const set = new Set(campaignIds);
+    return respond(getDb().sessions.filter((s) => set.has(s.campaignId)));
+  },
+  async create(input) {
+    const now = nowIso();
+    const session = { ...input, id: createId("s"), createdAt: now, updatedAt: now };
+    getDb().sessions.push(session);
+    commit();
+    return respond(session);
+  },
+};
+
+const invites: InviteRepository = {
+  async listForEmail(email) {
+    return respond(getDb().invites.filter((i) => i.email === normalizeEmail(email)));
+  },
+  async listForCampaign(campaignId) {
+    return respond(getDb().invites.filter((i) => i.campaignId === campaignId));
+  },
+  async getById(id) {
+    return respond(getDb().invites.find((i) => i.id === id) ?? null);
+  },
+  async create(input) {
+    const now = nowIso();
+    const invite = { ...input, email: normalizeEmail(input.email), id: createId("inv"), status: "pending" as const, createdAt: now, updatedAt: now };
+    getDb().invites.push(invite);
+    commit();
+    return respond(invite);
+  },
+  async updateStatus(id, status) {
+    const invite = getDb().invites.find((i) => i.id === id);
+    if (!invite) throw new AppError("not_found");
+    invite.status = status;
+    invite.updatedAt = nowIso();
+    commit();
+    return respond(invite);
+  },
+};
+
+const characters: CharacterRepository = {
+  async listForUser(userId) {
+    return respond(getDb().characters.filter((c) => c.ownerId === userId));
+  },
+  async listForCampaign(campaignId) {
+    return respond(getDb().characters.filter((c) => c.campaignId === campaignId));
+  },
+};
+
+const library: LibraryRepository = {
+  async listForUser(userId) {
+    return respond(getDb().library.filter((a) => a.ownerId === userId));
+  },
+};
+
+const systems: SystemRepository = {
+  async listCustom(ownerId) {
+    return respond(getDb().customSystems.filter((s) => s.ownerId === ownerId).map((s) => s.system));
+  },
+  async getCustom(id) {
+    return respond(getDb().customSystems.find((s) => s.system.id === id)?.system ?? null);
+  },
+  async saveCustom(ownerId, system) {
+    const db = getDb();
+    const index = db.customSystems.findIndex((s) => s.system.id === system.id);
+    if (index >= 0) db.customSystems[index] = { ownerId, system };
+    else db.customSystems.push({ ownerId, system });
+    commit();
+    return respond(system);
+  },
+};
+
+export const mockRepositories: Repositories = { auth, users, campaigns, sessions, invites, characters, library, systems };
+export { resetMockDatabase } from "./database";

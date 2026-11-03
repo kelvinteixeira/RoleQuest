@@ -1,0 +1,116 @@
+@import "tailwindcss";
+
+/*
+ * Role Quest design tokens, derived from the logo (public/brand/role-quest-logo.webp):
+ * near-black base with a faint violet tint, white ink, and the brand violet #9F41FB.
+ * Each RPG system may scope its own accent through --system-accent (see SystemScope).
+ */
+@theme {
+  --color-canvas: oklch(0.13 0.008 300);
+  --color-surface: oklch(0.165 0.01 300);
+  --color-surface-2: oklch(0.198 0.012 300);
+  --color-surface-3: oklch(0.24 0.014 300);
+  --color-line: oklch(1 0 0 / 0.07);
+  --color-line-strong: oklch(1 0 0 / 0.13);
+
+  --color-fg: oklch(0.975 0.003 300);
+  --color-fg-muted: oklch(0.75 0.012 300);
+  --color-fg-subtle: oklch(0.57 0.016 300);
+
+  /* Brand: logo ink, orbit gradient and the solid violet of the play mark. */
+  --color-brand-ink: oklch(0.985 0 0);
+  --color-brand-from: oklch(0.536 0.218 296);
+  --color-brand-to: oklch(0.628 0.261 307);
+
+  /* accent: text, icons and borders on dark surfaces (≥ 4.5:1 on canvas). */
+  --color-accent: oklch(0.7 0.2 302);
+  /* accent-solid: filled controls with white text (#9F41FB, 4.54:1 with white). */
+  --color-accent-solid: oklch(0.598 0.257 302);
+  --color-accent-strong: oklch(0.554 0.242 299);
+  --color-accent-fg: oklch(0.99 0 0);
+
+  --color-success: oklch(0.76 0.14 155);
+  --color-warning: oklch(0.82 0.14 85);
+  --color-danger: oklch(0.68 0.19 25);
+  --color-info: oklch(0.74 0.11 240);
+
+  --radius-card: 0.875rem;
+
+  --ease-out-soft: cubic-bezier(0.22, 1, 0.36, 1);
+
+  --animate-shimmer: shimmer 1.6s linear infinite;
+
+  @keyframes shimmer {
+    from {
+      background-position: -200% 0;
+    }
+    to {
+      background-position: 200% 0;
+    }
+  }
+}
+
+@theme inline {
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, monospace;
+  --font-display: var(--font-fraunces), ui-serif, Georgia, serif;
+  --color-system: var(--system-accent, var(--color-accent));
+}
+
+:root {
+  color-scheme: dark;
+}
+
+html,
+body {
+  background-color: var(--color-canvas);
+  color: var(--color-fg);
+}
+
+body {
+  font-family: var(--font-sans);
+  font-feature-settings: "ss01", "cv11";
+  -webkit-font-smoothing: antialiased;
+}
+
+::selection {
+  background: color-mix(in oklch, var(--color-accent) 35%, transparent);
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+/* Thin, quiet scrollbars for long sessions */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-surface-3) transparent;
+}
+
+@utility surface-card {
+  background-color: var(--color-surface);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-card);
+}
+
+@utility text-balance-pretty {
+  text-wrap: pretty;
+}
+
+/* Subtle grid used as tabletop motif in hero areas */
+@utility bg-tabletop-grid {
+  background-image:
+    linear-gradient(to right, oklch(1 0 0 / 0.045) 1px, transparent 1px),
+    linear-gradient(to bottom, oklch(1 0 0 / 0.045) 1px, transparent 1px);
+  background-size: 32px 32px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}

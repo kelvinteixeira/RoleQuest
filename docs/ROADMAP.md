@@ -23,12 +23,15 @@ Legenda: ✅ entregue · 🟡 parcial · ⬜ pendente
 
 ## Fase 3 — Virtual Tabletop 🟡
 - ✅ Sala de jogo em tela cheia (`/campaign/[id]/session`), estado por eventos (`RoomEvent`) salvo no navegador
-- ✅ Mapa em grid com paredes, pan, zoom, tokens arrastáveis, linha de movimento, distância e alcance
+- ✅ Mapa 3D (three.js) em visão de cima inclinada: terreno por tiles com elevação, água animada, objetos 3D CC0, luz e sombras; câmera com zoom, pan, giro e vista de topo
+- ✅ Editor de mapas do mestre: terreno, objetos, elevar/rebaixar, borracha e girar; formas pincel, retângulo, contorno, elipse, linha e balde; desfazer/refazer; modelos prontos; redimensionar
+- ✅ Tokens 3D arrastáveis com linha de movimento, distância e alcance; regras de bloqueio por terreno e objetos (pontes liberam a água)
+- ✅ Personagens e criaturas 3D animados (CC0): guerreiro, bárbaro, mago, assassino, arqueiro, vampiro, esqueletos, necromante, morcegos, lobo e lobisomem; parado, andar, atacar, conjurar, levar golpe e morrer; aparência trocável pelo mestre
 - ✅ Combate: iniciativa, turnos, PV com feedback visual, condições, ataque simplificado (d20 + bônus × defesa)
 - ✅ Rolador de dados (d4–d100, múltiplos, modificador, vantagem/desvantagem, pública/só mestre) e comandos no chat
 - ✅ Chat geral, privado mestre ↔ jogador e mensagens do sistema; "Momento épico" registrado no log
 - ✅ Bots de teste locais (jogam turnos, curam, conversam, respondem sussurros) e inimigos automáticos
-- ⬜ Editor de mapas por tiles, camadas, fog of war, iluminação, portas e armadilhas
+- ⬜ Biblioteca de mapas salvos por campanha, importação de imagens, camadas, fog of war, iluminação dinâmica, portas e armadilhas
 - ⬜ Regras de combate por sistema a partir das fichas (hoje: regra simplificada de teste)
 - ⬜ Dados 3D e efeitos sonoros
 

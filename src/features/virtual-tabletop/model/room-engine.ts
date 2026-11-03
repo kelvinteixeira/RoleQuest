@@ -4,6 +4,7 @@
  */
 import { createId } from "@/lib/id";
 import { critFormula, roll, type RollMode, type RollResult } from "@/features/dice/dice-engine";
+import { canStand, freeCellNear } from "./map";
 import type { Author, ChatMessage, CombatState, LoggedEvent, MessageVisibility, RoomEvent, RoomState, RoomToken } from "./types";
 
 const LOG_LIMIT = 400;
@@ -69,6 +70,8 @@ export function applyEvent(state: RoomState, event: RoomEvent): RoomState {
         ...t,
         conditions: event.on ? [...new Set([...t.conditions, event.condition])] : t.conditions.filter((c) => c !== event.condition),
       }));
+    case "token.appearance":
+      return updateToken(state, event.tokenId, (t) => ({ ...t, modelId: event.modelId }));
     case "token.stats":
       return updateToken(state, event.tokenId, (t) => ({ ...t, stats: { ...t.stats, ...event.stats } }));
     case "message.posted":
@@ -79,6 +82,15 @@ export function applyEvent(state: RoomState, event: RoomEvent): RoomState {
       return state.combat.active ? { ...state, combat: nextTurn(state) } : state;
     case "combat.ended":
       return { ...state, combat: { active: false, round: 0, turn: 0, order: [] } };
+    case "map.replaced": {
+      // Tokens left on a now-blocked or off-map square move to the nearest free one.
+      const tokens: RoomToken[] = [];
+      for (const t of state.tokens) {
+        const ok = canStand(event.map, tokens, t, t.id);
+        tokens.push(ok ? t : { ...t, ...freeCellNear(event.map, tokens, { x: Math.min(t.x, event.map.cols - 1), y: Math.min(t.y, event.map.rows - 1) }) });
+      }
+      return { ...state, map: event.map, tokens };
+    }
   }
 }
 
@@ -88,7 +100,9 @@ export function applyEvents(state: RoomState, events: RoomEvent[], actorId: stri
   const logged: LoggedEvent[] = [];
   for (const event of events) {
     next = applyEvent(next, event);
-    logged.push({ id: createId("ev"), at, actorId, event });
+    // Map payloads are large; the log keeps only which map was applied.
+    const entry: RoomEvent = event.type === "map.replaced" ? { ...event, map: { ...event.map, terrain: [], elevation: [], props: [] } } : event;
+    logged.push({ id: createId("ev"), at, actorId, event: entry });
   }
   return { ...next, log: [...next.log, ...logged].slice(-LOG_LIMIT) };
 }
@@ -111,7 +125,7 @@ export const epicMoment = (author: Author, text: string): RoomEvent => message({
 export function rollEvent(
   author: Author,
   formula: string,
-  options: { mode?: RollMode; label?: string; visibility?: MessageVisibility } = {},
+  options: { mode?: RollMode; label?: string; visibility?: MessageVisibility; targetId?: string } = {},
 ): { event: RoomEvent; result: RollResult } {
   const result = roll(formula, options.mode);
   return {
@@ -122,6 +136,7 @@ export function rollEvent(
       text: options.label ?? formula,
       roll: { ...result, label: options.label },
       visibility: options.visibility ?? "public",
+      targetId: options.targetId,
     }),
   };
 }
@@ -151,7 +166,7 @@ export interface AttackOutcome {
 /** d20 + attack bonus vs. defense; natural 20 always hits and doubles damage dice, natural 1 always misses. */
 export function attack(attacker: RoomToken, target: RoomToken, mode: RollMode = "normal"): AttackOutcome {
   const bonus = attacker.stats.attackBonus;
-  const toHit = rollEvent(authorOf(attacker), `1d20${bonus >= 0 ? "+" : ""}${bonus}`, { mode, label: `Ataque em ${target.name}` });
+  const toHit = rollEvent(authorOf(attacker), `1d20${bonus >= 0 ? "+" : ""}${bonus}`, { mode, label: `Ataque em ${target.name}`, targetId: target.id });
   const natural = toHit.result.natural;
   const critical = natural === 20;
   const hit = critical || (natural !== 1 && toHit.result.total >= target.stats.defense);
@@ -160,6 +175,7 @@ export function attack(attacker: RoomToken, target: RoomToken, mode: RollMode = 
 
   const dmg = rollEvent(authorOf(attacker), critical ? critFormula(attacker.stats.damage) : attacker.stats.damage, {
     label: critical ? `Dano crítico em ${target.name}` : `Dano em ${target.name}`,
+    targetId: target.id,
   });
   const damage = Math.max(1, dmg.result.total);
   const downed = target.hp.current - damage <= 0;

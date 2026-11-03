@@ -1,4 +1,5 @@
 import type { RollResult } from "@/features/dice/dice-engine";
+import type { MapDocument } from "@/features/map/model/map-document";
 
 export type TokenKind = "pc" | "npc" | "enemy";
 /** Who drives the token: the GM, a (future) human player, or a local test bot. */
@@ -36,18 +37,12 @@ export interface RoomToken {
   conditions: string[];
   /** Personality key for bots (lines, tactics). */
   botId?: string;
+  /** 3D model (see character-models.ts); falls back to a guess from the concept. */
+  modelId?: string;
 }
 
-export interface RoomMap {
-  name: string;
-  cols: number;
-  rows: number;
-  /** Distance represented by one square (shown when measuring). */
-  cellDistance: number;
-  cellUnit: string;
-  /** Blocking cells as "x,y". */
-  walls: string[];
-}
+/** The room plays on a square-tile map document (terrain, elevation, props). */
+export type RoomMap = MapDocument;
 
 export interface Author {
   id: string;
@@ -64,6 +59,8 @@ export interface ChatMessage {
   author: Author;
   text: string;
   roll?: RollResult & { label?: string };
+  /** Token this action targets (attacks, heals) — lets the 3D model face it. */
+  targetId?: string;
   visibility: MessageVisibility;
   to?: { id: string; name: string };
 }
@@ -87,10 +84,12 @@ export type RoomEvent =
   | { type: "token.hp"; tokenId: string; delta: number }
   | { type: "token.condition"; tokenId: string; condition: string; on: boolean }
   | { type: "token.stats"; tokenId: string; stats: Partial<CombatStats> }
+  | { type: "token.appearance"; tokenId: string; modelId: string }
   | { type: "message.posted"; message: ChatMessage }
   | { type: "combat.started"; order: CombatState["order"] }
   | { type: "combat.turn" }
-  | { type: "combat.ended" };
+  | { type: "combat.ended" }
+  | { type: "map.replaced"; map: MapDocument };
 
 export interface LoggedEvent {
   id: string;

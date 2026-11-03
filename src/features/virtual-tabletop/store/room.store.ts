@@ -15,6 +15,28 @@ export interface TokenFx {
   tone: "damage" | "heal";
 }
 
+/** Short-lived animation cue for a token's 3D model (attack, spell, getting hit). */
+export interface TokenCue {
+  id: string;
+  tokenId: string;
+  kind: "attack" | "cast" | "hit";
+  targetId?: string;
+}
+
+/** Derives animation cues from what just happened at the table. */
+function cuesFor(events: RoomEvent[]): TokenCue[] {
+  const cues: TokenCue[] = [];
+  for (const e of events) {
+    if (e.type === "message.posted" && e.message.roll) {
+      const label = e.message.roll.label ?? "";
+      const kind = label.startsWith("Ataque") ? "attack" : label.startsWith("Cura") ? "cast" : null;
+      if (kind) cues.push({ id: createId("cue"), tokenId: e.message.author.id, kind, targetId: e.message.targetId });
+    }
+    if (e.type === "token.hp" && e.delta < 0) cues.push({ id: createId("cue"), tokenId: e.tokenId, kind: "hit" });
+  }
+  return cues;
+}
+
 type RoomStore = {
   /** One room per campaign. Local today; Supabase Realtime in Phase 4. */
   rooms: Record<string, RoomState>;
@@ -23,6 +45,7 @@ type RoomStore = {
   autoEnemies: boolean;
   selectedTokenId: string | null;
   fx: TokenFx[];
+  cues: TokenCue[];
 
   ensureRoom: (campaignId: string, create: () => RoomState) => void;
   resetRoom: (campaignId: string, create: () => RoomState) => void;
@@ -42,6 +65,7 @@ export const useRoomStore = create<RoomStore>()(
       autoEnemies: true,
       selectedTokenId: null,
       fx: [],
+      cues: [],
 
       ensureRoom: (campaignId, factory) => {
         if (!get().rooms[campaignId]) set({ rooms: { ...get().rooms, [campaignId]: factory() } });
@@ -57,8 +81,10 @@ export const useRoomStore = create<RoomStore>()(
         const fx: TokenFx[] = events
           .filter((e): e is Extract<RoomEvent, { type: "token.hp" }> => e.type === "token.hp" && e.delta !== 0)
           .map((e) => ({ id: createId("fx"), tokenId: e.tokenId, text: e.delta > 0 ? `+${e.delta}` : `${e.delta}`, tone: e.delta > 0 ? "heal" : "damage" }));
-        set({ rooms: { ...get().rooms, [campaignId]: next }, fx: [...get().fx, ...fx] });
+        const cues = cuesFor(events);
+        set({ rooms: { ...get().rooms, [campaignId]: next }, fx: [...get().fx, ...fx], cues: [...get().cues, ...cues] });
         for (const f of fx) setTimeout(() => set({ fx: get().fx.filter((x) => x.id !== f.id) }), 1300);
+        for (const c of cues) setTimeout(() => set({ cues: get().cues.filter((x) => x.id !== c.id) }), 1600);
       },
 
       select: (tokenId) => set({ selectedTokenId: tokenId }),
@@ -67,7 +93,7 @@ export const useRoomStore = create<RoomStore>()(
       setAutoEnemies: (value) => set({ autoEnemies: value }),
     }),
     {
-      name: "rq:rooms:v1",
+      name: "rq:rooms:v2",
       storage: createJSONStorage(() => localStorage),
       partialize: ({ rooms, botSpeed, autoEnemies }) => ({ rooms, botSpeed, autoEnemies }),
       skipHydration: true,

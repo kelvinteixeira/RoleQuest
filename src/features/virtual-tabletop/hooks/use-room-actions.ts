@@ -15,6 +15,7 @@ import {
   say,
   whisper,
 } from "../model/room-engine";
+import type { MapDocument } from "@/features/map/model/map-document";
 import type { Author, MessageVisibility, RoomEvent, RoomToken } from "../model/types";
 import { useRoomStore } from "../store/room.store";
 
@@ -110,7 +111,16 @@ export function useRoomActions(campaignId: string, gm: Author) {
       toast.success("Momento épico marcado", "Registrado no log da sessão para o Chronicles Studio.");
     }
 
-    return { rollDice, sendChat, moveToken, adjustHp, toggleCondition, attackWith, startCombat, nextTurn, endCombat, addBots, removeBots, markEpic };
+    function setAppearance(token: RoomToken, modelId: string) {
+      send([{ type: "token.appearance", tokenId: token.id, modelId }]);
+    }
+
+    function replaceMap(map: MapDocument) {
+      send([{ type: "map.replaced", map }, announce(`O mestre atualizou o mapa: ${map.name}.`)]);
+      toast.success("Mapa aplicado", map.name);
+    }
+
+    return { setAppearance, replaceMap, rollDice, sendChat, moveToken, adjustHp, toggleCondition, attackWith, startCombat, nextTurn, endCombat, addBots, removeBots, markEpic };
   }, [campaignId, gm, dispatch]);
 }
 

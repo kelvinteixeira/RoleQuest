@@ -4,12 +4,14 @@
  * (Phase 4). Decisions are pure functions of the room state.
  */
 import { createId } from "@/lib/id";
-import { freeCellNear, gridDistance, pathToAdjacent, PLAYER_SPAWNS, type Cell } from "./map";
+import type { MapDocument } from "@/features/map/model/map-document";
+import { ENEMY_SPAWNS, freeCellNear, gridDistance, pathToAdjacent, PLAYER_SPAWNS } from "./map";
 import { attack, authorOf, isDown, rollEvent, say, whisper, announce } from "./room-engine";
 import type { RoomEvent, RoomState, RoomToken } from "./types";
 
 interface BotPersona {
   botId: string;
+  modelId: string;
   name: string;
   ownerName: string;
   concept: string;
@@ -22,6 +24,7 @@ interface BotPersona {
 export const BOT_ROSTER: readonly BotPersona[] = [
   {
     botId: "bot_tamsin",
+    modelId: "warrior",
     name: "Tamsin Vale",
     ownerName: "Bot · Ana",
     concept: "Guerreira humana",
@@ -39,6 +42,7 @@ export const BOT_ROSTER: readonly BotPersona[] = [
   },
   {
     botId: "bot_oru",
+    modelId: "barbarian",
     name: "Oru Pedrafunda",
     ownerName: "Bot · Breno",
     concept: "Clérigo anão",
@@ -56,6 +60,7 @@ export const BOT_ROSTER: readonly BotPersona[] = [
   },
   {
     botId: "bot_kira",
+    modelId: "assassin",
     name: "Kira Nox",
     ownerName: "Bot · Clara",
     concept: "Ladina elfa",
@@ -78,35 +83,40 @@ const ENEMY_LINES = {
   miss: ["Grr…"],
 };
 
-const ENEMIES: { name: string; concept: string; hp: number; stats: RoomToken["stats"]; cell: Cell }[] = [
-  { name: "Saqueador de dunas", concept: "Inimigo · lâmina curva", hp: 13, stats: { defense: 13, attackBonus: 4, damage: "1d6+2", speed: 6, initiativeBonus: 2 }, cell: { x: 15, y: 7 } },
-  { name: "Saqueador de dunas", concept: "Inimigo · lâmina curva", hp: 13, stats: { defense: 13, attackBonus: 4, damage: "1d6+2", speed: 6, initiativeBonus: 2 }, cell: { x: 15, y: 11 } },
-  { name: "Arqueira das cinzas", concept: "Inimiga · arco curto", hp: 11, stats: { defense: 12, attackBonus: 5, damage: "1d8+2", speed: 6, initiativeBonus: 3 }, cell: { x: 20, y: 6 } },
-  { name: "Guardião da joia", concept: "Chefe · golem de bronze", hp: 38, stats: { defense: 15, attackBonus: 6, damage: "2d6+3", speed: 4, initiativeBonus: -1 }, cell: { x: 23, y: 9 } },
+const ENEMIES: { name: string; concept: string; modelId: string; hp: number; stats: RoomToken["stats"] }[] = [
+  { name: "Esqueleto guerreiro", concept: "Morto-vivo · espada enferrujada", modelId: "skeleton-warrior", hp: 13, stats: { defense: 13, attackBonus: 4, damage: "1d6+2", speed: 6, initiativeBonus: 2 } },
+  { name: "Esqueleto guerreiro", concept: "Morto-vivo · espada enferrujada", modelId: "skeleton-warrior", hp: 13, stats: { defense: 13, attackBonus: 4, damage: "1d6+2", speed: 6, initiativeBonus: 2 } },
+  { name: "Morcego-vampiro", concept: "Criatura · voa e drena sangue", modelId: "vampire-bat", hp: 11, stats: { defense: 12, attackBonus: 5, damage: "1d8+2", speed: 8, initiativeBonus: 3 } },
+  { name: "Guardião da joia", concept: "Chefe · necromante", modelId: "skeleton-mage", hp: 38, stats: { defense: 15, attackBonus: 6, damage: "2d6+3", speed: 4, initiativeBonus: -1 } },
 ];
 
 const ENEMY_COLOR = "oklch(0.55 0.19 25)";
 
-export function createEncounterTokens(): RoomToken[] {
+export function createEncounterTokens(map: MapDocument, existing: RoomToken[] = []): RoomToken[] {
   const counts = new Map<string, number>();
-  return ENEMIES.map((e) => {
+  const placed: RoomToken[] = [...existing];
+  return ENEMIES.map((e, i) => {
+    const cell = freeCellNear(map, placed, ENEMY_SPAWNS[i % ENEMY_SPAWNS.length]);
     const n = (counts.get(e.name) ?? 0) + 1;
     counts.set(e.name, n);
     const total = ENEMIES.filter((x) => x.name === e.name).length;
-    return {
+    const token: RoomToken = {
       id: createId("tok"),
       kind: "enemy",
       controller: "gm",
       name: total > 1 ? `${e.name} ${n}` : e.name,
       ownerName: "Mestre",
       concept: e.concept,
+      modelId: e.modelId,
       color: ENEMY_COLOR,
-      x: e.cell.x,
-      y: e.cell.y,
+      x: cell.x,
+      y: cell.y,
       hp: { current: e.hp, max: e.hp },
       stats: { ...e.stats },
       conditions: [],
     };
+    placed.push(token);
+    return token;
   });
 }
 
@@ -124,6 +134,7 @@ export function botJoinEvents(state: RoomState): RoomEvent[] {
       kind: "pc",
       controller: "bot",
       botId: persona.botId,
+      modelId: persona.modelId,
       name: persona.name,
       ownerName: persona.ownerName,
       concept: persona.concept,
@@ -168,7 +179,7 @@ export function decideTurn(state: RoomState, actor: RoomToken): BotStep[] {
       .filter((t) => t.kind !== "enemy" && t.id !== actor.id && gridDistance(t, actor) <= 6 && t.hp.current / t.hp.max < 0.4)
       .sort((a, b) => a.hp.current - b.hp.current)[0];
     if (ally) {
-      const heal = rollEvent(authorOf(actor), "1d8+3", { label: `Cura em ${ally.name}` });
+      const heal = rollEvent(authorOf(actor), "1d8+3", { label: `Cura em ${ally.name}`, targetId: ally.id });
       return [
         { delay: 500, events: [heal.event, { type: "token.hp", tokenId: ally.id, delta: heal.result.total }, { type: "token.stats", tokenId: actor.id, stats: { heals: (actor.stats.heals ?? 1) - 1 } }] },
         { delay: 500, events: chatter(lines.heal, 0.8) },

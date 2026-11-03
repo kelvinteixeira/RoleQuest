@@ -126,6 +126,12 @@ Regras:
 
 ## 7. Decisões para as próximas fases
 
+### Mapas (Fase 3)
+- `features/map`: `MapDocument` serializável (terreno e elevação por célula + objetos), formas geométricas na grade (`model/shapes.ts`), modelos prontos e o renderizador 3D (`components/map-scene.tsx`, react-three-fiber). Terreno em dois `InstancedMesh` (corpo + topo), água num único plano com shader, objetos GLB normalizados ao tamanho da célula.
+- `features/map-editor`: store do editor (rascunho, ferramenta, histórico) e painel. O mapa da sala só muda ao aplicar, via evento `map.replaced`.
+- Assets 3D CC0 (Kenney, Quaternius) em `public/assets/map/props`, créditos em `public/assets/map/CREDITS.md`.
+- Personagens: catálogo em `features/virtual-tabletop/model/character-models.ts` (arquivo, equipamento visível, mapa de animações, tingimento) e `components/character-figure.tsx` (clone com esqueleto, máquina de estados de animação). A store gera "cues" (ataque, conjuração, golpe) a partir dos eventos da mesa. GLBs em `public/assets/characters`, gerados por `scripts/build-character-assets.mjs` a partir dos pacotes originais (créditos em `public/assets/characters/CREDITS.md`).
+
 ### Mesa virtual (Fase 3)
 - **Entregue (1ª versão):** `features/virtual-tabletop` com motor puro (`model/room-engine.ts`: `applyEvent` + construtores de eventos), mapa e caminhos (`model/map.ts`), bots de teste (`model/bots.ts`), store por campanha (`store/room.store.ts`) e o diretor de bots (`hooks/use-bot-director.ts`). O mapa usa SVG por enquanto; os itens abaixo continuam como plano para mapas grandes.
 - Bots existem só no navegador e são marcados como bots na interface. Eles usam o mesmo `dispatch` de eventos que o mestre, então o fluxo será o mesmo com jogadores reais via Realtime.

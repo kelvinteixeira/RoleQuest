@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, Bot, Dices, MessageSquare, Mic, Pause, Play, RotateCcw, Star, Swords, UserMinus, UserPlus } from "lucide-react";
+import { ArrowLeft, Bot, Dices, MapPinned, MessageSquare, Mic, Pause, Play, RotateCcw, Star, Swords, UserMinus, UserPlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/field";
 import { Badge, PhaseBadge } from "@/components/ui/primitives";
@@ -18,7 +18,9 @@ import type { Author } from "../model/types";
 import { useBotDirector } from "../hooks/use-bot-director";
 import { useRoomActions } from "../hooks/use-room-actions";
 import { useRoom, useRoomStore, type BotSpeed } from "../store/room.store";
-import { MapBoard } from "./map-board";
+import { MapEditorPanel } from "@/features/map-editor/components/map-editor-panel";
+import { useMapEditorStore } from "@/features/map-editor/store/map-editor.store";
+import { RoomMap3D } from "./room-map-3d";
 import { ChatPanel, CombatPanel, DicePanel, TokenInspector } from "./room-panels";
 
 export function SessionRoom({ campaignId }: { campaignId: string }) {
@@ -60,6 +62,8 @@ function Room({ overview }: { overview: CampaignOverview }) {
   const [epicOpen, setEpicOpen] = useState(false);
   const [epicText, setEpicText] = useState("");
   const [confirmReset, setConfirmReset] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const isGM = overview.role === "game_master";
 
   const gm: Author = useMemo(
     () => ({ id: user.id, name: overview.role === "game_master" ? overview.campaign.gameMaster.narratorName || user.displayName : user.displayName, color: user.avatarColor }),
@@ -74,6 +78,18 @@ function Room({ overview }: { overview: CampaignOverview }) {
   const bots = room.tokens.filter((t) => t.controller === "bot");
   const hasParty = room.tokens.some((t) => t.kind !== "enemy");
   const next = overview.upcomingSessions[0];
+
+  function startEditing() {
+    if (!room) return;
+    useMapEditorStore.getState().open(room.map);
+    setEditing(true);
+  }
+  function stopEditing(apply: boolean) {
+    const draft = useMapEditorStore.getState().draft;
+    if (apply && draft) actions.replaceMap(draft);
+    useMapEditorStore.getState().close();
+    setEditing(false);
+  }
 
   return (
     <div className="flex h-dvh flex-col overflow-hidden">
@@ -127,6 +143,11 @@ function Room({ overview }: { overview: CampaignOverview }) {
             <input type="checkbox" checked={autoEnemies} onChange={(e) => setAutoEnemies(e.target.checked)} className="accent-[var(--color-accent-solid)]" />
             Inimigos automáticos
           </label>
+          {isGM && (
+            <Button size="sm" variant={editing ? "primary" : "secondary"} onClick={() => (editing ? stopEditing(false) : startEditing())} leadingIcon={<MapPinned className="size-3.5" />}>
+              {editing ? "Sair do editor" : "Editar mapa"}
+            </Button>
+          )}
           <Button size="sm" variant="secondary" onClick={() => setEpicOpen(true)} leadingIcon={<Star className="size-3.5 text-accent" />}>
             Momento épico
           </Button>
@@ -145,8 +166,8 @@ function Room({ overview }: { overview: CampaignOverview }) {
       {/* Map + side panel */}
       <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
         <div className="relative h-[52dvh] shrink-0 lg:h-auto lg:min-w-0 lg:flex-1">
-          <MapBoard room={room} onMove={actions.moveToken} />
-          {!hasParty && (
+          <RoomMap3D room={room} editing={editing} onMove={actions.moveToken} />
+          {!hasParty && !editing && (
             <div className="absolute inset-x-4 top-4 mx-auto flex max-w-md items-center gap-3 rounded-xl border border-accent/40 bg-surface/95 p-3 shadow-xl backdrop-blur">
               <Bot className="size-5 shrink-0 text-accent" />
               <p className="flex-1 text-sm text-fg-muted">A mesa não tem jogadores. Adicione bots para testar a sessão.</p>
@@ -158,6 +179,10 @@ function Room({ overview }: { overview: CampaignOverview }) {
         </div>
 
         <aside className="flex min-h-0 flex-1 flex-col gap-3 border-t border-line bg-surface/40 p-3 lg:w-[380px] lg:flex-none lg:border-l lg:border-t-0">
+          {editing ? (
+            <MapEditorPanel onApply={() => stopEditing(true)} onCancel={() => stopEditing(false)} />
+          ) : (
+          <>
           {selected && <TokenInspector room={room} token={selected} actions={actions} />}
           <Tabs
             size="sm"
@@ -175,6 +200,8 @@ function Room({ overview }: { overview: CampaignOverview }) {
             {tab === "chat" && <ChatPanel room={room} actions={actions} gmId={gm.id} />}
             {tab === "dice" && <DicePanel actions={actions} />}
           </div>
+          </>
+          )}
         </aside>
       </div>
 

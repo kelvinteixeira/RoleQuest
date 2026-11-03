@@ -9,6 +9,7 @@ import { cn } from "@/lib/cn";
 import { formatTime } from "@/lib/format";
 import { DIE_TYPES } from "@/types/system";
 import { supportsAdvantage, type RollMode } from "@/features/dice/dice-engine";
+import { CHARACTER_GROUP_LABEL, CHARACTER_MODELS, modelFor, type CharacterModel } from "../model/character-models";
 import { gridDistance } from "../model/map";
 import { currentTurnToken, isDown } from "../model/room-engine";
 import type { ChatMessage, MessageVisibility, RoomState, RoomToken } from "../model/types";
@@ -390,6 +391,25 @@ export function TokenInspector({ room, token, actions }: { room: RoomState; toke
             <X className="size-4" />
           </button>
         </div>
+
+        <label className="mt-3 flex items-center gap-2 text-xs text-fg-subtle">
+          Aparência
+          <select
+            value={modelFor(token).id}
+            onChange={(e) => actions.setAppearance(token, e.target.value)}
+            className="h-8 min-w-0 flex-1 rounded-md border border-line bg-surface-2 px-2 text-xs text-fg outline-none focus:border-accent/60"
+          >
+            {(Object.keys(CHARACTER_GROUP_LABEL) as CharacterModel["group"][]).map((group) => (
+              <optgroup key={group} label={CHARACTER_GROUP_LABEL[group]}>
+                {CHARACTER_MODELS.filter((m) => m.group === group).map((m) => (
+                  <option key={m.id} value={m.id}>
+                    {m.label}
+                  </option>
+                ))}
+              </optgroup>
+            ))}
+          </select>
+        </label>
 
         <ResourceBar className="mt-3" label="Pontos de vida" value={token.hp.current} max={token.hp.max} color={token.kind === "enemy" ? "var(--color-danger)" : "var(--color-success)"} />
         <div className="mt-2 flex items-center gap-1.5">

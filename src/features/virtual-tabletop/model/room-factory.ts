@@ -27,6 +27,7 @@ export function createInitialRoom(overview: CampaignOverview): RoomState {
         name: character.name,
         ownerName: m.profile.displayName,
         concept: character.concept,
+        characterId: character.id,
         modelId: defaultModelId({ kind: "pc", concept: character.concept, name: character.name }),
         color: character.portraitColor,
         x: spawn.x,

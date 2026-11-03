@@ -126,6 +126,11 @@ Regras:
 
 ## 7. Decisões para as próximas fases
 
+### Fichas (Fase 2)
+- `features/character-sheet/model`: `sheet.ts` (ficha padrão a partir do modelo, mescla de fichas antigas, modificadores, carga) e `checks.ts` (resolvedor de testes por mecânica de dados). Puro, sem React.
+- `services/character.service.ts`: CRUD, vínculo com a campanha e permissões (dono edita conforme a política da campanha; mestre vê e edita tudo; anotações privadas só para dono e mestre).
+- `hooks/use-character-sheet.ts`: rascunho local com salvamento automático (debounce).
+
 ### Mapas (Fase 3)
 - `features/map`: `MapDocument` serializável (terreno e elevação por célula + objetos), formas geométricas na grade (`model/shapes.ts`), modelos prontos e o renderizador 3D (`components/map-scene.tsx`, react-three-fiber). Terreno em dois `InstancedMesh` (corpo + topo), água num único plano com shader, objetos GLB normalizados ao tamanho da célula.
 - `features/map-editor`: store do editor (rascunho, ferramenta, histórico) e painel. O mapa da sala só muda ao aplicar, via evento `map.replaced`.

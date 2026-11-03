@@ -2,7 +2,9 @@
 
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { Bot, Crown, Dices, EyeOff, Lock, Minus, Plus, Send, Shield, Sparkles, Star, Swords, X, Zap } from "lucide-react";
+import { Bot, Crown, Dices, EyeOff, Lock, Minus, Plus, ScrollText, Send, Shield, Sparkles, Star, Swords, X, Zap } from "lucide-react";
+import { Modal } from "@/components/ui/modal";
+import { SheetEditor } from "@/features/character-sheet/components/sheet-editor";
 import { Button } from "@/components/ui/button";
 import { Badge, ResourceBar } from "@/components/ui/primitives";
 import { cn } from "@/lib/cn";
@@ -362,6 +364,7 @@ const CONDITIONS = ["Atordoado", "Envenenado", "Amedrontado", "Contido", "Invis�
 export function TokenInspector({ room, token, actions }: { room: RoomState; token: RoomToken; actions: RoomActions }) {
   const select = useRoomStore((s) => s.select);
   const [amount, setAmount] = useState(5);
+  const [sheetOpen, setSheetOpen] = useState(false);
   const adjacentFoes = room.tokens.filter(
     (t) => !isDown(t) && !isDown(token) && (token.kind === "enemy" ? t.kind !== "enemy" : t.kind === "enemy") && gridDistance(t, token) <= 1,
   );
@@ -453,6 +456,16 @@ export function TokenInspector({ room, token, actions }: { room: RoomState; toke
               </Button>
             ))}
           </div>
+        )}
+        {token.characterId && (
+          <Button size="sm" variant="secondary" className="mt-3 w-full" leadingIcon={<ScrollText className="size-3.5" />} onClick={() => setSheetOpen(true)}>
+            Abrir ficha
+          </Button>
+        )}
+        {token.characterId && (
+          <Modal open={sheetOpen} onClose={() => setSheetOpen(false)} title={`Ficha · ${token.name}`} description="Testes rolados aqui vão para o chat da mesa." placement="right">
+            <SheetEditor characterId={token.characterId} embedded onRoll={(check) => actions.postCheck(token, check)} />
+          </Modal>
         )}
         {token.controller === "gm" && token.kind !== "enemy" && <p className="mt-2 inline-flex items-center gap-1 text-[11px] text-fg-subtle"><Crown className="size-3" /> Controlado pelo mestre</p>}
       </motion.section>

@@ -14,7 +14,7 @@ import type {
   NewInviteInput,
   NewSessionInput,
 } from "@/types/campaign";
-import type { Character } from "@/types/character";
+import type { Character, NewCharacterInput } from "@/types/character";
 import type { LibraryAsset } from "@/types/library";
 import type { SystemTemplate } from "@/types/system";
 
@@ -57,6 +57,10 @@ export interface InviteRepository {
 export interface CharacterRepository {
   listForUser(userId: ID): Promise<Character[]>;
   listForCampaign(campaignId: ID): Promise<Character[]>;
+  getById(id: ID): Promise<Character | null>;
+  create(input: NewCharacterInput): Promise<Character>;
+  update(id: ID, patch: Partial<NewCharacterInput>): Promise<Character>;
+  remove(id: ID): Promise<void>;
 }
 
 export interface LibraryRepository {

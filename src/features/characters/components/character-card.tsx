@@ -1,12 +1,13 @@
+import Link from "next/link";
 import { Avatar, ResourceBar } from "@/components/ui/primitives";
 import { cn } from "@/lib/cn";
 import { SystemTag } from "@/features/systems/components/system-identity";
 import type { CharacterCardModel } from "@/services/collection.service";
 
-export function CharacterCard({ model, className }: { model: CharacterCardModel; className?: string }) {
+export function CharacterCard({ model, className, href }: { model: CharacterCardModel; className?: string; href?: string }) {
   const { character, system, campaignName } = model;
-  return (
-    <article className={cn("surface-card flex flex-col gap-4 p-4", className)}>
+  const body = (
+    <article className={cn("surface-card flex h-full flex-col gap-4 p-4", href && "transition-colors group-hover:border-line-strong", !href && className)}>
       <div className="flex items-start gap-3">
         <Avatar name={character.name} color={character.portraitColor} src={character.avatarUrl} size="lg" className="rounded-xl" />
         <div className="min-w-0 flex-1">
@@ -37,5 +38,12 @@ export function CharacterCard({ model, className }: { model: CharacterCardModel;
         )}
       </p>
     </article>
+  );
+  return href ? (
+    <Link href={href} className={cn("group block", className)} aria-label={`Abrir ficha de ${character.name}`}>
+      {body}
+    </Link>
+  ) : (
+    body
   );
 }

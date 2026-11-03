@@ -17,8 +17,11 @@ Legenda: ✅ entregue · 🟡 parcial · ⬜ pendente
 - ✅ Página da campanha (visão geral, membros, sessões)
 - ✅ Aceitar/recusar convites
 - ⬜ Editor completo de "sistema próprio" (atributos, perícias, classes, progressão)
-- ⬜ Criação/edição de personagens com fichas configuráveis
-- ⬜ Inventário e equipamentos
+- ✅ Criação, edição, duplicação e exclusão de personagens; fichas a partir do modelo de cada sistema com salvamento automático
+- ✅ Atributos, recursos, condições, perícias (atributo escolhível), habilidades, campos personalizados, história e anotações privadas
+- ✅ Testes pela mecânica de cada sistema (d20+mod, d100 com dados de bônus/penalidade, parada de d10, Xd20, 1d6+atributo, 1d10 explosivo, 3d6)
+- ✅ Inventário com equipado, slots, carga e moedas
+- ✅ Ficha aberta dentro da sala, com testes publicados no chat
 - ⬜ Gerenciamento de jogadores e permissões por campanha
 
 ## Fase 3 — Virtual Tabletop 🟡

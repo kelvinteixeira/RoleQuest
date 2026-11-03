@@ -39,6 +39,8 @@ export interface RoomToken {
   botId?: string;
   /** 3D model (see character-models.ts); falls back to a guess from the concept. */
   modelId?: string;
+  /** Linked character sheet (player characters). */
+  characterId?: string;
 }
 
 /** The room plays on a square-tile map document (terrain, elevation, props). */

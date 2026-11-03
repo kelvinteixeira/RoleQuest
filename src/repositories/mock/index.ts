@@ -195,6 +195,32 @@ const characters: CharacterRepository = {
   async listForCampaign(campaignId) {
     return respond(getDb().characters.filter((c) => c.campaignId === campaignId));
   },
+  async getById(id) {
+    return respond(getDb().characters.find((c) => c.id === id) ?? null);
+  },
+  async create(input) {
+    const now = nowIso();
+    const character = { ...input, id: createId("ch"), createdAt: now, updatedAt: now };
+    getDb().characters.push(character);
+    commit();
+    return respond(character);
+  },
+  async update(id, patch) {
+    const db = getDb();
+    const index = db.characters.findIndex((c) => c.id === id);
+    if (index < 0) throw new AppError("not_found");
+    db.characters[index] = { ...db.characters[index], ...patch, updatedAt: nowIso() };
+    commit();
+    return respond(db.characters[index]);
+  },
+  async remove(id) {
+    const db = getDb();
+    db.characters = db.characters.filter((c) => c.id !== id);
+    // Unlink from campaign tables, like a foreign key with ON DELETE SET NULL.
+    for (const campaign of db.campaigns) for (const m of campaign.members) if (m.characterId === id) m.characterId = null;
+    commit();
+    return respond(undefined);
+  },
 };
 
 const library: LibraryRepository = {

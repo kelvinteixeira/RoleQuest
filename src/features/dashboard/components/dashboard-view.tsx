@@ -116,11 +116,11 @@ export function DashboardView() {
               }
             />
             {data.characters.length === 0 ? (
-              <EmptyState compact icon={<UsersRound />} title="Nenhum personagem ainda" description="O editor de fichas chega na Fase 2." />
+              <EmptyState compact icon={<UsersRound />} title="Nenhum personagem ainda" description="Crie o primeiro na página de personagens." />
             ) : (
               <div className="-mx-4 flex snap-x gap-4 overflow-x-auto px-4 pb-2 sm:mx-0 sm:px-0">
                 {data.characters.map((model) => (
-                  <CharacterCard key={model.character.id} model={model} className="w-72 shrink-0 snap-start" />
+                  <CharacterCard key={model.character.id} model={model} href={`/characters/${model.character.id}`} className="w-72 shrink-0 snap-start" />
                 ))}
               </div>
             )}

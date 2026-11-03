@@ -141,6 +141,11 @@ export function rollEvent(
   };
 }
 
+/** Publishes an already-resolved roll (e.g. a check from a character sheet). */
+export function checkEvent(author: Author, result: RollResult, label: string, visibility: MessageVisibility = "public"): RoomEvent {
+  return message({ kind: "roll", author, text: label, roll: { ...result, label }, visibility });
+}
+
 export const authorOf = (token: RoomToken): Author => ({ id: token.id, name: token.name, color: token.color });
 
 /* ---------- Combat actions ---------- */

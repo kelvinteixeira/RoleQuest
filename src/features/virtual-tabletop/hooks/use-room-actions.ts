@@ -5,8 +5,11 @@ import { DiceFormulaError, type RollMode } from "@/features/dice/dice-engine";
 import { toast } from "@/stores/toast.store";
 import { botJoinEvents } from "../model/bots";
 import type { Cell } from "../model/map";
+import type { CheckResult } from "@/features/character-sheet/model/checks";
 import {
   announce,
+  authorOf,
+  checkEvent,
   attack,
   combatWinner,
   epicMoment,
@@ -111,6 +114,11 @@ export function useRoomActions(campaignId: string, gm: Author) {
       toast.success("Momento épico marcado", "Registrado no log da sessão para o Chronicles Studio.");
     }
 
+    /** A check rolled on a character sheet, posted to the chat as that character. */
+    function postCheck(token: RoomToken, check: CheckResult) {
+      send([checkEvent(authorOf(token), check.result, check.outcome ? `${check.label} — ${check.outcome}` : check.label)], token.id);
+    }
+
     function setAppearance(token: RoomToken, modelId: string) {
       send([{ type: "token.appearance", tokenId: token.id, modelId }]);
     }
@@ -120,7 +128,7 @@ export function useRoomActions(campaignId: string, gm: Author) {
       toast.success("Mapa aplicado", map.name);
     }
 
-    return { setAppearance, replaceMap, rollDice, sendChat, moveToken, adjustHp, toggleCondition, attackWith, startCombat, nextTurn, endCombat, addBots, removeBots, markEpic };
+    return { postCheck, setAppearance, replaceMap, rollDice, sendChat, moveToken, adjustHp, toggleCondition, attackWith, startCombat, nextTurn, endCombat, addBots, removeBots, markEpic };
   }, [campaignId, gm, dispatch]);
 }
 

@@ -27,6 +27,9 @@ import { useRoomStore } from "../store/room.store";
 
 const SHEET_SYNC_MS = 400;
 const sheetTimers = new Map<string, ReturnType<typeof setTimeout>>();
+const lastSheetHp = new Map<string, number | undefined>();
+const hpEdited = new Set<string>();
+const normalizeName = (name: string) => name.trim().toLocaleLowerCase("pt-BR");
 
 /** GM actions for one room. Each one becomes RoomEvents through the store. */
 export function useRoomActions(campaignId: string, gm: Author) {
@@ -87,29 +90,66 @@ export function useRoomActions(campaignId: string, gm: Author) {
       send([{ type: "rules.set", rules }], "system");
     }
 
-    /** Refreshes a player token from its sheet (attacks, defense, max HP) when something changed. */
-    function applySheet(tokenId: string, { character, system }: Pick<EditableCharacter, "character" | "system">) {
+    /**
+     * Refreshes a player token from its sheet (attacks, defense, max HP) when something changed.
+     * `withHp` also takes the sheet's current HP: on room open, or when it was edited on the sheet.
+     */
+    function applySheet(tokenId: string, { character, system }: Pick<EditableCharacter, "character" | "system">, withHp = false) {
       const token = room()?.tokens.find((t) => t.id === tokenId);
       if (!token) return;
       const stats = { ...combatProfile(system, character.sheet, character.level), heals: token.stats.heals };
-      const hpMax = sheetHitPoints(system, character.sheet)?.max ?? token.hp.max;
-      if (hpMax === token.hp.max && JSON.stringify(stats) === JSON.stringify(token.stats)) return;
-      send([{ type: "token.synced", tokenId, stats, hpMax }], "system");
+      const hp = sheetHitPoints(system, character.sheet);
+      const hpMax = hp?.max ?? token.hp.max;
+      const hpCurrent = withHp && hp ? Math.min(hp.current, hpMax) : undefined;
+      const unchanged = hpMax === token.hp.max && (hpCurrent === undefined || hpCurrent === token.hp.current) && JSON.stringify(stats) === JSON.stringify(token.stats);
+      if (unchanged) return;
+      send([{ type: "token.synced", tokenId, stats, hpMax, hpCurrent }], "system");
     }
 
     /** Sheet edits arrive per keystroke; the token follows a moment later. */
     function applySheetSoon(tokenId: string, data: Pick<EditableCharacter, "character" | "system">) {
+      // Only an HP change made on the sheet moves the token's HP (a stale copy must not undo damage).
+      const hp = sheetHitPoints(data.system, data.character.sheet)?.current;
+      const previous = lastSheetHp.get(tokenId);
+      lastSheetHp.set(tokenId, hp);
+      if (previous !== undefined && hp !== previous) hpEdited.add(tokenId);
       clearTimeout(sheetTimers.get(tokenId));
-      sheetTimers.set(tokenId, setTimeout(() => applySheet(tokenId, data), SHEET_SYNC_MS));
+      sheetTimers.set(
+        tokenId,
+        setTimeout(() => {
+          applySheet(tokenId, data, hpEdited.delete(tokenId));
+        }, SHEET_SYNC_MS),
+      );
     }
 
-    /** Pulls every player token's sheet (edited outside the room since it was set up). */
-    async function syncSheets() {
-      const tokens = room()?.tokens.filter((t) => t.characterId) ?? [];
+    /** The sheet editor was closed: the next one starts from a fresh snapshot. */
+    function forgetSheet(tokenId: string) {
+      lastSheetHp.delete(tokenId);
+    }
+
+    /**
+     * Pulls every player token's sheet, which may have changed outside the room
+     * (HP included). Tokens from rooms created before sheets were linked are
+     * matched to the campaign's characters by name first.
+     */
+    async function syncSheets(characters: { id: string; name: string }[] = []) {
+      const tokens = room()?.tokens ?? [];
+      const linked = new Set(tokens.map((t) => t.characterId).filter(Boolean));
+      const byName = new Map(characters.map((c) => [normalizeName(c.name), c.id]));
+      const links: RoomEvent[] = [];
+      for (const t of tokens) {
+        if (t.characterId || t.kind !== "pc" || t.controller === "bot") continue;
+        const characterId = byName.get(normalizeName(t.name));
+        if (!characterId || linked.has(characterId)) continue;
+        linked.add(characterId);
+        links.push({ type: "token.linked", tokenId: t.id, characterId });
+      }
+      if (links.length) send(links, "system");
+
       await Promise.all(
-        tokens.map(async (t) => {
+        (room()?.tokens.filter((t) => t.characterId) ?? []).map(async (t) => {
           try {
-            applySheet(t.id, await characterService.get(t.characterId!, { id: gm.id }));
+            applySheet(t.id, await characterService.get(t.characterId!, { id: gm.id }), true);
           } catch {
             // Sheet no longer reachable (deleted, left the campaign): keep the token as it is.
           }
@@ -169,7 +209,7 @@ export function useRoomActions(campaignId: string, gm: Author) {
       toast.success("Mapa aplicado", map.name);
     }
 
-    return { setRules, applySheetSoon, syncSheets, postCheck, setAppearance, replaceMap, rollDice, sendChat, moveToken, adjustHp, toggleCondition, attackWith, startCombat, nextTurn, endCombat, addBots, removeBots, markEpic };
+    return { setRules, applySheetSoon, forgetSheet, syncSheets, postCheck, setAppearance, replaceMap, rollDice, sendChat, moveToken, adjustHp, toggleCondition, attackWith, startCombat, nextTurn, endCombat, addBots, removeBots, markEpic };
   }, [campaignId, gm, dispatch]);
 }
 

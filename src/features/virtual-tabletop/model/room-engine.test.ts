@@ -99,6 +99,21 @@ describe("rules", () => {
     expect(started).toMatchObject({ type: "combat.started", order: [{ tokenId: "b", initiative: 70 }, { tokenId: "a", initiative: 40 }] });
   });
 
+  it("takes the sheet's current HP when asked, keeping 'Caído' in step", () => {
+    const hero = token({ id: "hero", kind: "pc", hp: { current: 10, max: 10 } });
+    const down = applyEvents(room([hero]), [{ type: "token.synced", tokenId: "hero", stats: hero.stats, hpMax: 10, hpCurrent: 0 }], "system").tokens[0];
+    expect(down.hp.current).toBe(0);
+    expect(down.conditions).toContain("Caído");
+    const up = applyEvents(room([down]), [{ type: "token.synced", tokenId: "hero", stats: hero.stats, hpMax: 10, hpCurrent: 25 }], "system").tokens[0];
+    expect(up.hp.current).toBe(10);
+    expect(up.conditions).not.toContain("Caído");
+  });
+
+  it("links a player token to its sheet", () => {
+    const hero = token({ id: "hero", kind: "pc" });
+    expect(applyEvents(room([hero]), [{ type: "token.linked", tokenId: "hero", characterId: "ch_1" }], "system").tokens[0].characterId).toBe("ch_1");
+  });
+
   it("raises current HP with the max when a full-health token's sheet grows", () => {
     const hero = token({ id: "hero", kind: "pc", hp: { current: 10, max: 10 } });
     const after = applyEvents(room([hero]), [{ type: "token.synced", tokenId: "hero", stats: hero.stats, hpMax: 14 }], "system");

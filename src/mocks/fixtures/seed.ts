@@ -8,6 +8,7 @@ import type { Character } from "@/types/character";
 import type { LibraryAsset } from "@/types/library";
 import type { UserProfile } from "@/types/user";
 import type { SystemTemplate } from "@/types/system";
+import { withDemoSheet } from "./demo-sheets";
 
 export interface MockUserRecord {
   profile: UserProfile;
@@ -573,5 +574,5 @@ export function createSeed(now: Date = new Date()): MockSeed {
     }),
   ];
 
-  return { users, campaigns, sessions, invites, characters, library, customSystems: [] };
+  return { users, campaigns, sessions, invites, characters: characters.map(withDemoSheet), library, customSystems: [] };
 }

@@ -29,6 +29,7 @@ export function SheetEditor({
   embedded = false,
   onRoll,
   onChange,
+  liveHp,
   actions,
 }: {
   characterId: string;
@@ -36,9 +37,11 @@ export function SheetEditor({
   onRoll?: (check: CheckResult, character: EditableCharacter["character"]) => void;
   /** Called with the edited character after every local change. */
   onChange?: (data: EditableCharacter) => void;
+  /** Current HP at the table; shown on the sheet as it changes (the room saves it). */
+  liveHp?: number;
   actions?: (data: EditableCharacter) => React.ReactNode;
 }) {
-  const { data, error, reload, status, saveError, updateSheet, updateIdentity } = useCharacterSheet(characterId);
+  const { data, error, reload, status, saveError, updateSheet, updateIdentity, patchLocal } = useCharacterSheet(characterId);
   const [tab, setTab] = useState<Tab>("main");
   const [mode, setMode] = useState<RollMode>("normal");
   const [last, setLast] = useState<{ id: number; check: CheckResult } | null>(null);
@@ -49,6 +52,21 @@ export function SheetEditor({
   useEffect(() => {
     if (data) onChangeRef.current?.(data);
   }, [data]);
+
+  // Follow the table's HP only when it changes there, so an HP typed on the sheet is not undone.
+  const appliedHp = useRef<number | undefined>(undefined);
+  const loaded = !!data;
+  useEffect(() => {
+    if (liveHp === undefined || !data || appliedHp.current === liveHp) return;
+    appliedHp.current = liveHp;
+    const key = data.system.resources[0]?.key;
+    const resource = key ? data.character.sheet.resources[key] : undefined;
+    if (!key || !resource) return;
+    const current = Math.min(liveHp, resource.max);
+    if (resource.current !== current) patchLocal((s) => ({ ...s, resources: { ...s.resources, [key]: { ...s.resources[key], current } } }));
+    // `data` is read for the current values only; reacting to it would undo edits made on the sheet.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [liveHp, loaded]);
 
   if (error && !data) return <ErrorState error={error} onRetry={reload} />;
   if (!data) return <LoadingState label="Abrindo ficha…" />;

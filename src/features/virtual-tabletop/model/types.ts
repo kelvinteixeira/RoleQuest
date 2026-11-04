@@ -76,8 +76,10 @@ export type RoomEvent =
   | { type: "token.condition"; tokenId: string; condition: string; on: boolean }
   | { type: "token.stats"; tokenId: string; stats: Partial<CombatStats> }
   | { type: "token.appearance"; tokenId: string; modelId: string }
-  /** Combat block and max HP refreshed from the linked sheet. */
-  | { type: "token.synced"; tokenId: string; stats: CombatStats; hpMax: number }
+  /** Combat block and max HP refreshed from the linked sheet; `hpCurrent` when the sheet's HP should win. */
+  | { type: "token.synced"; tokenId: string; stats: CombatStats; hpMax: number; hpCurrent?: number }
+  /** A player token from an older room gets its character sheet. */
+  | { type: "token.linked"; tokenId: string; characterId: string }
   /** The room follows the campaign system; NPC stats are re-derived for it. */
   | { type: "rules.set"; rules: CombatRules }
   | { type: "message.posted"; message: ChatMessage }

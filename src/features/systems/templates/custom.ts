@@ -10,9 +10,8 @@ export type CustomSystemSeed = {
 };
 
 /**
- * "Criar meu próprio sistema": a neutral starting point the GM reshapes.
- * The full builder (attributes, skills, classes, progression) lands in Phase 2;
- * the template already carries every slot so nothing needs migrating later.
+ * "Criar meu próprio sistema": a neutral starting point the GM reshapes in
+ * the system editor (attributes, skills, classes, progression, fields…).
  */
 export function createCustomSystem(seed: CustomSystemSeed): SystemTemplate {
   const id = createId("custom") as CustomSystemId;
@@ -54,7 +53,9 @@ export function createCustomSystem(seed: CustomSystemSeed): SystemTemplate {
       gridCellDistance: 1,
     },
     inventory: { model: "list", capacityLabel: "Itens", currencies: ["Moedas"], equipmentSlots: [] },
-    progression: { model: "levels", label: "Nível" },
+    progression: { model: "levels", label: "Nível", max: 10, levels: [] },
+    classes: [],
+    classesLabel: "Classe",
     customFields: [],
     rules: [],
     campaignTemplates: [],

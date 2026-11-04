@@ -75,6 +75,10 @@ export interface CharacterSheet {
   story: { background: string; personality: string; appearance: string; relationships: string; history: string };
   /** Visible to the owner and the game master only. */
   privateNotes: string;
+  /** Class of a custom system (see SystemTemplate.classes). */
+  classKey?: string;
+  /** Resource bonus the class gave when chosen (undone exactly on a switch). */
+  classBonus?: Record<string, number>;
 }
 
 /**

@@ -121,7 +121,9 @@ Regras:
 - Cada sistema é um `SystemTemplate` (tipo em `types/system.ts`) em `features/systems/templates/`.
 - O template descreve **estrutura** (atributos, recursos, perícias, dados, iniciativa, inventário, condições, campos personalizados, regras configuráveis, modelos de campanha e de mapa) — nunca texto de livros.
 - Identidade visual por sistema: `theme.accent` vira a CSS variable `--system-accent` no escopo do componente, mantendo o design neutro global.
-- "Criar meu próprio sistema" gera um `SystemTemplate` com `kind: 'custom'` armazenado no repositório (editor completo na Fase 2).
+- "Criar meu próprio sistema" gera um `SystemTemplate` com `kind: 'custom'` armazenado no repositório; o editor (`features/systems/components/editor`, regras em `features/systems/model/system-editor.ts`) só edita sistemas do próprio dono. As chaves (atributo, perícia, recurso, classe) nascem do nome e nunca mudam ao renomear, para as fichas existentes não perderem dados; remover algo limpa as referências (`pruneReferences`). As fórmulas do template são texto descritivo: quem decide a rolagem é `dice.mechanic`.
+- Classes (`SystemTemplate.classes`) ficam na ficha em `sheet.classKey`; `applyClass` move os máximos de recurso pela diferença de bônus ao trocar de classe, treina as perícias da classe e adiciona as habilidades uma vez.
+- Administração da campanha em `services/campaign-admin.service.ts` (`campaign:manage` / `campaign:invite`): quem criou a campanha continua mestre e nunca é removido; sempre há pelo menos um mestre; convites pendentes contam como vagas ocupadas.
 - Nomes de sistemas são usados apenas de forma nominativa (compatibilidade). Role Quest não é afiliado aos titulares.
 
 ## 7. Decisões para as próximas fases

@@ -3,7 +3,7 @@
 import { useState, type KeyboardEvent, type ReactNode } from "react";
 import { Check, Minus, Plus, Wand2, X } from "lucide-react";
 import { Input, Select, Textarea } from "@/components/ui/field";
-import { Badge, PhaseBadge } from "@/components/ui/primitives";
+import { Badge } from "@/components/ui/primitives";
 import { Switch } from "@/components/ui/switch";
 import { NARRATION_STYLES, VISUAL_STYLES, WORLD_TONES } from "@/constants/campaign";
 import { cn } from "@/lib/cn";
@@ -142,7 +142,7 @@ export function SystemStep({ draft, errors, update }: StepProps) {
             </div>
           </div>
           <p className="flex flex-wrap items-center gap-2 text-xs text-fg-subtle">
-            Começa com 3 atributos, vida e energia. Atributos, perícias, classes e progressão serão editáveis no editor de sistemas <PhaseBadge phase={2} />
+            Começa com 3 atributos, vida e energia. Depois, em Sistemas, o editor ajusta atributos, perícias, classes, progressão e campos da ficha.
           </p>
         </div>
       )}

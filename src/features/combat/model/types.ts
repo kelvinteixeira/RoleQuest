@@ -2,6 +2,8 @@ import type { DieType, ResolutionMechanic, SystemId } from "@/types/system";
 
 /** Room-wide combat rules, taken from the campaign's system. */
 export interface CombatRules {
+  /** Built-in system whose specific rules apply (a custom copy of Pathfinder plays like Pathfinder). */
+  family?: string;
   systemId: SystemId;
   mechanic: ResolutionMechanic;
   /** Main die of "custom" systems (attacks and initiative roll it). */

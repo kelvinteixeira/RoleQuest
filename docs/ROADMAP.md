@@ -12,17 +12,18 @@ Legenda: ✅ entregue · 🟡 parcial · ⬜ pendente
 - ✅ Camada de dados: contratos de repositório, implementação mock persistida, services
 - ✅ Biblioteca dos 10 sistemas (modelos estruturais) + modelo "sistema próprio"
 
-## Fase 2 — Campanhas e personagens 🟡
+## Fase 2 — Campanhas e personagens ✅
 - ✅ Assistente de criação de campanha (7 etapas, prévia ao vivo) + opção "começar do zero"
 - ✅ Página da campanha (visão geral, membros, sessões)
 - ✅ Aceitar/recusar convites
-- ⬜ Editor completo de "sistema próprio" (atributos, perícias, classes, progressão)
+- ✅ Editor completo de "sistema próprio" (`/systems/[id]/edit`): identidade e cor, mecânica de teste, atributos, recursos, perícias, classes (bônus, perícias treinadas, habilidades iniciais), progressão com tabela de níveis, condições, campos da ficha, combate e inventário; criar do zero ou "duplicar como meu" a partir de qualquer sistema; classe escolhida na ficha
 - ✅ Criação, edição, duplicação e exclusão de personagens; fichas a partir do modelo de cada sistema com salvamento automático
 - ✅ Atributos, recursos, condições, perícias (atributo escolhível), habilidades, campos personalizados, história e anotações privadas
 - ✅ Testes pela mecânica de cada sistema (d20+mod, d100 com dados de bônus/penalidade, parada de d10, Xd20, 1d6+atributo, 1d10 explosivo, 3d6)
 - ✅ Inventário com equipado, slots, carga e moedas
 - ✅ Ficha aberta dentro da sala, com testes publicados no chat
-- ⬜ Gerenciamento de jogadores e permissões por campanha
+- ✅ Configurações da campanha (`/campaign/[id]/settings`): informações, mundo e narrador; regras da mesa (editar fichas, mover tokens, mensagens privadas, rolagens públicas, vagas); jogadores (tornar mestre/jogador, remover) e convites por e-mail (enviar, cancelar, respeitando as vagas)
+- ✅ Fichas da campanha (`/campaign/[id]/characters`): o mestre abre todas, o jogador a sua
 
 ## Fase 3 — Virtual Tabletop ✅
 - ✅ Sala de jogo em tela cheia (`/campaign/[id]/session`), estado por eventos (`RoomEvent`) salvo no navegador

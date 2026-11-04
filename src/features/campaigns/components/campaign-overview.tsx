@@ -90,9 +90,9 @@ function OverviewContent({ data }: { data: Overview }) {
             {isGM ? "Iniciar sessão" : "Entrar na sala"}
           </ButtonLink>
           <span className="mx-1 hidden h-5 w-px bg-line sm:block" />
-          <Button variant="secondary" disabled leadingIcon={<ScrollText className="size-4" />} title="Fichas — Fase 2">
+          <ButtonLink href={`/campaign/${campaign.id}/characters`} variant="secondary" leadingIcon={<ScrollText className="size-4" />}>
             Fichas
-          </Button>
+          </ButtonLink>
           <ButtonLink href={`/campaign/${campaign.id}/journal`} variant="secondary" leadingIcon={<BookOpen className="size-4" />}>
             Diário
           </ButtonLink>
@@ -105,9 +105,9 @@ function OverviewContent({ data }: { data: Overview }) {
             Chronicles
           </Button>
           {isGM && can(role, "campaign:manage") && (
-            <Button variant="ghost" disabled leadingIcon={<Settings2 className="size-4" />} title="Configurações da campanha — Fase 2">
+            <ButtonLink href={`/campaign/${campaign.id}/settings`} variant="ghost" leadingIcon={<Settings2 className="size-4" />}>
               Configurar
-            </Button>
+            </ButtonLink>
           )}
         </div>
 
@@ -182,10 +182,10 @@ function OverviewContent({ data }: { data: Overview }) {
                 icon={<Users />}
                 description={`${members.filter((m) => m.role === "player").length}/${campaign.playerPolicy.maxPlayers} jogadores`}
                 action={
-                  isGM ? (
-                    <Button size="icon-sm" variant="ghost" disabled title="Convidar jogadores — Fase 2" aria-label="Convidar jogadores">
+                  isGM && can(role, "campaign:invite") ? (
+                    <ButtonLink href={`/campaign/${campaign.id}/settings`} size="icon-sm" variant="ghost" title="Convidar e gerenciar jogadores" aria-label="Convidar e gerenciar jogadores">
                       <MailPlus className="size-4" />
-                    </Button>
+                    </ButtonLink>
                   ) : undefined
                 }
               />

@@ -68,7 +68,7 @@ export interface GameSession extends Timestamps {
 
 export type NewSessionInput = Omit<GameSession, "id" | "createdAt" | "updatedAt">;
 
-export type InviteStatus = "pending" | "accepted" | "declined";
+export type InviteStatus = "pending" | "accepted" | "declined" | "revoked";
 
 export interface CampaignInvite extends Timestamps {
   id: ID;

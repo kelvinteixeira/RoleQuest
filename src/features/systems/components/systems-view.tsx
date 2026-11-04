@@ -2,9 +2,12 @@
 
 import { useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { Plus, Wand2 } from "lucide-react";
+import { Copy, PenLine, Plus, Wand2 } from "lucide-react";
 import { Button, ButtonLink } from "@/components/ui/button";
-import { Badge, PhaseBadge, SectionHeader } from "@/components/ui/primitives";
+import { Input } from "@/components/ui/field";
+import { Badge, SectionHeader } from "@/components/ui/primitives";
+import { toUserMessage } from "@/lib/errors";
+import { toast } from "@/stores/toast.store";
 import { Modal } from "@/components/ui/modal";
 import { ErrorState } from "@/components/feedback/states";
 import { PageContainer, PageHeader } from "@/components/layout/page-header";
@@ -25,6 +28,20 @@ export function SystemsView() {
   const selectedId = params.get("system");
   const selected = data?.find((s) => s.id === selectedId) ?? null;
   const [creating, setCreating] = useState(params.get("create") === "1");
+  const [newName, setNewName] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  /** Creates (or duplicates) a custom system and opens it in the editor. */
+  async function startEditing(make: () => Promise<SystemTemplate>) {
+    setBusy(true);
+    try {
+      const system = await make();
+      router.push(`/systems/${system.id}/edit`);
+    } catch (e) {
+      toast.error("Não foi possível criar o sistema", toUserMessage(e));
+      setBusy(false);
+    }
+  }
 
   const open = (id: string) => router.replace(`${pathname}?system=${id}`, { scroll: false });
   const close = () => router.replace(pathname, { scroll: false });
@@ -73,28 +90,49 @@ export function SystemsView() {
       </section>
 
       <Modal open={!!selected} onClose={close} title={selected?.name ?? ""} placement="right">
-        {selected && <SystemDetail system={selected} />}
+        {selected && (
+          <SystemDetail
+            system={selected}
+            actions={
+              <>
+                {selected.kind === "custom" && (
+                  <ButtonLink href={`/systems/${selected.id}/edit`} size="sm" leadingIcon={<PenLine className="size-3.5" />}>
+                    Editar sistema
+                  </ButtonLink>
+                )}
+                <Button size="sm" variant="secondary" loading={busy} onClick={() => void startEditing(() => systemService.duplicate(user.id, selected.id))} leadingIcon={<Copy className="size-3.5" />}>
+                  Duplicar como meu
+                </Button>
+              </>
+            }
+          />
+        )}
       </Modal>
 
-      <Modal open={creating} onClose={() => setCreating(false)} title="Criar meu próprio sistema" size="md">
-        <div className="flex flex-col gap-4 text-sm text-fg-muted">
-          <p>
-            Você já pode criar um sistema próprio ao montar uma campanha: escolha <strong className="text-fg">Sistema próprio</strong> na etapa de
-            sistema e defina nome, temática e dado principal. Ele fica salvo aqui, com ficha inicial de três atributos, vida e energia.
+      <Modal
+        open={creating}
+        onClose={() => setCreating(false)}
+        title="Criar meu próprio sistema"
+        description="Começa com três atributos, vida e energia; no editor você define atributos, perícias, classes, progressão, campos da ficha e regras de combate."
+        size="sm"
+        footer={
+          <Button loading={busy} disabled={!newName.trim()} onClick={() => void startEditing(() => systemService.createCustom(user.id, newName))} leadingIcon={<Plus className="size-4" />}>
+            Criar e abrir o editor
+          </Button>
+        }
+      >
+        <form
+          className="flex flex-col gap-3"
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (newName.trim() && !busy) void startEditing(() => systemService.createCustom(user.id, newName));
+          }}
+        >
+          <Input label="Nome do sistema" value={newName} onChange={(e) => setNewName(e.target.value)} maxLength={40} placeholder="Brasas do Norte" autoFocus />
+          <p className="text-xs text-fg-subtle">
+            Prefere partir de um sistema pronto? Abra-o na lista e use <strong className="text-fg-muted">Duplicar como meu</strong>.
           </p>
-          <div className="rounded-lg border border-line bg-surface-2/50 p-3">
-            <div className="flex items-center justify-between">
-              <span className="font-medium text-fg">Editor completo de sistemas</span>
-              <PhaseBadge phase={2} />
-            </div>
-            <p className="mt-1 text-xs text-fg-subtle">
-              Atributos, perícias, classes, raças, habilidades, fórmulas de rolagem, recursos, inventário, regras de combate, progressão e campos personalizados.
-            </p>
-          </div>
-          <ButtonLink href="/campaigns/new?system=custom" leadingIcon={<Plus className="size-4" />} className="self-start">
-            Criar campanha com sistema próprio
-          </ButtonLink>
-        </div>
+        </form>
       </Modal>
     </PageContainer>
   );

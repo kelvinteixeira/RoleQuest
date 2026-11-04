@@ -13,6 +13,7 @@ import type { RollMode } from "@/features/dice/dice-engine";
 import { SystemTag } from "@/features/systems/components/system-identity";
 import type { EditableCharacter } from "@/services/character.service";
 import { checkHint, resolveCheck, type CheckRequest, type CheckResult } from "../model/checks";
+import { applyClass, levelPerks } from "../model/sheet";
 import { useCharacterSheet, type SaveStatus } from "../hooks/use-character-sheet";
 import { AbilitiesSection, AttributesSection, CustomFieldsSection, InventorySection, SkillsSection, StorySection, type SectionProps } from "./sheet-sections";
 import { CombatSection } from "./combat-section";
@@ -114,9 +115,30 @@ export function SheetEditor({
                 max={system.progression.max ?? 999}
                 value={character.level ?? 0}
                 onChange={(e) => updateIdentity({ level: Math.max(0, Number(e.target.value) || 0) })}
+                title={levelPerks(system, character.level) ?? undefined}
                 className="h-7 w-14 rounded-md border border-line bg-surface-2/60 text-center font-mono text-sm text-fg outline-none focus:border-accent/60"
               />
             </label>
+            {levelPerks(system, character.level) && <span className="text-xs text-fg-subtle">· {levelPerks(system, character.level)}</span>}
+            {!!system.classes?.length && (
+              <label className="flex items-center gap-1.5 text-xs text-fg-subtle">
+                {system.classesLabel || "Classe"}
+                <select
+                  aria-label={system.classesLabel || "Classe"}
+                  disabled={readOnly}
+                  value={character.sheet.classKey ?? ""}
+                  onChange={(e) => updateSheet((s) => applyClass(system, s, e.target.value || null))}
+                  className="h-7 rounded-md border border-line bg-surface-2/60 px-1.5 text-sm text-fg outline-none focus:border-accent/60"
+                >
+                  <option value="">—</option>
+                  {system.classes.map((c) => (
+                    <option key={c.key} value={c.key}>
+                      {c.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
             {campaign ? (
               embedded ? (
                 <Badge>{campaign.name}</Badge>

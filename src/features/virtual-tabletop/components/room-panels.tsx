@@ -362,6 +362,15 @@ function Chip({ active, disabled, onClick, children }: { active: boolean; disabl
 
 const CONDITIONS = ["Atordoado", "Envenenado", "Amedrontado", "Contido", "Invisível"];
 
+/** Lights a token can carry, radius in squares. */
+const CARRIED_LIGHTS = [
+  { radius: 0, label: "Nenhuma" },
+  { radius: 2, label: "Vela (2 □)" },
+  { radius: 4, label: "Tocha (4 □)" },
+  { radius: 6, label: "Lanterna (6 □)" },
+  { radius: 8, label: "Magia de luz (8 □)" },
+];
+
 export function TokenInspector({ room, token, actions }: { room: RoomState; token: RoomToken; actions: RoomActions }) {
   const select = useRoomStore((s) => s.select);
   const [amount, setAmount] = useState(5);
@@ -414,6 +423,21 @@ export function TokenInspector({ room, token, actions }: { room: RoomState; toke
                   </option>
                 ))}
               </optgroup>
+            ))}
+          </select>
+        </label>
+
+        <label className="mt-2 flex items-center gap-2 text-xs text-fg-subtle">
+          Luz
+          <select
+            value={token.light ?? 0}
+            onChange={(e) => actions.setTokenLight(token, Number(e.target.value))}
+            className="h-8 min-w-0 flex-1 rounded-md border border-line bg-surface-2 px-2 text-xs text-fg outline-none focus:border-accent/60"
+          >
+            {CARRIED_LIGHTS.map((l) => (
+              <option key={l.radius} value={l.radius}>
+                {l.label}
+              </option>
             ))}
           </select>
         </label>

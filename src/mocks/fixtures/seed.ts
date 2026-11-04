@@ -8,6 +8,7 @@ import type { Character } from "@/types/character";
 import type { LibraryAsset } from "@/types/library";
 import type { UserProfile } from "@/types/user";
 import type { SystemTemplate } from "@/types/system";
+import type { SavedMap } from "@/types/map";
 import { withDemoSheet } from "./demo-sheets";
 
 export interface MockUserRecord {
@@ -24,6 +25,7 @@ export interface MockSeed {
   characters: Character[];
   library: LibraryAsset[];
   customSystems: { ownerId: string; system: SystemTemplate }[];
+  maps: SavedMap[];
 }
 
 export const DEMO_USER_ID = "user_rafael";
@@ -574,5 +576,5 @@ export function createSeed(now: Date = new Date()): MockSeed {
     }),
   ];
 
-  return { users, campaigns, sessions, invites, characters: characters.map(withDemoSheet), library, customSystems: [] };
+  return { users, campaigns, sessions, invites, characters: characters.map(withDemoSheet), library, customSystems: [], maps: [] };
 }

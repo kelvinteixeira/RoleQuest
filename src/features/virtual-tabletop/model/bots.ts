@@ -8,7 +8,7 @@ import type { MapDocument } from "@/features/map/model/map-document";
 import { ENEMY_SPAWNS, freeCellNear, gridDistance, pathToAdjacent, PLAYER_SPAWNS } from "./map";
 import { adaptNpcStats, healFormula } from "@/features/combat/model/rules";
 import type { CombatRules, NpcStatBlock } from "@/features/combat/model/types";
-import { attack, authorOf, isDown, rollEvent, say, whisper, announce } from "./room-engine";
+import { attack, authorOf, isDown, rollEvent, say, whisper, announce, walk } from "./room-engine";
 import type { RoomEvent, RoomState, RoomToken } from "./types";
 
 interface BotPersona {
@@ -200,11 +200,17 @@ export function decideTurn(state: RoomState, actor: RoomToken): BotStep[] {
       const path = pathToAdjacent(state.map, state.tokens, actor, target);
       if (path === null) continue;
       // Walk only until the target is in reach (or the speed runs out).
-      const walk = path.slice(0, actor.stats.speed);
-      const inReach = walk.findIndex((cell) => gridDistance(cell, target) <= weapon.range);
-      const move = inReach === -1 ? walk : walk.slice(0, inReach + 1);
-      end = move[move.length - 1] ?? end;
-      if (move.length > 0) steps.push({ delay: 400, events: [{ type: "token.moved", tokenId: actor.id, x: end.x, y: end.y }] });
+      const stride = path.slice(0, actor.stats.speed);
+      const inReach = stride.findIndex((cell) => gridDistance(cell, target) <= weapon.range);
+      const move = inReach === -1 ? stride : stride.slice(0, inReach + 1);
+      // A trap on the way stops the walk (and may leave the target out of reach).
+      const walked = walk(state, actor, move);
+      end = walked.end;
+      if (walked.events.length > 0) steps.push({ delay: 400, events: walked.events });
+      if (walked.trapped) {
+        const hurt = walked.events.find((e) => e.type === "token.hp");
+        if (hurt?.type === "token.hp" && actor.hp.current + hurt.delta <= 0) return steps;
+      }
     }
     if (gridDistance(end, target) <= weapon.range) {
       const outcome = attack(state, { ...actor, ...end }, target, { attackId: weapon.id });

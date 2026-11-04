@@ -24,7 +24,7 @@ Legenda: ✅ entregue · 🟡 parcial · ⬜ pendente
 - ✅ Ficha aberta dentro da sala, com testes publicados no chat
 - ⬜ Gerenciamento de jogadores e permissões por campanha
 
-## Fase 3 — Virtual Tabletop 🟡
+## Fase 3 — Virtual Tabletop ✅
 - ✅ Sala de jogo em tela cheia (`/campaign/[id]/session`), estado por eventos (`RoomEvent`) salvo no navegador
 - ✅ Mapa 3D (three.js) em visão de cima inclinada: terreno por tiles com elevação, água animada, objetos 3D CC0, luz e sombras; câmera com zoom, pan, giro e vista de topo
 - ✅ Editor de mapas do mestre: terreno, objetos, elevar/rebaixar, borracha e girar; formas pincel, retângulo, contorno, elipse, linha e balde; desfazer/refazer; modelos prontos; redimensionar
@@ -34,9 +34,14 @@ Legenda: ✅ entregue · 🟡 parcial · ⬜ pendente
 - ✅ Rolador de dados (d4–d100, múltiplos, modificador, vantagem/desvantagem, pública/só mestre) e comandos no chat
 - ✅ Chat geral, privado mestre ↔ jogador e mensagens do sistema; "Momento épico" registrado no log
 - ✅ Bots de teste locais (jogam turnos, curam, conversam, respondem sussurros) e inimigos automáticos
-- ⬜ Biblioteca de mapas salvos por campanha, importação de imagens, camadas, fog of war, iluminação dinâmica, portas e armadilhas
+- ✅ Biblioteca de mapas por campanha: salvar, atualizar, copiar, abrir no editor, excluir e usar na mesa (miniaturas)
+- ✅ Névoa de guerra: o que os personagens veem (linha de visão com raio ajustável) vira área explorada; paredes, rochas e portas fechadas bloqueiam a visão; pincel do mestre para revelar e esconder; visão do mestre com véu e prévia "ver como os jogadores" (escuridão total, inimigos fora da vista ocultos)
+- ✅ Portas de madeira e grades de ferro (abrir, fechar, trancar; grades deixam ver através), alinhadas às paredes; armadilhas de espinhos e dardos ocultas e armadas que disparam uma vez no caminho de quem passa (jogadores, bots e inimigos), com dano configurável; modelo "Cripta esquecida"
+- ✅ Iluminação dinâmica: luz ambiente do mapa (dia, penumbra, escuridão), fogueiras, tochas de parede e braseiros que acendem e apagam, luz carregada por token (vela, tocha, lanterna, magia); no escuro o grupo só vê o que está ao lado ou iluminado, e a névoa segue a luz
+- ✅ Importar imagem como mapa: desenho por baixo da grade (PNG, JPG, WebP), casas na largura, ajuste fino e opacidade; paredes, portas e armadilhas pintadas por cima; imagem guardada no navegador (IndexedDB)
+- ✅ Camadas no editor (imagem de fundo, terreno, objetos, anotações do mestre) com ocultar e travar; ferramenta "Anotar" e anotações visíveis só para o mestre na mesa
 - ✅ Regras de combate por sistema a partir das fichas: aba Combate na ficha (defesa, armadura, deslocamento, ataques com alcance), ataque e defesa pela mecânica de cada sistema, iniciativa por sistema, inimigos e bots convertidos para a escala do sistema; PV sincronizados entre mesa e ficha; personagens de demonstração com fichas preenchidas
-- ⬜ Dados 3D e efeitos sonoros
+- ✅ Dados 3D (rolam sobre a mesa a cada rolagem e mostram os valores) e efeitos sonoros sintetizados (dados, golpes, cura, portas, grades, armadilhas, fogo, passos, início de combate), com botão de silenciar
 
 ## Fase 4 — Comunicação ⬜
 Chat geral/privado/sistema/anotações, voz WebRTC (LiveKit), presença, sincronização em tempo real, central de áudio.

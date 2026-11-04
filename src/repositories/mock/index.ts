@@ -9,6 +9,7 @@ import type {
   CharacterRepository,
   InviteRepository,
   LibraryRepository,
+  MapRepository,
   Repositories,
   SessionRepository,
   SystemRepository,
@@ -20,6 +21,7 @@ import { createId, slugify } from "@/lib/id";
 import { sha256Hex } from "@/lib/crypto";
 import { AVATAR_COLORS } from "@/constants/campaign";
 import { commit, getDb, nowIso, respond } from "./database";
+import { mockImages } from "./images";
 
 const SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
@@ -246,5 +248,30 @@ const systems: SystemRepository = {
   },
 };
 
-export const mockRepositories: Repositories = { auth, users, campaigns, sessions, invites, characters, library, systems };
+const maps: MapRepository = {
+  async listForCampaign(campaignId) {
+    return respond(getDb().maps.filter((m) => m.campaignId === campaignId).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)));
+  },
+  async getById(id) {
+    return respond(getDb().maps.find((m) => m.id === id) ?? null);
+  },
+  async save(input) {
+    const db = getDb();
+    const now = nowIso();
+    const index = db.maps.findIndex((m) => m.id === input.id);
+    const saved = index >= 0 ? { ...db.maps[index], ...input, updatedAt: now } : { ...input, createdAt: now, updatedAt: now };
+    if (index >= 0) db.maps[index] = saved;
+    else db.maps.push(saved);
+    commit();
+    return respond(saved);
+  },
+  async remove(id) {
+    const db = getDb();
+    db.maps = db.maps.filter((m) => m.id !== id);
+    commit();
+    return respond(undefined);
+  },
+};
+
+export const mockRepositories: Repositories = { auth, users, campaigns, sessions, invites, characters, library, systems, maps, images: mockImages };
 export { resetMockDatabase } from "./database";

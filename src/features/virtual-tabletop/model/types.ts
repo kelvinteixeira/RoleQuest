@@ -1,5 +1,5 @@
 import type { RollResult } from "@/features/dice/dice-engine";
-import type { MapDocument } from "@/features/map/model/map-document";
+import type { Ambient, DoorState, MapDocument, TrapState } from "@/features/map/model/map-document";
 import type { CombatRules, CombatStats, NpcStatBlock } from "@/features/combat/model/types";
 
 export type TokenKind = "pc" | "npc" | "enemy";
@@ -30,6 +30,8 @@ export interface RoomToken {
   characterId?: string;
   /** Enemies and bots: stat block in d20 terms, re-derived for the room's system. */
   npc?: NpcStatBlock;
+  /** Light carried (torch, lantern), radius in squares. */
+  light?: number;
 }
 
 /** The room plays on a square-tile map document (terrain, elevation, props). */
@@ -56,6 +58,18 @@ export interface ChatMessage {
   to?: { id: string; name: string };
 }
 
+/**
+ * Fog of war. `explored` holds the cell indices the party has seen at some
+ * point (or the GM revealed); what they see right now is derived from the
+ * player tokens' line of sight.
+ */
+export interface FogState {
+  enabled: boolean;
+  /** Vision radius of player characters, in squares. */
+  vision: number;
+  explored: number[];
+}
+
 export interface CombatState {
   active: boolean;
   round: number;
@@ -71,7 +85,8 @@ export interface CombatState {
 export type RoomEvent =
   | { type: "token.added"; token: RoomToken }
   | { type: "token.removed"; tokenId: string }
-  | { type: "token.moved"; tokenId: string; x: number; y: number }
+  /** `path`: squares crossed on the way (end included); the party explores along it. */
+  | { type: "token.moved"; tokenId: string; x: number; y: number; path?: { x: number; y: number }[] }
   | { type: "token.hp"; tokenId: string; delta: number }
   | { type: "token.condition"; tokenId: string; condition: string; on: boolean }
   | { type: "token.stats"; tokenId: string; stats: Partial<CombatStats> }
@@ -86,7 +101,15 @@ export type RoomEvent =
   | { type: "combat.started"; order: CombatState["order"] }
   | { type: "combat.turn" }
   | { type: "combat.ended" }
-  | { type: "map.replaced"; map: MapDocument };
+  | { type: "map.replaced"; map: MapDocument }
+  /** Doors open/close/lock, traps get revealed, disarmed or re-armed. */
+  | { type: "prop.updated"; propId: string; door?: Partial<DoorState>; trap?: Partial<TrapState>; lit?: boolean }
+  /** Light carried by a token (0 puts it out). */
+  | { type: "token.light"; tokenId: string; radius: number }
+  | { type: "lighting.set"; ambient: Ambient }
+  | { type: "fog.configured"; enabled?: boolean; vision?: number }
+  | { type: "fog.revealed"; cells: number[] }
+  | { type: "fog.hidden"; cells: number[] };
 
 export interface LoggedEvent {
   id: string;
@@ -103,6 +126,7 @@ export interface RoomState {
   tokens: RoomToken[];
   messages: ChatMessage[];
   combat: CombatState;
+  fog: FogState;
   log: LoggedEvent[];
   createdAt: string;
 }

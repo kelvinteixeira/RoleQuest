@@ -4,6 +4,7 @@
  * 3D renderer, the editor and the room's movement rules all read from it.
  */
 import { createId } from "@/lib/id";
+import type { MapBackground } from "./background";
 
 export type TerrainId =
   | "grass"
@@ -49,13 +50,33 @@ export const TERRAIN_ORDER: TerrainId[] = ["grass", "forest-floor", "dirt", "san
 
 /* ---------- Props ---------- */
 
-export type PropCategory = "tree" | "rock" | "plant" | "structure";
+export type PropCategory = "tree" | "rock" | "plant" | "structure" | "feature";
+
+/** Interactive map pieces, drawn procedurally and with state that changes during play. */
+export type FeatureKind = "door" | "gate" | "trap-spikes" | "trap-darts" | "torch" | "brazier";
+
+/** How lit the map is before any light source: daylight, dusk/indoors, or darkness. */
+export type Ambient = "bright" | "dim" | "dark";
+
+export const AMBIENT_LABEL: Record<Ambient, string> = { bright: "Dia", dim: "Penumbra", dark: "Escuridão" };
+
+/** A light source: radius in squares. */
+export interface LightDef {
+  radius: number;
+  color: string;
+  /** Fire flickers. */
+  flicker?: boolean;
+}
+
+const FIRE: LightDef = { radius: 5, color: "#ffa04d", flicker: true };
 
 export interface PropDef {
   id: string;
   label: string;
   category: PropCategory;
-  file: string;
+  /** GLB model; features have none (they are drawn from primitives). */
+  file?: string;
+  feature?: FeatureKind;
   /** Scale the model so its height (or footprint) matches this many cells. */
   fit: { by: "height" | "width"; size: number };
   blocks: boolean;
@@ -63,6 +84,12 @@ export interface PropDef {
   walkable?: boolean;
   /** Random yaw when placed, so forests don't look copy-pasted. */
   randomYaw?: boolean;
+  /** Blocks line of sight (fog of war). Raised terrain and closed doors always do. */
+  opaque?: boolean;
+  /** Default trap damage. */
+  damage?: string;
+  /** Lights the squares around it (and lets the party see them in the dark). */
+  light?: LightDef;
 }
 
 const P = (id: string, label: string, category: PropCategory, file: string, fit: PropDef["fit"], blocks: boolean, extra: Partial<PropDef> = {}): PropDef => ({
@@ -73,6 +100,16 @@ const P = (id: string, label: string, category: PropCategory, file: string, fit:
   fit,
   blocks,
   randomYaw: category !== "structure",
+  ...extra,
+});
+
+const F = (id: string, label: string, feature: FeatureKind, extra: Partial<PropDef> = {}): PropDef => ({
+  id,
+  label,
+  category: "feature",
+  feature,
+  fit: { by: "width", size: 1 },
+  blocks: false,
   ...extra,
 });
 
@@ -102,16 +139,22 @@ export const PROPS: readonly PropDef[] = [
   P("bush-large", "Moita", "plant", "plant_bushLarge", { by: "width", size: 0.9 }, false),
   P("lily", "Vitória-régia", "plant", "lily_large", { by: "width", size: 0.7 }, false),
   P("bridge", "Ponte de madeira", "structure", "bridge_wood", { by: "width", size: 1 }, false, { walkable: true }),
-  P("cave-entrance", "Entrada de caverna", "structure", "cliff_cave_rock", { by: "width", size: 1 }, true),
+  P("cave-entrance", "Entrada de caverna", "structure", "cliff_cave_rock", { by: "width", size: 1 }, true, { opaque: true }),
   P("log", "Tronco caído", "structure", "log", { by: "width", size: 0.9 }, false),
   P("log-stack", "Pilha de toras", "structure", "log_stack", { by: "width", size: 0.9 }, true),
   P("stump", "Toco", "structure", "stump_old", { by: "width", size: 0.55 }, false),
-  P("campfire", "Fogueira", "structure", "campfire_stones", { by: "width", size: 0.7 }, false),
+  P("campfire", "Fogueira", "structure", "campfire_stones", { by: "width", size: 0.7 }, false, { light: FIRE }),
   P("tent", "Barraca", "structure", "tent_detailedOpen", { by: "width", size: 1 }, true),
   P("obelisk", "Obelisco", "structure", "statue_obelisk", { by: "height", size: 1.8 }, true),
   P("column", "Coluna", "structure", "statue_column", { by: "height", size: 1.6 }, true),
   P("fence", "Cerca", "structure", "fence_simple", { by: "width", size: 1 }, true),
   P("sign", "Placa", "structure", "sign", { by: "height", size: 0.8 }, false),
+  F("door", "Porta de madeira", "door"),
+  F("gate", "Grade de ferro", "gate"),
+  F("trap-spikes", "Armadilha de espinhos", "trap-spikes", { damage: "2d6" }),
+  F("trap-darts", "Placa de dardos", "trap-darts", { damage: "1d6" }),
+  F("torch", "Tocha de parede", "torch", { light: { ...FIRE, radius: 4 } }),
+  F("brazier", "Braseiro", "brazier", { blocks: true, light: { ...FIRE, radius: 6, color: "#ff8a3d" } }),
 ];
 
 export const PROP_BY_ID = new Map(PROPS.map((p) => [p.id, p]));
@@ -121,7 +164,22 @@ export const PROP_CATEGORY_LABEL: Record<PropCategory, string> = {
   rock: "Rochas",
   plant: "Plantas",
   structure: "Estruturas",
+  feature: "Portas e armadilhas",
 };
+
+export interface DoorState {
+  open: boolean;
+  /** Locked doors stay shut until the GM unlocks them. */
+  locked: boolean;
+}
+
+export interface TrapState {
+  /** Hidden traps are invisible to players until triggered or revealed. */
+  hidden: boolean;
+  /** Armed traps go off when a token steps on them (once; the GM can re-arm). */
+  armed: boolean;
+  damage: string;
+}
 
 export interface PlacedProp {
   id: string;
@@ -130,7 +188,55 @@ export interface PlacedProp {
   y: number;
   /** Yaw in degrees. */
   rotation: number;
+  /** Doors and gates. */
+  door?: DoorState;
+  /** Traps. */
+  trap?: TrapState;
+  /** Light sources: false when put out (default lit). */
+  lit?: boolean;
 }
+
+/** The light a placed prop gives right now, if any. */
+export const lightOf = (p: PlacedProp): LightDef | null => {
+  const light = PROP_BY_ID.get(p.propId)?.light;
+  return light && p.lit !== false ? light : null;
+};
+
+/** Props the GM can select at the table: doors, traps and light sources. */
+export const isInteractive = (p: PlacedProp) => {
+  const def = PROP_BY_ID.get(p.propId);
+  return !!(def?.feature || def?.light);
+};
+
+export const isDoorKind = (kind: FeatureKind | undefined) => kind === "door" || kind === "gate";
+export const isTrapKind = (kind: FeatureKind | undefined) => kind === "trap-spikes" || kind === "trap-darts";
+
+/** State a freshly placed feature starts with. */
+export function initialFeatureState(def: PropDef | undefined): Pick<PlacedProp, "door" | "trap"> {
+  if (isDoorKind(def?.feature)) return { door: { open: false, locked: false } };
+  if (isTrapKind(def?.feature)) return { trap: { hidden: true, armed: true, damage: def?.damage ?? "1d6" } };
+  return {};
+}
+
+export const doorOf = (p: PlacedProp): DoorState | null => (isDoorKind(PROP_BY_ID.get(p.propId)?.feature) ? (p.door ?? { open: false, locked: false }) : null);
+
+export const trapOf = (p: PlacedProp): TrapState | null =>
+  isTrapKind(PROP_BY_ID.get(p.propId)?.feature) ? (p.trap ?? { hidden: true, armed: true, damage: PROP_BY_ID.get(p.propId)?.damage ?? "1d6" }) : null;
+
+/** The interactive feature (door, gate or trap) on a cell, if any. */
+export function featureAt(doc: MapDocument, x: number, y: number): PlacedProp | undefined {
+  return doc.props.find((p) => p.x === x && p.y === y && isInteractive(p));
+}
+
+/** GM-only note pinned to a square (never shown to players). */
+export interface MapNote {
+  id: string;
+  x: number;
+  y: number;
+  text: string;
+}
+
+export const NOTE_MAX = 80;
 
 /* ---------- Document ---------- */
 
@@ -149,6 +255,12 @@ export interface MapDocument {
   /** Row-major elevation levels 0..MAX_ELEVATION. */
   elevation: number[];
   props: PlacedProp[];
+  /** Ambient light; missing on older maps = daylight. */
+  ambient?: Ambient;
+  /** Imported picture under the grid. */
+  background?: MapBackground;
+  /** GM notes layer. */
+  notes?: MapNote[];
 }
 
 export const cellIndex = (doc: Pick<MapDocument, "cols">, x: number, y: number) => y * doc.cols + x;
@@ -176,13 +288,42 @@ export function propsAt(doc: MapDocument, x: number, y: number): PlacedProp[] {
   return doc.props.filter((p) => p.x === x && p.y === y);
 }
 
-/** Movement rule: out of bounds, blocking terrain or blocking props stop tokens; bridges override water. */
+/**
+ * Movement rule: out of bounds, blocking terrain, blocking props and closed
+ * doors stop tokens; bridges override water.
+ */
 export function isBlocked(doc: MapDocument, x: number, y: number): boolean {
   if (!inBounds(doc, x, y)) return true;
-  const here = propsAt(doc, x, y).map((p) => PROP_BY_ID.get(p.propId)).filter(Boolean) as PropDef[];
+  const placed = propsAt(doc, x, y);
+  if (placed.some((p) => doorOf(p)?.open === false)) return true;
+  const here = placed.map((p) => PROP_BY_ID.get(p.propId)).filter(Boolean) as PropDef[];
   if (here.some((p) => p.walkable)) return false;
   if (terrainAt(doc, x, y).blocks) return true;
   return here.some((p) => p.blocks);
+}
+
+/** Opaque squares per map document (documents are immutable: every change makes a new one). */
+const opacityCache = new WeakMap<MapDocument, Uint8Array>();
+
+function opacityOf(doc: MapDocument): Uint8Array {
+  let opaque = opacityCache.get(doc);
+  if (!opaque) {
+    opaque = new Uint8Array(doc.cols * doc.rows);
+    for (let i = 0; i < opaque.length; i++) if (TERRAINS[doc.terrain[i]]?.kind === "raised") opaque[i] = 1;
+    for (const p of doc.props) {
+      if (!inBounds(doc, p.x, p.y)) continue;
+      const def = PROP_BY_ID.get(p.propId);
+      if (def?.feature === "door" ? !doorOf(p)!.open : def?.opaque) opaque[cellIndex(doc, p.x, p.y)] = 1;
+    }
+    opacityCache.set(doc, opaque);
+  }
+  return opaque;
+}
+
+/** Sight rule (fog of war): raised terrain, opaque props and closed wooden doors. Water and gates let sight through. */
+export function blocksSight(doc: MapDocument, x: number, y: number): boolean {
+  if (!inBounds(doc, x, y)) return true;
+  return opacityOf(doc)[cellIndex(doc, x, y)] === 1;
 }
 
 /** Resizes keeping the top-left content; new cells use `fill`. */
@@ -196,7 +337,7 @@ export function resizeMap(doc: MapDocument, cols: number, rows: number, fill: Te
       elevation.push(inside ? doc.elevation[cellIndex(doc, x, y)] : 0);
     }
   }
-  return { ...doc, cols, rows, terrain, elevation, props: doc.props.filter((p) => p.x < cols && p.y < rows) };
+  return { ...doc, cols, rows, terrain, elevation, props: doc.props.filter((p) => p.x < cols && p.y < rows), notes: doc.notes?.filter((n) => n.x < cols && n.y < rows) };
 }
 
 /** Deterministic 0..1 noise per cell, used for colour/height jitter and scatter. */

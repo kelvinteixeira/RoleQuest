@@ -2,8 +2,8 @@ import { appConfig } from "@/config/app";
 import { withDemoSheet } from "@/mocks/fixtures/demo-sheets";
 import { createSeed, type MockSeed } from "@/mocks/fixtures/seed";
 
-/** v2: demo characters ship with filled-in sheets. */
-const SCHEMA_VERSION = 2;
+/** v2: demo characters ship with filled-in sheets. v3: campaign map library. */
+const SCHEMA_VERSION = 3;
 
 export type MockDatabase = MockSeed & { version: number };
 
@@ -13,11 +13,13 @@ export type MockDatabase = MockSeed & { version: number };
  */
 export function upgradeDatabase(stored: MockDatabase): MockDatabase | null {
   if (stored.version === SCHEMA_VERSION) return stored;
-  if (stored.version === 1) {
+  let db = stored;
+  if (db.version === 1) {
     // Only characters that were never edited get the demo sheet.
-    return { ...stored, version: 2, characters: stored.characters.map((c) => (c.sheet ? c : withDemoSheet(c))) };
+    db = { ...db, version: 2, characters: db.characters.map((c) => (c.sheet ? c : withDemoSheet(c))) };
   }
-  return null;
+  if (db.version === 2) db = { ...db, version: 3, maps: db.maps ?? [] };
+  return db.version === SCHEMA_VERSION ? db : null;
 }
 
 let db: MockDatabase | null = null;

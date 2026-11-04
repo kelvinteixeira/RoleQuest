@@ -9,38 +9,107 @@ import * as THREE from "three";
 import { cn } from "@/lib/cn";
 import { toHexColor } from "@/lib/color";
 import { initials } from "@/lib/format";
-import { CellHighlights, cellStandY, cellToWorld, MapCanvas, preloadMapProps, type CameraView } from "@/features/map/components/map-scene";
-import type { MapDocument } from "@/features/map/model/map-document";
+import { CellHighlights, cellStandY, cellToWorld, MapCanvas, preloadMapProps, type CameraView, type FeatureView, type FogView, type LightSpot } from "@/features/map/components/map-scene";
+import { usePreferencesStore } from "@/stores/preferences.store";
+import { cellIndex, featureAt, inBounds, trapOf, type MapDocument, type PlacedProp } from "@/features/map/model/map-document";
 import { brushCells, type Cell } from "@/features/map/model/shapes";
 import { useMapEditorStore } from "@/features/map-editor/store/map-editor.store";
 import { modelFor } from "../model/character-models";
 import { canStand, gridDistance, isWall } from "../model/map";
 import { CharacterFigure, preloadCharacterModel } from "./character-figure";
-import { currentTurnToken, isDown } from "../model/room-engine";
+import { currentTurnToken, isDown, partyVision } from "../model/room-engine";
 import type { RoomState, RoomToken } from "../model/types";
 import { useRoomStore, type TokenFx } from "../store/room.store";
 
 type Drag = { tokenId: string; origin: Cell; hover: Cell };
+
+/** Carried lights from their compact key ("id:x:y:radius|…"), so the light list only changes when a light moves. */
+function parseCarried(key: string): LightSpot[] {
+  if (!key) return [];
+  return key.split("|").map((k) => {
+    const [id, x, y, radius] = k.split(":");
+    return { key: id, x: Number(x), y: Number(y), radius: Number(radius), color: "#ffb066", flicker: true, height: 1.1 };
+  });
+}
+type FogStroke = { mode: "reveal" | "hide"; cells: Set<number> };
 
 /**
  * The room's 3D table: renders the map (or the editor's draft while editing),
  * tokens, movement previews and damage numbers, and routes pointer input to
  * either token movement or the map editor.
  */
-export function RoomMap3D({ room, editing, onMove }: { room: RoomState; editing: boolean; onMove: (token: RoomToken, cell: Cell) => void }) {
+export function RoomMap3D({
+  room,
+  editing,
+  viewer,
+  onMove,
+  onFogPaint,
+}: {
+  room: RoomState;
+  editing: boolean;
+  /** "player": the fog hides what the party has not seen, and hidden traps are invisible. */
+  viewer: FeatureView;
+  onMove: (token: RoomToken, cell: Cell, options: { teleport?: boolean }) => void;
+  onFogPaint: (mode: "reveal" | "hide", cells: number[]) => void;
+}) {
   const draft = useMapEditorStore((s) => s.draft);
   const stroke = useMapEditorStore((s) => s.stroke);
   const brushSize = useMapEditorStore((s) => s.brushSize);
   const shape = useMapEditorStore((s) => s.shape);
   const selectedId = useRoomStore((s) => s.selectedTokenId);
   const select = useRoomStore((s) => s.select);
+  const selectFeature = useRoomStore((s) => s.selectFeature);
+  const selectedFeatureId = useRoomStore((s) => s.selectedFeatureId);
+  const fogBrush = useRoomStore((s) => s.fogBrush);
+  const fogBrushSize = useRoomStore((s) => s.fogBrushSize);
+  const showNotes = useRoomStore((s) => s.showNotes);
+  const layers = useMapEditorStore((s) => s.layers);
   const fx = useRoomStore((s) => s.fx);
+  const [fogStroke, setFogStroke] = useState<FogStroke | null>(null);
   const [view, setView] = useState<CameraView>({ mode: "perspective", rotation: 0, nonce: 0 });
   const [showGrid, setShowGrid] = useState(true);
   const [drag, setDrag] = useState<Drag | null>(null);
   const [hover, setHover] = useState<Cell | null>(null);
   const doc: MapDocument = editing && draft ? draft : room.map;
   const turnToken = currentTurnToken(room);
+  const painting = !editing && !!fogBrush && room.fog.enabled;
+
+  // What the party sees now; null when the fog is off (everything is visible).
+  // Only map, tokens and fog matter: chat and combat events must not recompute line of sight.
+  const { map: roomMap, tokens: roomTokens } = room;
+  const { enabled: fogOn, vision } = room.fog;
+  const visible = useMemo(
+    () => (fogOn ? partyVision({ map: roomMap, tokens: roomTokens, fog: { enabled: true, vision, explored: [] } }) : null),
+    [roomMap, roomTokens, fogOn, vision],
+  );
+  const fog: FogView | null = useMemo(() => {
+    if (editing || !visible) return null;
+    const explored = new Set(room.fog.explored);
+    const hidden = new Set<number>();
+    const dim = new Set<number>();
+    for (let i = 0; i < room.map.cols * room.map.rows; i++) {
+      if (visible.has(i)) continue;
+      (explored.has(i) ? dim : hidden).add(i);
+    }
+    return { hidden, dim, mode: viewer };
+  }, [editing, visible, room.fog.explored, room.map.cols, room.map.rows, viewer]);
+  const seen = (cell: Cell) => !visible || viewer === "gm" || visible.has(cellIndex(room.map, cell.x, cell.y));
+  const shownTokens = room.tokens.filter((t) => t.kind !== "enemy" || seen(t));
+  const reduceMotion = usePreferencesStore((s) => s.reduceMotion);
+
+  // Carried lights of tokens the viewer may know about (not glowing out of unexplored darkness).
+  const carriedKey = shownTokens
+    .filter((t) => (t.light ?? 0) > 0 && !isDown(t) && !(viewer === "player" && fog?.hidden.has(cellIndex(room.map, t.x, t.y))))
+    .map((t) => `${t.id}:${t.x}:${t.y}:${t.light}`)
+    .join("|");
+  const carriedLights = parseCarried(carriedKey);
+  // The party's centre: the fires nearest to it get the pooled lights.
+  const party = room.tokens.filter((t) => t.kind === "pc" && !isDown(t));
+  const focusKey = party.length ? `${Math.round(party.reduce((a, t) => a + t.x, 0) / party.length)}:${Math.round(party.reduce((a, t) => a + t.y, 0) / party.length)}` : "";
+  const [fx0, fy0] = focusKey ? focusKey.split(":").map(Number) : [];
+  const lightFocus = focusKey ? { x: fx0, y: fy0 } : undefined;
+  /** Players cannot pick anything in never-explored darkness. */
+  const reachable = (cell: Cell) => viewer === "gm" || !fog?.hidden.has(cellIndex(room.map, cell.x, cell.y));
 
   useEffect(() => preloadMapProps(), []);
   // Start loading the models present at the table.
@@ -51,33 +120,69 @@ export function RoomMap3D({ room, editing, onMove }: { room: RoomState; editing:
 
   // Finish drags and strokes even if the pointer is released outside the canvas.
   const dragRef = useRef(drag);
+  // The fog stroke lives in a ref (pointer events can outrun renders); state only drives the preview.
+  const fogRef = useRef<FogStroke | null>(null);
   useEffect(() => {
     dragRef.current = drag;
   }, [drag]);
   useEffect(() => {
-    const up = () => {
+    const up = (e: PointerEvent) => {
       if (editing) useMapEditorStore.getState().endStroke();
+      const f = fogRef.current;
+      if (f) {
+        fogRef.current = null;
+        onFogPaint(f.mode, [...f.cells]);
+        setFogStroke(null);
+      }
       const d = dragRef.current;
       if (!d) return;
       const token = room.tokens.find((t) => t.id === d.tokenId);
       const moved = d.hover.x !== d.origin.x || d.hover.y !== d.origin.y;
-      if (token && moved && canStand(room.map, room.tokens, d.hover, token.id)) onMove(token, d.hover);
+      if (token && moved && canStand(room.map, room.tokens, d.hover, token.id)) onMove(token, d.hover, { teleport: viewer === "gm" && e.altKey });
       setDrag(null);
     };
     window.addEventListener("pointerup", up);
     return () => window.removeEventListener("pointerup", up);
-  }, [editing, room, onMove]);
+  }, [editing, room, onMove, onFogPaint, viewer]);
+
+  const brushIndices = (cell: Cell) =>
+    brushCells(cell, fogBrushSize)
+      .filter((c) => inBounds(room.map, c.x, c.y))
+      .map((c) => cellIndex(room.map, c.x, c.y));
 
   function onCellDown(cell: Cell, e: ThreeEvent<PointerEvent>) {
     if (e.nativeEvent.button !== 0) return;
     if (editing) {
       e.stopPropagation();
       useMapEditorStore.getState().beginStroke(cell);
+      return;
     }
+    if (painting && fogBrush) {
+      e.stopPropagation();
+      fogRef.current = { mode: fogBrush, cells: new Set(brushIndices(cell)) };
+      setFogStroke({ ...fogRef.current });
+      return;
+    }
+    // Flat features (traps) are easier to pick by their square.
+    const feature = featureAt(room.map, cell.x, cell.y);
+    if (feature && reachable(cell) && (viewer === "gm" || !trapOf(feature)?.hidden)) selectFeature(feature.id);
+  }
+
+  function onFeatureDown(prop: PlacedProp) {
+    if (!editing && !painting && reachable(prop)) selectFeature(prop.id);
   }
 
   function onCellMove(cell: Cell) {
     if (!hover || hover.x !== cell.x || hover.y !== cell.y) setHover(cell);
+    const f = fogRef.current;
+    if (f) {
+      const fresh = brushIndices(cell).filter((i) => !f.cells.has(i));
+      if (fresh.length) {
+        fresh.forEach((i) => f.cells.add(i));
+        setFogStroke({ ...f });
+      }
+      return;
+    }
     if (editing) {
       if (useMapEditorStore.getState().stroke) useMapEditorStore.getState().moveStroke(cell);
     } else if (drag && (drag.hover.x !== cell.x || drag.hover.y !== cell.y)) {
@@ -86,7 +191,7 @@ export function RoomMap3D({ room, editing, onMove }: { room: RoomState; editing:
   }
 
   function onTokenDown(token: RoomToken, e: ThreeEvent<PointerEvent>) {
-    if (editing || e.nativeEvent.button !== 0) return;
+    if (editing || painting || e.nativeEvent.button !== 0) return;
     e.stopPropagation();
     select(token.id);
     if (!isDown(token)) setDrag({ tokenId: token.id, origin: { x: token.x, y: token.y }, hover: { x: token.x, y: token.y } });
@@ -112,6 +217,14 @@ export function RoomMap3D({ room, editing, onMove }: { room: RoomState; editing:
     // eslint-disable-next-line react-hooks/exhaustive-deps -- stroke/draft drive the preview
   }, [editing, stroke, hover, brushSize, shape, draft]);
 
+  const fogPreview = useMemo(() => {
+    if (!painting) return [];
+    const indices = fogStroke ? [...fogStroke.cells] : hover ? brushIndices(hover) : [];
+    return indices.map((i) => ({ x: i % room.map.cols, y: Math.floor(i / room.map.cols) }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- brushIndices only depends on the map and brush size
+  }, [painting, fogStroke, hover, fogBrushSize, room.map]);
+  const selectedFeature = selectedFeatureId ? room.map.props.find((p) => p.id === selectedFeatureId) : undefined;
+
   const dragValid = !!(drag && dragging && canStand(room.map, room.tokens, drag.hover, dragging.id));
   const distance = drag ? gridDistance(drag.origin, drag.hover) : 0;
 
@@ -121,23 +234,38 @@ export function RoomMap3D({ room, editing, onMove }: { room: RoomState; editing:
         doc={doc}
         view={view}
         showGrid={showGrid}
-        controlsEnabled={!drag && !stroke}
+        controlsEnabled={!drag && !stroke && !fogStroke}
         onCellDown={onCellDown}
         onCellMove={onCellMove}
-        onMissed={() => !editing && select(null)}
+        onMissed={() => {
+          if (editing) return;
+          select(null);
+          selectFeature(null);
+        }}
+        fog={fog}
+        carriedLights={editing ? undefined : carriedLights}
+        lightFocus={lightFocus}
+        flicker={!reduceMotion}
+        showProps={!editing || layers.props.visible}
+        showBackground={!editing || layers.background.visible}
+        notes={editing ? (layers.notes.visible ? doc.notes : null) : viewer === "gm" && showNotes ? doc.notes : null}
+        featureView={editing ? "gm" : viewer}
+        onFeatureDown={editing ? undefined : onFeatureDown}
       >
         {editing ? (
           <CellHighlights doc={doc} cells={editPreview} color="#c084fc" opacity={0.45} />
         ) : (
           <>
+            {painting && <CellHighlights doc={doc} cells={fogPreview} color={fogBrush === "reveal" ? "#fde68a" : "#1e1b2e"} opacity={0.5} />}
+            {selectedFeature && <CellHighlights doc={doc} cells={[selectedFeature]} color="#f59e0b" opacity={0.45} />}
             {drag && <CellHighlights doc={doc} cells={rangeCells} color="#a855f7" opacity={0.14} />}
             {drag && <CellHighlights doc={doc} cells={[drag.hover]} color={dragValid ? "#a855f7" : "#ef4444"} opacity={0.55} />}
             {drag && dragging && distance > 0 && <MoveLine doc={doc} from={drag.origin} to={drag.hover} valid={dragValid} label={`${distance} □ · ${(distance * doc.cellDistance).toLocaleString("pt-BR")} ${doc.cellUnit}`} overSpeed={distance > dragging.stats.speed} />}
-            {room.tokens.map((t) => (
+            {shownTokens.map((t) => (
               <Token3D key={t.id} doc={doc} token={t} tokens={room.tokens} selected={t.id === selectedId} active={t.id === turnToken?.id} onPointerDown={(e) => onTokenDown(t, e)} />
             ))}
             {fx.map((f) => (
-              <FloatingNumber key={f.id} doc={doc} fx={f} token={room.tokens.find((t) => t.id === f.tokenId)} />
+              <FloatingNumber key={f.id} doc={doc} fx={f} token={shownTokens.find((t) => t.id === f.tokenId)} />
             ))}
           </>
         )}

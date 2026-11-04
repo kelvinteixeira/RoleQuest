@@ -6,14 +6,22 @@ import {
   ArrowUpToLine,
   Brush,
   Circle,
+  Copy,
   Eraser,
+  Eye,
+  EyeOff,
+  Lock,
+  LockOpen,
+  StickyNote,
   LayoutTemplate,
   PaintBucket,
   Redo2,
   RotateCw,
+  Save,
   Slash,
   Square,
   SquareDashed,
+  Trash2,
   Trees,
   Undo2,
   type LucideIcon,
@@ -22,15 +30,21 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/cn";
 import {
   MAP_LIMITS,
+  NOTE_MAX,
   PROP_CATEGORY_LABEL,
   PROPS,
   resizeMap,
   TERRAIN_ORDER,
   TERRAINS,
+  type MapDocument,
   type PropCategory,
 } from "@/features/map/model/map-document";
 import { MAP_TEMPLATES } from "@/features/map/model/templates";
-import { useMapEditorStore, type EditorShape, type EditorTool } from "../store/map-editor.store";
+import { MapThumbnail } from "@/features/map/components/map-thumbnail";
+import { formatRelative } from "@/lib/format";
+import { useCampaignMaps } from "../hooks/use-campaign-maps";
+import { BackgroundSection } from "./background-section";
+import { toolLocked, useMapEditorStore, type EditorShape, type EditorTool, type LayerId } from "../store/map-editor.store";
 
 const TOOLS: { id: EditorTool; label: string; icon: LucideIcon }[] = [
   { id: "terrain", label: "Terreno", icon: Brush },
@@ -39,6 +53,14 @@ const TOOLS: { id: EditorTool; label: string; icon: LucideIcon }[] = [
   { id: "lower", label: "Rebaixar", icon: ArrowDownToLine },
   { id: "erase", label: "Borracha", icon: Eraser },
   { id: "rotate", label: "Girar objeto", icon: RotateCw },
+  { id: "note", label: "Anotar", icon: StickyNote },
+];
+
+const LAYERS: { id: LayerId; label: string; hint: string; canHide: boolean }[] = [
+  { id: "background", label: "Imagem de fundo", hint: "o desenho importado", canHide: true },
+  { id: "terrain", label: "Terreno", hint: "chão, água, paredes, elevação", canHide: false },
+  { id: "props", label: "Objetos", hint: "árvores, portas, armadilhas, luzes", canHide: true },
+  { id: "notes", label: "Anotações do mestre", hint: "só o mestre vê", canHide: true },
 ];
 
 const SHAPES: { id: EditorShape; label: string; icon: LucideIcon }[] = [
@@ -50,10 +72,10 @@ const SHAPES: { id: EditorShape; label: string; icon: LucideIcon }[] = [
   { id: "fill", label: "Balde", icon: PaintBucket },
 ];
 
-const CATEGORIES: PropCategory[] = ["tree", "rock", "plant", "structure"];
+const CATEGORIES: PropCategory[] = ["tree", "rock", "plant", "structure", "feature"];
 
 /** GM map editor controls. The 3D view reads the same store to preview and apply strokes. */
-export function MapEditorPanel({ onApply, onCancel }: { onApply: () => void; onCancel: () => void }) {
+export function MapEditorPanel({ campaignId, onApply, onCancel }: { campaignId: string; onApply: () => void; onCancel: () => void }) {
   const s = useMapEditorStore();
   const [category, setCategory] = useState<PropCategory>("tree");
   const [size, setSize] = useState({ cols: s.draft?.cols ?? 30, rows: s.draft?.rows ?? 20 });
@@ -103,14 +125,29 @@ export function MapEditorPanel({ onApply, onCancel }: { onApply: () => void; onC
       <Section title="Ferramenta">
         <div className="grid grid-cols-3 gap-1.5">
           {TOOLS.map(({ id, label, icon: Icon }) => (
-            <ToolButton key={id} active={s.tool === id} onClick={() => s.set({ tool: id, shape: id === "rotate" ? "brush" : s.shape })} icon={<Icon className="size-4" />}>
+            <ToolButton key={id} active={s.tool === id} locked={toolLocked(id, s.layers)} onClick={() => s.set({ tool: id, shape: id === "rotate" ? "brush" : s.shape })} icon={<Icon className="size-4" />}>
               {label}
             </ToolButton>
           ))}
         </div>
+        {toolLocked(s.tool, s.layers) && <p className="mt-1.5 text-[11px] text-warning">A camada desta ferramenta está travada. Destrave em Camadas.</p>}
       </Section>
 
-      {s.tool !== "rotate" && (
+      {s.tool === "note" && (
+        <Section title="Anotação">
+          <input
+            value={s.noteText}
+            onChange={(e) => s.set({ noteText: e.target.value })}
+            maxLength={NOTE_MAX}
+            placeholder="Ex.: baú com 40 PO · CD 15 para abrir"
+            aria-label="Texto da anotação"
+            className="h-9 w-full rounded-lg border border-line bg-surface-2/60 px-3 text-sm outline-none focus:border-accent/60"
+          />
+          <p className="mt-1.5 text-[11px] text-fg-subtle">Clique numa casa para fixar a anotação (substitui a que estiver lá). Texto vazio remove. A borracha também apaga.</p>
+        </Section>
+      )}
+
+      {s.tool !== "rotate" && s.tool !== "note" && (
         <Section title="Forma (encaixa na grade)">
           <div className="grid grid-cols-6 gap-1">
             {SHAPES.map(({ id, label, icon: Icon }) => (
@@ -191,6 +228,12 @@ export function MapEditorPanel({ onApply, onCancel }: { onApply: () => void; onC
               </label>
             ))}
           </div>
+          {category === "feature" ? (
+            <p className="mt-2 text-[11px] leading-relaxed text-fg-subtle">
+              Portas começam fechadas e se alinham às paredes vizinhas (Girar objeto ajusta). Armadilhas começam ocultas e armadas; dano e estado se controlam na mesa, na aba Cena.
+            </p>
+          ) : (
+          <>
           <label className="mt-2 flex items-center gap-3 text-xs text-fg-muted">
             Densidade
             <input type="range" min={0.05} max={1} step={0.05} value={s.density} onChange={(e) => s.set({ density: Number(e.target.value) })} className="flex-1 accent-[var(--color-accent-solid)]" />
@@ -199,8 +242,40 @@ export function MapEditorPanel({ onApply, onCancel }: { onApply: () => void; onC
           <p className="mt-1 text-[11px] text-fg-subtle">
             {s.propIds.length === 0 ? "Marque ao menos um objeto." : `Sorteia entre ${s.propIds.length} objeto(s). Use Retângulo ou Elipse para espalhar uma floresta.`}
           </p>
+          </>
+          )}
         </Section>
       )}
+
+      <Section title="Camadas">
+        <ul className="flex flex-col gap-1">
+          {LAYERS.filter((l) => l.id !== "background" || draft.background).map((l) => {
+            const state = s.layers[l.id];
+            return (
+              <li key={l.id} className="flex items-center gap-2 rounded-lg border border-line px-2 py-1.5">
+                <span className="min-w-0 flex-1">
+                  <span className={cn("block text-xs", state.visible ? "text-fg" : "text-fg-subtle")}>{l.label}</span>
+                  <span className="block text-[10px] text-fg-subtle">{l.hint}</span>
+                </span>
+                {l.canHide && (
+                  <button onClick={() => s.toggleLayer(l.id, "visible")} aria-pressed={state.visible} aria-label={`${state.visible ? "Ocultar" : "Mostrar"} ${l.label}`} title={state.visible ? "Ocultar no editor" : "Mostrar"} className="text-fg-muted hover:text-fg">
+                    {state.visible ? <Eye className="size-4" /> : <EyeOff className="size-4" />}
+                  </button>
+                )}
+                {l.id !== "background" && (
+                  <button onClick={() => s.toggleLayer(l.id, "locked")} aria-pressed={state.locked} aria-label={`${state.locked ? "Destravar" : "Travar"} ${l.label}`} title={state.locked ? "Destravar" : "Travar (as ferramentas não mexem nesta camada)"} className={state.locked ? "text-warning" : "text-fg-muted hover:text-fg"}>
+                    {state.locked ? <Lock className="size-4" /> : <LockOpen className="size-4" />}
+                  </button>
+                )}
+              </li>
+            );
+          })}
+        </ul>
+      </Section>
+
+      <BackgroundSection onResize={(doc) => setSize({ cols: doc.cols, rows: doc.rows })} />
+
+      <Library campaignId={campaignId} onLoad={(doc) => setSize({ cols: doc.cols, rows: doc.rows })} />
 
       <Section title="Modelos e tamanho">
         <div className="flex flex-col gap-1.5">
@@ -247,6 +322,87 @@ export function MapEditorPanel({ onApply, onCancel }: { onApply: () => void; onC
   );
 }
 
+/** The campaign's saved maps: save the draft (same map = update), save a copy, load, delete. */
+function Library({ campaignId, onLoad }: { campaignId: string; onLoad: (doc: MapDocument) => void }) {
+  const draft = useMapEditorStore((s) => s.draft);
+  const replace = useMapEditorStore((s) => s.replace);
+  const { maps, loading, save, remove } = useCampaignMaps(campaignId);
+  const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
+  if (!draft) return null;
+  const savedHere = maps.some((m) => m.id === draft.id);
+
+  return (
+    <Section title="Biblioteca da campanha">
+      <div className="flex gap-1.5">
+        <Button
+          size="sm"
+          variant="secondary"
+          className="flex-1"
+          onClick={async () => {
+            const saved = await save(draft);
+            // Saved under another id (it belonged to another campaign): keep editing that copy.
+            if (saved && saved.id !== draft.id) replace(structuredClone(saved.document));
+          }}
+          leadingIcon={<Save className="size-3.5" />}
+        >
+          {savedHere ? "Atualizar na biblioteca" : "Salvar na biblioteca"}
+        </Button>
+        {savedHere && (
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={async () => {
+              const copy = await save(draft, true);
+              if (copy) replace(structuredClone(copy.document));
+            }}
+            leadingIcon={<Copy className="size-3.5" />}
+          >
+            Cópia
+          </Button>
+        )}
+      </div>
+      {loading ? (
+        <p className="mt-2 text-[11px] text-fg-subtle">Carregando…</p>
+      ) : maps.length === 0 ? (
+        <p className="mt-2 text-[11px] text-fg-subtle">Mapas salvos ficam na campanha e podem ser usados em qualquer sessão.</p>
+      ) : (
+        <ul className="mt-2 flex flex-col gap-1.5">
+          {maps.map((m) => (
+            <li key={m.id} className={cn("flex items-center gap-2 rounded-lg border p-1.5", m.id === draft.id ? "border-accent/50 bg-accent/8" : "border-line")}>
+              <button
+                className="flex min-w-0 flex-1 items-center gap-2 text-left"
+                title="Abrir no editor"
+                onClick={() => {
+                  const doc = structuredClone(m.document);
+                  replace(doc);
+                  onLoad(doc);
+                }}
+              >
+                <MapThumbnail doc={m.document} className="w-14 shrink-0" />
+                <span className="min-w-0">
+                  <span className="block truncate text-xs font-medium">{m.name}</span>
+                  <span className="block text-[10px] text-fg-subtle">
+                    {m.document.cols}×{m.document.rows} · {formatRelative(m.updatedAt)}
+                  </span>
+                </span>
+              </button>
+              {confirmDelete === m.id ? (
+                <Button size="sm" variant="danger" onClick={() => void remove(m).then(() => setConfirmDelete(null))}>
+                  Excluir?
+                </Button>
+              ) : (
+                <Button size="icon-sm" variant="ghost" onClick={() => setConfirmDelete(m.id)} aria-label={`Excluir ${m.name}`} title="Excluir">
+                  <Trash2 className="size-3.5" />
+                </Button>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+    </Section>
+  );
+}
+
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <section>
@@ -256,18 +412,26 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   );
 }
 
-function ToolButton({ active, onClick, icon, children }: { active: boolean; onClick: () => void; icon: React.ReactNode; children: React.ReactNode }) {
+function ToolButton({ active, locked, onClick, icon, children }: { active: boolean; locked?: boolean; onClick: () => void; icon: React.ReactNode; children: React.ReactNode }) {
   return (
     <button
       onClick={onClick}
       aria-pressed={active}
+      title={locked ? "Camada travada" : undefined}
       className={cn(
-        "flex flex-col items-center gap-1 rounded-lg border px-1 py-2 text-[11px] transition-colors",
+        "relative flex flex-col items-center gap-1 rounded-lg border px-1 py-2 text-[11px] transition-colors",
         active ? "border-accent/60 bg-accent/12 text-accent" : "border-line text-fg-muted hover:text-fg",
+        locked && "opacity-50",
       )}
     >
       {icon}
       {children}
+      {locked && (
+        <>
+          <Lock className="absolute right-1 top-1 size-3 text-warning" aria-hidden />
+          <span className="sr-only">(camada travada)</span>
+        </>
+      )}
     </button>
   );
 }

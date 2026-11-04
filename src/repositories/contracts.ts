@@ -16,6 +16,7 @@ import type {
 } from "@/types/campaign";
 import type { Character, NewCharacterInput } from "@/types/character";
 import type { LibraryAsset } from "@/types/library";
+import type { SavedMap } from "@/types/map";
 import type { SystemTemplate } from "@/types/system";
 
 export interface AuthRepository {
@@ -74,6 +75,21 @@ export interface SystemRepository {
   saveCustom(ownerId: ID, system: SystemTemplate): Promise<SystemTemplate>;
 }
 
+/** Maps saved per campaign (the room keeps its own live copy). */
+export interface MapRepository {
+  listForCampaign(campaignId: ID): Promise<SavedMap[]>;
+  getById(id: ID): Promise<SavedMap | null>;
+  /** Creates or replaces by id. */
+  save(map: Omit<SavedMap, "createdAt" | "updatedAt">): Promise<SavedMap>;
+  remove(id: ID): Promise<void>;
+}
+
+/** Pictures used as map backgrounds. */
+export interface MapImageRepository {
+  put(blob: Blob): Promise<ID>;
+  get(id: ID): Promise<Blob | null>;
+}
+
 export interface Repositories {
   auth: AuthRepository;
   users: UserRepository;
@@ -83,4 +99,6 @@ export interface Repositories {
   characters: CharacterRepository;
   library: LibraryRepository;
   systems: SystemRepository;
+  maps: MapRepository;
+  images: MapImageRepository;
 }

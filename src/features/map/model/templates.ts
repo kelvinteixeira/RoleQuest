@@ -62,6 +62,35 @@ export function caveMap(): MapDocument {
   return m;
 }
 
+/** Stone rooms joined by corridors: doors, a locked gate and hidden traps — made for the fog of war. */
+export function cryptMap(): MapDocument {
+  let m = createBlankMap(32, 22, "cave-wall", "Cripta esquecida");
+  const entrance = rectCells({ x: 2, y: 8 }, { x: 8, y: 14 });
+  const hall = rectCells({ x: 13, y: 6 }, { x: 21, y: 16 });
+  const vault = rectCells({ x: 25, y: 7 }, { x: 30, y: 15 });
+  const cellar = rectCells({ x: 12, y: 18 }, { x: 22, y: 20 });
+  m = paintTerrain(m, [...entrance, ...hall, ...vault, ...cellar], "stone");
+  m = paintTerrain(m, [...lineCells({ x: 0, y: 11 }, { x: 1, y: 11 }), ...lineCells({ x: 9, y: 11 }, { x: 12, y: 11 }), ...lineCells({ x: 22, y: 11 }, { x: 24, y: 11 }), ...lineCells({ x: 17, y: 17 }, { x: 17, y: 17 })], "cave-floor");
+  // Doors into the hall and the cellar; an iron gate (locked) in front of the vault.
+  m = placeProps(m, [{ x: 10, y: 11 }, { x: 17, y: 17 }], ["door"]);
+  m = placeProps(m, [{ x: 23, y: 11 }], ["gate"]);
+  m = { ...m, props: m.props.map((p) => (p.propId === "gate" ? { ...p, door: { open: false, locked: true } } : p)) };
+  // Hidden traps: one in the corridor, one guarding the vault.
+  m = placeProps(m, [{ x: 12, y: 11 }], ["trap-spikes"]);
+  m = placeProps(m, [{ x: 27, y: 11 }], ["trap-darts"]);
+  // Dressing.
+  m = placeProps(m, [{ x: 15, y: 8 }, { x: 19, y: 8 }, { x: 15, y: 14 }, { x: 19, y: 14 }], ["column"]);
+  m = placeProps(m, [{ x: 29, y: 11 }], ["obelisk"]);
+  m = paintTerrain(m, rectCells({ x: 19, y: 19 }, { x: 21, y: 20 }), "shallow-water");
+  // Dark inside: torches at the entrance, braziers in the hall and the vault.
+  m = placeProps(m, [{ x: 2, y: 8 }, { x: 8, y: 14 }], ["torch"]);
+  m = placeProps(m, [{ x: 17, y: 7 }, { x: 17, y: 15 }, { x: 28, y: 8 }], ["brazier"]);
+  m = { ...m, ambient: "dark" };
+  m = placeProps(m, entrance, ["pebbles", "mushroom"], 0.08, 2);
+  m = placeProps(m, cellar, ["mushrooms-red", "pebbles", "stone-tall"], 0.12, 6);
+  return m;
+}
+
 export function blankMap(): MapDocument {
   return createBlankMap(30, 20, "grass", "Mapa em branco");
 }
@@ -69,5 +98,6 @@ export function blankMap(): MapDocument {
 export const MAP_TEMPLATES = [
   { id: "river-glade", label: "Clareira do rio", description: "Floresta, rio com ponte, estrada, acampamento e caverna.", build: riverGladeMap },
   { id: "cave", label: "Caverna das águas", description: "Galerias, lago subterrâneo e cogumelos.", build: caveMap },
+  { id: "crypt", label: "Cripta esquecida", description: "Salas de pedra, portas, grade trancada e armadilhas ocultas. Boa para névoa de guerra.", build: cryptMap },
   { id: "blank", label: "Em branco", description: "Grama, 30 × 20, para criar do zero.", build: blankMap },
 ] as const;

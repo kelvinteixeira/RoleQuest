@@ -493,8 +493,23 @@ export function TokenInspector({ room, token, actions }: { room: RoomState; toke
           </Button>
         )}
         {token.characterId && (
-          <Modal open={sheetOpen} onClose={() => setSheetOpen(false)} title={`Ficha · ${token.name}`} description="Testes rolados aqui vão para o chat da mesa." placement="right">
-            <SheetEditor characterId={token.characterId} embedded onRoll={(check) => actions.postCheck(token, check)} onChange={(data) => actions.applySheetSoon(token.id, data)} />
+          <Modal
+            open={sheetOpen}
+            onClose={() => {
+              setSheetOpen(false);
+              actions.forgetSheet(token.id);
+            }}
+            title={`Ficha · ${token.name}`}
+            description="Testes rolados aqui vão para o chat da mesa. Os PV acompanham a mesa."
+            placement="right"
+          >
+            <SheetEditor
+              characterId={token.characterId}
+              embedded
+              liveHp={token.hp.current}
+              onRoll={(check) => actions.postCheck(token, check)}
+              onChange={(data) => actions.applySheetSoon(token.id, data)}
+            />
           </Modal>
         )}
         {token.controller === "gm" && token.kind !== "enemy" && <p className="mt-2 inline-flex items-center gap-1 text-[11px] text-fg-subtle"><Crown className="size-3" /> Controlado pelo mestre</p>}

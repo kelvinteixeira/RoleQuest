@@ -62,6 +62,19 @@ export function useCharacterSheet(characterId: string) {
     [data, schedule],
   );
 
+  /**
+   * Applies a change saved elsewhere (the room writes HP back to the sheet):
+   * updates the local copy and any unsaved draft, without scheduling a save.
+   */
+  const patchLocal = useCallback(
+    (fn: (sheet: CharacterSheet) => CharacterSheet) => {
+      if (!data) return;
+      if (pending.current.sheet) pending.current.sheet = fn(pending.current.sheet);
+      setEdited({ ...data, character: { ...data.character, sheet: fn(data.character.sheet) } });
+    },
+    [data],
+  );
+
   const updateIdentity = useCallback(
     (patch: Partial<Identity>) => {
       if (!data) return;
@@ -72,5 +85,5 @@ export function useCharacterSheet(characterId: string) {
     [data, schedule],
   );
 
-  return { data, error: loaded.error, reload: loaded.reload, status, saveError, updateSheet, updateIdentity, flush };
+  return { data, error: loaded.error, reload: loaded.reload, status, saveError, updateSheet, updateIdentity, patchLocal, flush };
 }

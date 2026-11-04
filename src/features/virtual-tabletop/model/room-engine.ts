@@ -30,6 +30,11 @@ function updateToken(state: RoomState, id: string, fn: (t: RoomToken) => RoomTok
   return { ...state, tokens: state.tokens.map((t) => (t.id === id ? fn(t) : t)) };
 }
 
+/** "Caído" follows the hit points: on at 0, off above it. */
+function downedConditions(conditions: string[], current: number): string[] {
+  return current === 0 ? [...new Set([...conditions, "Caído"])] : conditions.filter((c) => c !== "Caído");
+}
+
 /** New max HP: keeps the wound proportion (system change) or the current value (sheet edit, capped). */
 function rescaleHp(hp: RoomToken["hp"], max: number, proportional: boolean): RoomToken["hp"] {
   if (hp.max === max) return hp;
@@ -71,8 +76,7 @@ export function applyEvent(state: RoomState, event: RoomEvent): RoomState {
     case "token.hp":
       return updateToken(state, event.tokenId, (t) => {
         const current = Math.max(0, Math.min(t.hp.max, t.hp.current + event.delta));
-        const conditions = current === 0 ? [...new Set([...t.conditions, "Caído"])] : t.conditions.filter((c) => c !== "Caído");
-        return { ...t, hp: { ...t.hp, current }, conditions };
+        return { ...t, hp: { ...t.hp, current }, conditions: downedConditions(t.conditions, current) };
       });
     case "token.condition":
       return updateToken(state, event.tokenId, (t) => ({
@@ -84,7 +88,13 @@ export function applyEvent(state: RoomState, event: RoomEvent): RoomState {
     case "token.stats":
       return updateToken(state, event.tokenId, (t) => ({ ...t, stats: { ...t.stats, ...event.stats } }));
     case "token.synced":
-      return updateToken(state, event.tokenId, (t) => ({ ...t, stats: event.stats, hp: rescaleHp(t.hp, event.hpMax, false) }));
+      return updateToken(state, event.tokenId, (t) => {
+        const hp = rescaleHp(t.hp, event.hpMax, false);
+        const current = event.hpCurrent === undefined ? hp.current : Math.max(0, Math.min(hp.max, event.hpCurrent));
+        return { ...t, stats: event.stats, hp: { ...hp, current }, conditions: downedConditions(t.conditions, current) };
+      });
+    case "token.linked":
+      return updateToken(state, event.tokenId, (t) => ({ ...t, characterId: event.characterId }));
     case "rules.set":
       return {
         ...state,

@@ -18,6 +18,7 @@ import { createInitialRoom } from "../model/room-factory";
 import type { Author } from "../model/types";
 import { useBotDirector } from "../hooks/use-bot-director";
 import { useRoomActions } from "../hooks/use-room-actions";
+import { useSheetHpWriteback } from "../hooks/use-sheet-hp-writeback";
 import { useRoom, useRoomStore, type BotSpeed } from "../store/room.store";
 import { MapEditorPanel } from "@/features/map-editor/components/map-editor-panel";
 import { useMapEditorStore } from "@/features/map-editor/store/map-editor.store";
@@ -72,6 +73,7 @@ function Room({ overview }: { overview: CampaignOverview }) {
   );
   const actions = useRoomActions(campaignId, gm);
   useBotDirector(campaignId, gm);
+  useSheetHpWriteback(campaignId, user.id);
 
   // The room follows the campaign system (older rooms were saved with the default rules)…
   const ruleSystem = room?.rules.systemId;
@@ -81,9 +83,10 @@ function Room({ overview }: { overview: CampaignOverview }) {
   // …and player tokens follow their sheets, which may have changed since the room was set up.
   const ready = !!room;
   const createdAt = room?.createdAt;
+  const characters = useMemo(() => overview.members.flatMap((m) => (m.character ? [{ id: m.character.id, name: m.character.name }] : [])), [overview.members]);
   useEffect(() => {
-    if (ready) void actions.syncSheets();
-  }, [ready, createdAt, actions]);
+    if (ready) void actions.syncSheets(characters);
+  }, [ready, createdAt, actions, characters]);
 
   if (!room) return <LoadingState label="Preparando a mesa…" className="min-h-dvh" />;
 

@@ -1,9 +1,24 @@
 import { appConfig } from "@/config/app";
+import { withDemoSheet } from "@/mocks/fixtures/demo-sheets";
 import { createSeed, type MockSeed } from "@/mocks/fixtures/seed";
 
-const SCHEMA_VERSION = 1;
+/** v2: demo characters ship with filled-in sheets. */
+const SCHEMA_VERSION = 2;
 
-type MockDatabase = MockSeed & { version: number };
+export type MockDatabase = MockSeed & { version: number };
+
+/**
+ * Brings a stored database to the current schema without losing local data;
+ * null when it is too old to upgrade (a fresh seed is used instead).
+ */
+export function upgradeDatabase(stored: MockDatabase): MockDatabase | null {
+  if (stored.version === SCHEMA_VERSION) return stored;
+  if (stored.version === 1) {
+    // Only characters that were never edited get the demo sheet.
+    return { ...stored, version: 2, characters: stored.characters.map((c) => (c.sheet ? c : withDemoSheet(c))) };
+  }
+  return null;
+}
 
 let db: MockDatabase | null = null;
 
@@ -27,9 +42,11 @@ export function getDb(): MockDatabase {
     try {
       const raw = window.localStorage.getItem(appConfig.mockStorageKey);
       if (raw) {
-        const parsed = JSON.parse(raw) as MockDatabase;
-        if (parsed.version === SCHEMA_VERSION) {
-          db = parsed;
+        const stored = JSON.parse(raw) as MockDatabase;
+        const upgraded = upgradeDatabase(stored);
+        if (upgraded) {
+          db = upgraded;
+          if (upgraded !== stored) persist();
           return db;
         }
       }

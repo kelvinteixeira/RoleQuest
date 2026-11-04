@@ -1,5 +1,5 @@
 import type { RollResult } from "@/features/dice/dice-engine";
-import type { DoorState, MapDocument, TrapState } from "@/features/map/model/map-document";
+import type { Ambient, DoorState, MapDocument, TrapState } from "@/features/map/model/map-document";
 import type { CombatRules, CombatStats, NpcStatBlock } from "@/features/combat/model/types";
 
 export type TokenKind = "pc" | "npc" | "enemy";
@@ -30,6 +30,8 @@ export interface RoomToken {
   characterId?: string;
   /** Enemies and bots: stat block in d20 terms, re-derived for the room's system. */
   npc?: NpcStatBlock;
+  /** Light carried (torch, lantern), radius in squares. */
+  light?: number;
 }
 
 /** The room plays on a square-tile map document (terrain, elevation, props). */
@@ -101,7 +103,10 @@ export type RoomEvent =
   | { type: "combat.ended" }
   | { type: "map.replaced"; map: MapDocument }
   /** Doors open/close/lock, traps get revealed, disarmed or re-armed. */
-  | { type: "prop.updated"; propId: string; door?: Partial<DoorState>; trap?: Partial<TrapState> }
+  | { type: "prop.updated"; propId: string; door?: Partial<DoorState>; trap?: Partial<TrapState>; lit?: boolean }
+  /** Light carried by a token (0 puts it out). */
+  | { type: "token.light"; tokenId: string; radius: number }
+  | { type: "lighting.set"; ambient: Ambient }
   | { type: "fog.configured"; enabled?: boolean; vision?: number }
   | { type: "fog.revealed"; cells: number[] }
   | { type: "fog.hidden"; cells: number[] };

@@ -22,7 +22,7 @@ import {
   walk,
   whisper,
 } from "../model/room-engine";
-import { doorOf, PROP_BY_ID, type MapDocument, type TrapState } from "@/features/map/model/map-document";
+import { doorOf, PROP_BY_ID, type Ambient, type MapDocument, type TrapState } from "@/features/map/model/map-document";
 import type { Author, MessageVisibility, RoomEvent, RoomToken } from "../model/types";
 import { useRoomStore } from "../store/room.store";
 
@@ -108,6 +108,19 @@ export function useRoomActions(campaignId: string, gm: Author) {
       const events: RoomEvent[] = [{ type: "prop.updated", propId, trap }];
       if (trap.hidden === false) events.push(announce(`O mestre revelou: ${(PROP_BY_ID.get(prop.propId)?.label ?? "armadilha").toLowerCase()}.`));
       send(events);
+    }
+
+    function setAmbient(ambient: Ambient) {
+      send([{ type: "lighting.set", ambient }, announce(ambient === "dark" ? "A escuridão toma conta do lugar." : ambient === "dim" ? "A luz diminui." : "A luz do dia volta.")]);
+    }
+
+    function setTokenLight(token: RoomToken, radius: number) {
+      send([{ type: "token.light", tokenId: token.id, radius }]);
+    }
+
+    function toggleLight(propId: string) {
+      const prop = propById(propId);
+      if (prop) send([{ type: "prop.updated", propId, lit: prop.lit === false }]);
     }
 
     function configureFog(patch: { enabled?: boolean; vision?: number }) {
@@ -266,7 +279,7 @@ export function useRoomActions(campaignId: string, gm: Author) {
       toast.success("Mapa aplicado", map.name);
     }
 
-    return { toggleDoor, setDoorLocked, updateTrap, configureFog, revealCells, hideCells, revealAll: () => revealCells(allCells()), hideAll: () => hideCells(allCells()), setRules, applySheetSoon, forgetSheet, syncSheets, postCheck, setAppearance, replaceMap, rollDice, sendChat, moveToken, adjustHp, toggleCondition, attackWith, startCombat, nextTurn, endCombat, addBots, removeBots, markEpic };
+    return { setAmbient, setTokenLight, toggleLight, toggleDoor, setDoorLocked, updateTrap, configureFog, revealCells, hideCells, revealAll: () => revealCells(allCells()), hideAll: () => hideCells(allCells()), setRules, applySheetSoon, forgetSheet, syncSheets, postCheck, setAppearance, replaceMap, rollDice, sendChat, moveToken, adjustHp, toggleCondition, attackWith, startCombat, nextTurn, endCombat, addBots, removeBots, markEpic };
   }, [campaignId, gm, dispatch]);
 }
 

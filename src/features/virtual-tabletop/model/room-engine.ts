@@ -7,7 +7,7 @@ import { roll, type RollMode, type RollResult, type Rng } from "@/features/dice/
 import { adaptNpcStats, resolveAttack, rollDamage, rollInitiativeFor } from "@/features/combat/model/rules";
 import type { TokenAttack } from "@/features/combat/model/types";
 import { PROP_BY_ID, trapOf, type MapDocument, type PlacedProp } from "@/features/map/model/map-document";
-import { DEFAULT_VISION, visibleFromAll } from "@/features/map/model/vision";
+import { DEFAULT_VISION, visibleInLight, type LightSource } from "@/features/map/model/vision";
 import { canStand, freeCellNear, gridDistance, type Cell } from "./map";
 import type { Author, ChatMessage, CombatState, FogState, LoggedEvent, MessageVisibility, RoomEvent, RoomState, RoomToken } from "./types";
 
@@ -33,9 +33,14 @@ export const createFog = (): FogState => ({ enabled: false, vision: DEFAULT_VISI
 /** The party's eyes: player characters (people and bots) still standing. */
 export const partyViewers = (tokens: RoomToken[]) => tokens.filter((t) => t.kind === "pc" && !isDown(t));
 
-/** Cells the party sees right now. */
-export function partyVision(state: Pick<RoomState, "map" | "tokens" | "fog">): Set<number> {
-  return visibleFromAll(state.map, partyViewers(state.tokens), state.fog.vision);
+/** Lights carried by tokens still standing (the map's own fires are cached per map in `vision.ts`). */
+export function carriedLights(tokens: RoomToken[]): LightSource[] {
+  return tokens.filter((t) => (t.light ?? 0) > 0 && !isDown(t)).map((t) => ({ x: t.x, y: t.y, radius: t.light! }));
+}
+
+/** Cells the party sees right now (line of sight, vision radius and light). */
+export function partyVision(state: Pick<RoomState, "map" | "tokens" | "fog">, extraViewers: Cell[] = []): Set<number> {
+  return visibleInLight(state.map, [...partyViewers(state.tokens), ...extraViewers], state.fog.vision, carriedLights(state.tokens));
 }
 
 /** Adds what the party sees now (and from `along`, squares just walked through) to what it has explored. */
@@ -43,14 +48,14 @@ function explore(state: RoomState, along: Cell[] = []): RoomState {
   if (!state.fog.enabled) return state;
   const explored = new Set(state.fog.explored);
   const before = explored.size;
-  const seen = along.length ? visibleFromAll(state.map, [...partyViewers(state.tokens), ...along], state.fog.vision) : partyVision(state);
+  const seen = partyVision(state, along);
   for (const i of seen) explored.add(i);
   if (explored.size === before) return state;
   return { ...state, fog: { ...state.fog, explored: [...explored].sort((a, b) => a - b) } };
 }
 
 /** Events after which the party may see more. */
-const SIGHT_EVENTS = new Set<RoomEvent["type"]>(["token.moved", "token.added", "token.hp", "token.synced", "map.replaced", "prop.updated", "fog.configured"]);
+const SIGHT_EVENTS = new Set<RoomEvent["type"]>(["token.moved", "token.added", "token.hp", "token.synced", "token.light", "map.replaced", "prop.updated", "fog.configured", "lighting.set"]);
 
 function updateProp(map: MapDocument, propId: string, fn: (p: PlacedProp) => PlacedProp): MapDocument {
   return { ...map, props: map.props.map((p) => (p.id === propId ? fn(p) : p)) };
@@ -183,8 +188,13 @@ function reduce(state: RoomState, event: RoomEvent): RoomState {
           ...p,
           ...(event.door && { door: { open: false, locked: false, ...p.door, ...event.door } }),
           ...(event.trap && trapOf(p) && { trap: { ...trapOf(p)!, ...event.trap } }),
+          ...(event.lit !== undefined && { lit: event.lit }),
         })),
       };
+    case "token.light":
+      return updateToken(state, event.tokenId, (t) => ({ ...t, light: Math.max(0, Math.min(20, Math.round(event.radius))) || undefined }));
+    case "lighting.set":
+      return { ...state, map: { ...state.map, ambient: event.ambient } };
     case "fog.configured":
       return {
         ...state,
@@ -208,7 +218,8 @@ function reduce(state: RoomState, event: RoomEvent): RoomState {
 
 /** Large payloads stay out of the event log; it only needs to know what happened. */
 function forLog(event: RoomEvent): RoomEvent {
-  if (event.type === "map.replaced") return { ...event, map: { ...event.map, terrain: [], elevation: [], props: [] } };
+  // GM notes never go into the log (it will be broadcast and feed Chronicles Studio).
+  if (event.type === "map.replaced") return { ...event, map: { ...event.map, terrain: [], elevation: [], props: [], notes: undefined } };
   if (event.type === "fog.revealed" || event.type === "fog.hidden") return { ...event, cells: event.cells.length > 32 ? [] : event.cells };
   return event;
 }

@@ -3,12 +3,16 @@
 import { useEffect, useRef } from "react";
 import { cn } from "@/lib/cn";
 import { cellIndex, PROP_BY_ID, TERRAINS, type MapDocument } from "../model/map-document";
+import { backgroundRows } from "../model/background";
+import { useMapImage } from "../hooks/use-map-image";
 
 /** Top-down preview of a map drawn on a small canvas: terrain colours, props as dots. */
 export function MapThumbnail({ doc, className }: { doc: MapDocument; className?: string }) {
   const canvas = useRef<HTMLCanvasElement>(null);
+  const imageUrl = useMapImage(doc.background?.imageId);
 
   useEffect(() => {
+    let cancelled = false;
     const ctx = canvas.current?.getContext("2d");
     if (!ctx) return;
     const cell = 4;
@@ -21,13 +25,29 @@ export function MapThumbnail({ doc, className }: { doc: MapDocument; className?:
         ctx.fillRect(x * cell, y * cell, cell, cell);
       }
     }
-    for (const p of doc.props) {
-      const def = PROP_BY_ID.get(p.propId);
-      if (!def) continue;
-      ctx.fillStyle = def.feature ? "#f59e0b" : def.category === "tree" ? "#1f4d1f" : "#3a3540";
-      ctx.fillRect(p.x * cell + 1, p.y * cell + 1, cell - 2, cell - 2);
-    }
-  }, [doc]);
+    const drawProps = () => {
+      for (const p of doc.props) {
+        const def = PROP_BY_ID.get(p.propId);
+        if (!def) continue;
+        ctx.fillStyle = def.feature ? "#f59e0b" : def.category === "tree" ? "#1f4d1f" : "#3a3540";
+        ctx.fillRect(p.x * cell + 1, p.y * cell + 1, cell - 2, cell - 2);
+      }
+    };
+    const bg = doc.background;
+    if (bg && imageUrl) {
+      const img = new Image();
+      img.onerror = () => !cancelled && drawProps();
+      img.onload = () => {
+        if (cancelled) return;
+        ctx.drawImage(img, bg.offsetX * cell, bg.offsetY * cell, bg.cols * cell, backgroundRows(bg) * cell);
+        drawProps();
+      };
+      img.src = imageUrl;
+    } else drawProps();
+    return () => {
+      cancelled = true;
+    };
+  }, [doc, imageUrl]);
 
   return <canvas ref={canvas} aria-hidden className={cn("block h-auto w-full rounded-md border border-black/40 [image-rendering:pixelated]", className)} />;
 }

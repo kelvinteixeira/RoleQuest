@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { CloudFog, DoorClosed, DoorOpen, Eye, EyeOff, Fence, Lock, LockOpen, MapIcon, Save, Skull, X } from "lucide-react";
+import { CloudFog, DoorClosed, DoorOpen, Eye, EyeOff, Fence, Flame, Lock, LockOpen, MapIcon, Save, Skull, StickyNote, Sun, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/ui/modal";
 import { Badge } from "@/components/ui/primitives";
@@ -11,7 +11,7 @@ import { cn } from "@/lib/cn";
 import { formatRelative } from "@/lib/format";
 import { isValidDamage } from "@/features/combat/model/rules";
 import { MapThumbnail } from "@/features/map/components/map-thumbnail";
-import { doorOf, PROP_BY_ID, trapOf, type PlacedProp } from "@/features/map/model/map-document";
+import { AMBIENT_LABEL, doorOf, isInteractive, PROP_BY_ID, trapOf, type Ambient, type PlacedProp } from "@/features/map/model/map-document";
 import { useCampaignMaps } from "@/features/map-editor/hooks/use-campaign-maps";
 import type { SavedMap } from "@/types/map";
 import type { RoomActions } from "../hooks/use-room-actions";
@@ -25,14 +25,31 @@ export function ScenePanel({ room, actions }: { room: RoomState; actions: RoomAc
   const brush = useRoomStore((s) => s.fogBrush);
   const brushSize = useRoomStore((s) => s.fogBrushSize);
   const preview = useRoomStore((s) => s.playerPreview);
-  const { setFogBrush, setPlayerPreview, selectFeature } = useRoomStore.getState();
+  const { setFogBrush, setPlayerPreview, selectFeature, setShowNotes } = useRoomStore.getState();
+  const showNotes = useRoomStore((s) => s.showNotes);
   const selectedFeatureId = useRoomStore((s) => s.selectedFeatureId);
   const total = room.map.cols * room.map.rows;
   const explored = Math.round((fog.explored.length / Math.max(total, 1)) * 100);
-  const features = room.map.props.filter((p) => PROP_BY_ID.get(p.propId)?.feature);
+  const features = room.map.props.filter(isInteractive);
+  const ambient = room.map.ambient ?? "bright";
 
   return (
     <div className="flex flex-col gap-5">
+      <Section title="Iluminação" icon={<Sun className="size-3.5" />}>
+        <div className="flex flex-wrap gap-1.5">
+          {(Object.keys(AMBIENT_LABEL) as Ambient[]).map((a) => (
+            <Chip key={a} active={ambient === a} onClick={() => ambient !== a && actions.setAmbient(a)}>
+              {AMBIENT_LABEL[a]}
+            </Chip>
+          ))}
+        </div>
+        <p className="mt-1.5 text-[11px] text-fg-subtle">
+          {ambient === "bright"
+            ? "Tudo iluminado: a visão só depende das paredes."
+            : `${ambient === "dim" ? "Na penumbra os personagens enxergam 3 □" : "No escuro os personagens só enxergam o que está ao lado"}; além disso, só o que tochas, fogueiras e braseiros iluminam. Dê luz a um token no inspetor dele.${fog.enabled ? "" : " Ligue a névoa de guerra para a escuridão esconder o mapa dos jogadores; sem ela, é só visual."}`}
+        </p>
+      </Section>
+
       <Section title="Névoa de guerra" icon={<CloudFog className="size-3.5" />}>
         <Switch
           checked={fog.enabled}
@@ -80,7 +97,13 @@ export function ScenePanel({ room, actions }: { room: RoomState; actions: RoomAc
         )}
       </Section>
 
-      <Section title={`Portas e armadilhas (${features.length})`} icon={<DoorClosed className="size-3.5" />}>
+      {(room.map.notes?.length ?? 0) > 0 && (
+        <Section title="Anotações do mestre" icon={<StickyNote className="size-3.5" />}>
+          <Switch checked={showNotes} onChange={setShowNotes} label={`Mostrar ${room.map.notes!.length} anotação(ões) no mapa`} description="Só aparecem para o mestre, nunca na visão dos jogadores." />
+        </Section>
+      )}
+
+      <Section title={`Portas, armadilhas e luzes (${features.length})`} icon={<DoorClosed className="size-3.5" />}>
         {features.length === 0 ? (
           <p className="text-xs text-fg-subtle">Nenhuma no mapa. Coloque pelo editor, em Objetos → Portas e armadilhas.</p>
         ) : (
@@ -200,6 +223,7 @@ function featureSummary(p: PlacedProp): string {
   if (door) return door.locked ? "trancada" : door.open ? "aberta" : "fechada";
   const trap = trapOf(p);
   if (trap) return `${trap.armed ? "armada" : "desarmada"}${trap.hidden ? " · oculta" : ""}`;
+  if (PROP_BY_ID.get(p.propId)?.light) return p.lit === false ? "apagada" : "acesa";
   return "";
 }
 
@@ -207,6 +231,7 @@ function FeatureIcon({ prop, className = "size-4" }: { prop: PlacedProp; classNa
   const def = PROP_BY_ID.get(prop.propId);
   if (def?.feature === "gate") return <Fence className={cn(className, "text-fg-muted")} />;
   if (def?.feature === "door") return doorOf(prop)?.open ? <DoorOpen className={cn(className, "text-fg-muted")} /> : <DoorClosed className={cn(className, "text-fg-muted")} />;
+  if (def?.light) return <Flame className={cn(className, prop.lit === false ? "text-fg-subtle" : "text-warning")} />;
   return <Skull className={cn(className, trapOf(prop)?.armed ? "text-danger" : "text-fg-subtle")} />;
 }
 
@@ -241,6 +266,12 @@ export function FeatureInspector({ prop, actions, isGM }: { prop: PlacedProp; ac
             <X className="size-4" />
           </button>
         </div>
+
+        {def?.light && isGM && (
+          <Button size="sm" variant={prop.lit === false ? "primary" : "secondary"} className="mt-3 w-full" onClick={() => actions.toggleLight(prop.id)} leadingIcon={<Flame className="size-3.5" />}>
+            {prop.lit === false ? "Acender" : "Apagar"}
+          </Button>
+        )}
 
         {door && (
           <div className="mt-3 flex gap-2">

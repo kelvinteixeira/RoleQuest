@@ -9,7 +9,8 @@ import * as THREE from "three";
 import { cn } from "@/lib/cn";
 import { toHexColor } from "@/lib/color";
 import { initials } from "@/lib/format";
-import { CellHighlights, cellStandY, cellToWorld, MapCanvas, preloadMapProps, type CameraView, type FeatureView, type FogView } from "@/features/map/components/map-scene";
+import { CellHighlights, cellStandY, cellToWorld, MapCanvas, preloadMapProps, type CameraView, type FeatureView, type FogView, type LightSpot } from "@/features/map/components/map-scene";
+import { usePreferencesStore } from "@/stores/preferences.store";
 import { cellIndex, featureAt, inBounds, trapOf, type MapDocument, type PlacedProp } from "@/features/map/model/map-document";
 import { brushCells, type Cell } from "@/features/map/model/shapes";
 import { useMapEditorStore } from "@/features/map-editor/store/map-editor.store";
@@ -21,6 +22,15 @@ import type { RoomState, RoomToken } from "../model/types";
 import { useRoomStore, type TokenFx } from "../store/room.store";
 
 type Drag = { tokenId: string; origin: Cell; hover: Cell };
+
+/** Carried lights from their compact key ("id:x:y:radius|…"), so the light list only changes when a light moves. */
+function parseCarried(key: string): LightSpot[] {
+  if (!key) return [];
+  return key.split("|").map((k) => {
+    const [id, x, y, radius] = k.split(":");
+    return { key: id, x: Number(x), y: Number(y), radius: Number(radius), color: "#ffb066", flicker: true, height: 1.1 };
+  });
+}
 type FogStroke = { mode: "reveal" | "hide"; cells: Set<number> };
 
 /**
@@ -52,6 +62,8 @@ export function RoomMap3D({
   const selectedFeatureId = useRoomStore((s) => s.selectedFeatureId);
   const fogBrush = useRoomStore((s) => s.fogBrush);
   const fogBrushSize = useRoomStore((s) => s.fogBrushSize);
+  const showNotes = useRoomStore((s) => s.showNotes);
+  const layers = useMapEditorStore((s) => s.layers);
   const fx = useRoomStore((s) => s.fx);
   const [fogStroke, setFogStroke] = useState<FogStroke | null>(null);
   const [view, setView] = useState<CameraView>({ mode: "perspective", rotation: 0, nonce: 0 });
@@ -83,6 +95,19 @@ export function RoomMap3D({
   }, [editing, visible, room.fog.explored, room.map.cols, room.map.rows, viewer]);
   const seen = (cell: Cell) => !visible || viewer === "gm" || visible.has(cellIndex(room.map, cell.x, cell.y));
   const shownTokens = room.tokens.filter((t) => t.kind !== "enemy" || seen(t));
+  const reduceMotion = usePreferencesStore((s) => s.reduceMotion);
+
+  // Carried lights of tokens the viewer may know about (not glowing out of unexplored darkness).
+  const carriedKey = shownTokens
+    .filter((t) => (t.light ?? 0) > 0 && !isDown(t) && !(viewer === "player" && fog?.hidden.has(cellIndex(room.map, t.x, t.y))))
+    .map((t) => `${t.id}:${t.x}:${t.y}:${t.light}`)
+    .join("|");
+  const carriedLights = parseCarried(carriedKey);
+  // The party's centre: the fires nearest to it get the pooled lights.
+  const party = room.tokens.filter((t) => t.kind === "pc" && !isDown(t));
+  const focusKey = party.length ? `${Math.round(party.reduce((a, t) => a + t.x, 0) / party.length)}:${Math.round(party.reduce((a, t) => a + t.y, 0) / party.length)}` : "";
+  const [fx0, fy0] = focusKey ? focusKey.split(":").map(Number) : [];
+  const lightFocus = focusKey ? { x: fx0, y: fy0 } : undefined;
   /** Players cannot pick anything in never-explored darkness. */
   const reachable = (cell: Cell) => viewer === "gm" || !fog?.hidden.has(cellIndex(room.map, cell.x, cell.y));
 
@@ -218,6 +243,12 @@ export function RoomMap3D({
           selectFeature(null);
         }}
         fog={fog}
+        carriedLights={editing ? undefined : carriedLights}
+        lightFocus={lightFocus}
+        flicker={!reduceMotion}
+        showProps={!editing || layers.props.visible}
+        showBackground={!editing || layers.background.visible}
+        notes={editing ? (layers.notes.visible ? doc.notes : null) : viewer === "gm" && showNotes ? doc.notes : null}
         featureView={editing ? "gm" : viewer}
         onFeatureDown={editing ? undefined : onFeatureDown}
       >

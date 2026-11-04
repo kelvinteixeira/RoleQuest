@@ -82,6 +82,10 @@ export function cryptMap(): MapDocument {
   m = placeProps(m, [{ x: 15, y: 8 }, { x: 19, y: 8 }, { x: 15, y: 14 }, { x: 19, y: 14 }], ["column"]);
   m = placeProps(m, [{ x: 29, y: 11 }], ["obelisk"]);
   m = paintTerrain(m, rectCells({ x: 19, y: 19 }, { x: 21, y: 20 }), "shallow-water");
+  // Dark inside: torches at the entrance, braziers in the hall and the vault.
+  m = placeProps(m, [{ x: 2, y: 8 }, { x: 8, y: 14 }], ["torch"]);
+  m = placeProps(m, [{ x: 17, y: 7 }, { x: 17, y: 15 }, { x: 28, y: 8 }], ["brazier"]);
+  m = { ...m, ambient: "dark" };
   m = placeProps(m, entrance, ["pebbles", "mushroom"], 0.08, 2);
   m = placeProps(m, cellar, ["mushrooms-red", "pebbles", "stone-tall"], 0.12, 6);
   return m;

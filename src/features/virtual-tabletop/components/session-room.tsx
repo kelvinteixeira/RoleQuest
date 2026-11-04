@@ -2,7 +2,11 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, Bot, CloudFog, Dices, MapPinned, MessageSquare, Mic, Pause, Play, RotateCcw, Star, Swords, UserMinus, UserPlus } from "lucide-react";
+import { ArrowLeft, Bot, CloudFog, Dices, MapPinned, MessageSquare, Mic, Pause, Play, RotateCcw, Star, Swords, UserMinus, UserPlus, Volume2, VolumeX } from "lucide-react";
+import { toHexColor } from "@/lib/color";
+import { usePreferencesStore } from "@/stores/preferences.store";
+import { DiceTray, type TrayRoll } from "@/features/dice/components/dice-tray";
+import { useRoomSounds } from "../hooks/use-room-sounds";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/field";
 import { Badge, PhaseBadge } from "@/components/ui/primitives";
@@ -77,6 +81,16 @@ function Room({ overview }: { overview: CampaignOverview }) {
   const actions = useRoomActions(campaignId, gm);
   useBotDirector(campaignId, gm);
   useSheetHpWriteback(campaignId, user.id);
+  useRoomSounds();
+  const soundOn = usePreferencesStore((s) => s.diceSounds);
+  const reduceMotion = usePreferencesStore((s) => s.reduceMotion);
+
+  // The latest roll this viewer may see, for the dice tray.
+  const messages = room?.messages;
+  const trayRoll: TrayRoll | null = useMemo(() => {
+    const m = messages?.findLast((x) => x.roll && (x.visibility === "public" || isGM));
+    return m?.roll ? { id: m.id, label: m.text, author: m.author.name, color: toHexColor(m.author.color), result: m.roll } : null;
+  }, [messages, isGM]);
 
   // The room follows the campaign system (older rooms were saved with the default rules)…
   const ruleSystem = room?.rules.systemId;
@@ -181,6 +195,16 @@ function Room({ overview }: { overview: CampaignOverview }) {
             </Button>
             <PhaseBadge phase={4} />
           </span>
+          <Button
+            size="icon-sm"
+            variant="ghost"
+            onClick={() => usePreferencesStore.getState().setDiceSounds(!soundOn)}
+            aria-label="Efeitos sonoros"
+            title={soundOn ? "Silenciar efeitos sonoros" : "Ligar efeitos sonoros"}
+            aria-pressed={soundOn}
+          >
+            {soundOn ? <Volume2 className="size-3.5" /> : <VolumeX className="size-3.5" />}
+          </Button>
           <Button size="icon-sm" variant="ghost" onClick={() => setConfirmReset(true)} aria-label="Reiniciar cena" title="Reiniciar cena">
             <RotateCcw className="size-3.5" />
           </Button>
@@ -190,6 +214,7 @@ function Room({ overview }: { overview: CampaignOverview }) {
       {/* Map + side panel */}
       <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
         <div className="relative h-[52dvh] shrink-0 lg:h-auto lg:min-w-0 lg:flex-1">
+          {!editing && <DiceTray roll={trayRoll} reduceMotion={reduceMotion} />}
           <RoomMap3D room={room} editing={editing} viewer={viewer} onMove={actions.moveToken} onFogPaint={(mode, cells) => (mode === "reveal" ? actions.revealCells(cells) : actions.hideCells(cells))} />
           {!hasParty && !editing && (
             <div className="absolute inset-x-4 top-4 mx-auto flex max-w-md items-center gap-3 rounded-xl border border-accent/40 bg-surface/95 p-3 shadow-xl backdrop-blur">

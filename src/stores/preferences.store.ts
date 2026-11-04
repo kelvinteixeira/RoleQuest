@@ -3,9 +3,12 @@ import { createJSONStorage, persist } from "zustand/middleware";
 
 type PreferencesState = {
   sidebarCollapsed: boolean;
-  /** Used by the dice roller and audio engine in later phases. */
+  /** Table sound effects on/off (dice, doors, hits…). */
   diceSounds: boolean;
   reduceMotion: boolean;
+  /** Table sound effects volume, 0..1. */
+  effectsVolume: number;
+  setEffectsVolume: (value: number) => void;
   setSidebarCollapsed: (value: boolean) => void;
   toggleSidebar: () => void;
   setDiceSounds: (value: boolean) => void;
@@ -19,6 +22,8 @@ export const usePreferencesStore = create<PreferencesState>()(
       sidebarCollapsed: false,
       diceSounds: true,
       reduceMotion: false,
+      effectsVolume: 0.6,
+      setEffectsVolume: (value) => set({ effectsVolume: Math.max(0, Math.min(1, value)) }),
       setSidebarCollapsed: (value) => set({ sidebarCollapsed: value }),
       toggleSidebar: () => set({ sidebarCollapsed: !get().sidebarCollapsed }),
       setDiceSounds: (value) => set({ diceSounds: value }),
@@ -27,7 +32,7 @@ export const usePreferencesStore = create<PreferencesState>()(
     {
       name: "rq:preferences:v1",
       storage: createJSONStorage(() => localStorage),
-      partialize: ({ sidebarCollapsed, diceSounds, reduceMotion }) => ({ sidebarCollapsed, diceSounds, reduceMotion }),
+      partialize: ({ sidebarCollapsed, diceSounds, reduceMotion, effectsVolume }) => ({ sidebarCollapsed, diceSounds, reduceMotion, effectsVolume }),
       skipHydration: true,
     },
   ),

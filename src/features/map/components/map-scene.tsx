@@ -2,20 +2,28 @@
 
 import { Suspense, useLayoutEffect, useMemo, useRef, type ReactNode } from "react";
 import { Canvas, useFrame, useThree, type ThreeEvent } from "@react-three/fiber";
-import { Clone, MapControls, useGLTF } from "@react-three/drei";
+import { Clone, Html, MapControls, useGLTF, useTexture } from "@react-three/drei";
 import * as THREE from "three";
 import {
   cellIndex,
   cellNoise,
   doorOf,
+  lightOf,
   PROP_BY_ID,
   PROPS,
   TERRAINS,
   trapOf,
+  type Ambient,
   type MapDocument,
+  type MapNote,
   type PlacedProp,
 } from "../model/map-document";
 import type { Cell } from "../model/shapes";
+import { LIGHT_POOL, pickLights, type LightSpot } from "../model/lights";
+
+export type { LightSpot } from "../model/lights";
+import { backgroundPlane } from "../model/background";
+import { useMapImage } from "../hooks/use-map-image";
 
 /* ---------- World geometry ---------- */
 
@@ -167,6 +175,55 @@ function Water({ doc }: { doc: MapDocument }) {
       <planeGeometry args={[doc.cols, doc.rows, doc.cols * 2, doc.rows * 2]} />
       <shaderMaterial ref={material} uniforms={uniforms} vertexShader={waterVertex} fragmentShader={waterFragment} transparent depthWrite={false} />
     </mesh>
+  );
+}
+
+/* ---------- Imported picture ---------- */
+
+function BackgroundTexture({ doc, url }: { doc: MapDocument; url: string }) {
+  const texture = useTexture(url, (t) => {
+    t.colorSpace = THREE.SRGBColorSpace;
+    t.anisotropy = 8;
+  });
+  const bg = doc.background!;
+  const { center, size } = backgroundPlane(doc, bg);
+  // Just above level-0 ground: raised walls and hills still rise through it.
+  return (
+    <mesh rotation-x={-Math.PI / 2} position={[center[0], 0.004, center[1]]} receiveShadow raycast={() => null}>
+      <planeGeometry args={size} />
+      <meshStandardMaterial map={texture} roughness={1} transparent={bg.opacity < 1} opacity={bg.opacity} />
+    </mesh>
+  );
+}
+
+function BackgroundImage({ doc }: { doc: MapDocument }) {
+  const url = useMapImage(doc.background?.imageId);
+  if (!doc.background || !url) return null;
+  return (
+    <Suspense fallback={null}>
+      <BackgroundTexture doc={doc} url={url} />
+    </Suspense>
+  );
+}
+
+/* ---------- GM notes ---------- */
+
+function NotesLayer({ doc, notes }: { doc: MapDocument; notes: MapNote[] }) {
+  return (
+    <>
+      {notes.map((n) => {
+        if (n.x >= doc.cols || n.y >= doc.rows) return null;
+        const [wx, wz] = cellToWorld(doc, n.x, n.y);
+        return (
+          <Html key={n.id} position={[wx, cellStandY(doc, n.x, n.y) + 0.35, wz]} center zIndexRange={[15, 0]} style={{ pointerEvents: "none" }}>
+            <div className="flex max-w-40 items-start gap-1 rounded-md border border-warning/50 bg-canvas/90 px-1.5 py-0.5 text-[11px] leading-tight text-fg shadow">
+              <span aria-hidden className="text-warning">●</span>
+              <span className="line-clamp-3">{n.text}</span>
+            </div>
+          </Html>
+        );
+      })}
+    </>
   );
 }
 
@@ -393,6 +450,130 @@ function DartTrapModel({ armed, ghost }: { armed: boolean; ghost: boolean }) {
   );
 }
 
+/* ---------- Light ---------- */
+
+function PoolLight({ doc, spot, flicker }: { doc: MapDocument; spot?: LightSpot; flicker: boolean }) {
+  const ref = useRef<THREE.PointLight>(null);
+  const base = spot ? 2.5 + spot.radius * 1.5 : 0;
+  const target = useMemo(() => {
+    if (!spot) return null;
+    const [wx, wz] = cellToWorld(doc, spot.x, spot.y);
+    return new THREE.Vector3(wx, cellStandY(doc, spot.x, spot.y) + spot.height, wz);
+  }, [doc, spot]);
+  const placed = useRef(false);
+  useFrame((state) => {
+    const light = ref.current;
+    if (!light) return;
+    if (!target) {
+      light.intensity = 0;
+      placed.current = false;
+      return;
+    }
+    // A newly assigned light jumps into place; a carried one follows its token's walk.
+    if (!placed.current) light.position.copy(target);
+    else light.position.lerp(target, 0.12);
+    placed.current = true;
+    const t = state.clock.elapsedTime;
+    light.intensity = spot?.flicker && flicker ? base * (0.86 + Math.sin(t * 11.3) * 0.06 + Math.sin(t * 7.1 + 1.3) * 0.05 + Math.random() * 0.05) : base;
+  });
+  return <pointLight ref={ref} color={spot?.color ?? "#000000"} intensity={0} distance={spot ? spot.radius + 1.5 : 1} decay={1.1} />;
+}
+
+function Flame({ size = 1, lit }: { size?: number; lit: boolean }) {
+  const ref = useRef<THREE.Group>(null);
+  useFrame((state) => {
+    if (!ref.current) return;
+    const t = state.clock.elapsedTime;
+    ref.current.scale.set(size * (1 + Math.sin(t * 13) * 0.08), size * (1 + Math.sin(t * 9 + 2) * 0.15), size * (1 + Math.cos(t * 11) * 0.08));
+  });
+  if (!lit) return null;
+  return (
+    <group ref={ref}>
+      <mesh position-y={0.09}>
+        <coneGeometry args={[0.07, 0.2, 10]} />
+        <meshBasicMaterial color="#ffb347" />
+      </mesh>
+      <mesh position-y={0.07}>
+        <coneGeometry args={[0.04, 0.12, 8]} />
+        <meshBasicMaterial color="#fff2b0" />
+      </mesh>
+    </group>
+  );
+}
+
+function TorchModel({ lit }: { lit: boolean }) {
+  return (
+    <group>
+      <mesh castShadow position={[0, 0.5, 0]}>
+        <cylinderGeometry args={[0.03, 0.04, 1, 8]} />
+        <Mat color={IRON} metal />
+      </mesh>
+      <mesh castShadow position={[0, 1.02, 0]}>
+        <cylinderGeometry args={[0.06, 0.035, 0.14, 10]} />
+        <Mat color={WOOD_DARK} />
+      </mesh>
+      <group position-y={1.08}>
+        <Flame lit={lit} />
+      </group>
+    </group>
+  );
+}
+
+function BrazierModel({ lit }: { lit: boolean }) {
+  return (
+    <group>
+      {[0, 120, 240].map((deg) => {
+        const a = (deg * Math.PI) / 180;
+        return (
+          <mesh key={deg} castShadow position={[Math.sin(a) * 0.2, 0.22, Math.cos(a) * 0.2]} rotation={[Math.cos(a) * 0.25, 0, -Math.sin(a) * 0.25]}>
+            <cylinderGeometry args={[0.025, 0.025, 0.46, 6]} />
+            <Mat color={IRON} metal />
+          </mesh>
+        );
+      })}
+      <mesh castShadow receiveShadow position-y={0.5}>
+        <cylinderGeometry args={[0.32, 0.2, 0.16, 16, 1, true]} />
+        <meshStandardMaterial color={IRON} metalness={0.6} roughness={0.5} side={THREE.DoubleSide} />
+      </mesh>
+      <mesh position-y={0.52}>
+        <cylinderGeometry args={[0.28, 0.28, 0.04, 16]} />
+        <meshStandardMaterial color={lit ? "#ff6a1a" : "#2a2522"} emissive={lit ? "#ff4d00" : "#000000"} emissiveIntensity={lit ? 1.4 : 0} />
+      </mesh>
+      <group position-y={0.54}>
+        <Flame size={1.8} lit={lit} />
+      </group>
+    </group>
+  );
+}
+
+/** The fixed pool of point lights, given to the spots that matter most. */
+function LightPool({ doc, carried, hiddenCells, focus, flicker }: { doc: MapDocument; carried: LightSpot[]; hiddenCells?: Set<number>; focus?: { x: number; y: number }; flicker: boolean }) {
+  const spots = useMemo(() => {
+    const fixed: LightSpot[] = doc.props.flatMap((p) => {
+      const light = lightOf(p);
+      if (!light || hiddenCells?.has(cellIndex(doc, p.x, p.y))) return [];
+      return [{ key: p.id, x: p.x, y: p.y, height: p.propId === "torch" ? 1.15 : 0.8, ...light }];
+    });
+    return pickLights(carried, fixed, focus ?? { x: doc.cols / 2, y: doc.rows / 2 });
+  }, [doc, carried, hiddenCells, focus]);
+  return (
+    <>
+      {Array.from({ length: LIGHT_POOL }, (_, i) => (
+        <PoolLight key={i} doc={doc} spot={spots[i]} flicker={flicker} />
+      ))}
+    </>
+  );
+}
+
+const NO_LIGHTS: LightSpot[] = [];
+
+/** Sun/sky intensities per ambient: daylight, dusk, darkness (moonlight). */
+const AMBIENT_LIGHT: Record<Ambient, { sky: string; ground: string; hemi: number; sun: number; sunColor: string }> = {
+  bright: { sky: "#dfe9ff", ground: "#3a2f45", hemi: 0.9, sun: 2.1, sunColor: "#ffffff" },
+  dim: { sky: "#8ea2cc", ground: "#2a2433", hemi: 0.32, sun: 0.45, sunColor: "#b3c2ff" },
+  dark: { sky: "#4a5a80", ground: "#141018", hemi: 0.09, sun: 0.07, sunColor: "#8ea2ff" },
+};
+
 function FeatureModel({ prop, doc, view, onDown }: { prop: PlacedProp; doc: MapDocument; view: FeatureView; onDown?: FeatureHandler }) {
   const def = PROP_BY_ID.get(prop.propId)!;
   const door = doorOf(prop);
@@ -419,6 +600,8 @@ function FeatureModel({ prop, doc, view, onDown }: { prop: PlacedProp; doc: MapD
       {def.feature === "gate" && door && <GateModel open={door.open} locked={door.locked} />}
       {def.feature === "trap-spikes" && trap && <SpikeTrapModel armed={trap.armed} ghost={ghost} />}
       {def.feature === "trap-darts" && trap && <DartTrapModel armed={trap.armed} ghost={ghost} />}
+      {def.feature === "torch" && <TorchModel lit={prop.lit !== false} />}
+      {def.feature === "brazier" && <BrazierModel lit={prop.lit !== false} />}
       {/* Invisible, generous hit box: traps are flat and hard to click. */}
       {onDown && (
         <mesh position-y={0.3} visible={false}>
@@ -584,6 +767,12 @@ export function MapCanvas({
   fog,
   featureView = "gm",
   onFeatureDown,
+  showProps = true,
+  showBackground = true,
+  notes,
+  carriedLights = NO_LIGHTS,
+  lightFocus,
+  flicker = true,
   children,
 }: {
   doc: MapDocument;
@@ -597,9 +786,21 @@ export function MapCanvas({
   fog?: FogView | null;
   featureView?: FeatureView;
   onFeatureDown?: FeatureHandler;
+  /** Layer toggles (editor). */
+  showProps?: boolean;
+  showBackground?: boolean;
+  /** GM notes to draw; null/undefined hides the layer (always for players). */
+  notes?: MapNote[] | null;
+  /** Lights carried by tokens (the caller leaves out what the viewer must not see). */
+  carriedLights?: LightSpot[];
+  /** Where the action is: the map's nearest fires get the pooled lights. */
+  lightFocus?: { x: number; y: number };
+  /** Fire flicker (off with reduced motion). */
+  flicker?: boolean;
   children?: ReactNode;
 }) {
   const span = Math.max(doc.cols, doc.rows);
+  const ambient = AMBIENT_LIGHT[doc.ambient ?? "bright"];
   return (
     <Canvas
       shadows
@@ -612,10 +813,11 @@ export function MapCanvas({
     >
       <color attach="background" args={["#0b0a0f"]} />
       <fog attach="fog" args={["#0b0a0f", span * 1.6, span * 3.2]} />
-      <hemisphereLight args={["#dfe9ff", "#3a2f45", 0.9]} />
+      <hemisphereLight args={[ambient.sky, ambient.ground, ambient.hemi]} />
       <directionalLight
         position={[span * 0.4, span * 0.9, span * 0.25]}
-        intensity={2.1}
+        intensity={ambient.sun}
+        color={ambient.sunColor}
         castShadow
         shadow-mapSize={[2048, 2048]}
         shadow-bias={-0.0004}
@@ -626,8 +828,11 @@ export function MapCanvas({
       />
       <Terrain doc={doc} onCellDown={onCellDown} onCellMove={onCellMove} />
       <Water doc={doc} />
+      {showBackground && <BackgroundImage doc={doc} />}
       {showGrid && <GridLines doc={doc} />}
-      <Props doc={doc} view={featureView} onFeatureDown={onFeatureDown} hiddenCells={fog?.mode === "player" ? fog.hidden : undefined} />
+      {showProps && <Props doc={doc} view={featureView} onFeatureDown={onFeatureDown} hiddenCells={fog?.mode === "player" ? fog.hidden : undefined} />}
+      <LightPool doc={doc} carried={carriedLights} hiddenCells={fog?.mode === "player" ? fog.hidden : undefined} focus={lightFocus} flicker={flicker} />
+      {notes && notes.length > 0 && <NotesLayer doc={doc} notes={notes} />}
       {fog && <FogLayer doc={doc} fog={fog} />}
       {children}
       <MapControls

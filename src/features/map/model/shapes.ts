@@ -10,6 +10,7 @@ import {
   initialFeatureState,
   isDoorKind,
   MAX_ELEVATION,
+  NOTE_MAX,
   PROP_BY_ID,
   terrainAt,
   TERRAINS,
@@ -184,18 +185,41 @@ export function rotatePropsAt(doc: MapDocument, cell: Cell): MapDocument {
   return { ...doc, props: doc.props.map((p) => (p.x === cell.x && p.y === cell.y ? { ...p, rotation: (p.rotation + 90) % 360 } : p)) };
 }
 
-/** Eraser: back to base ground, level 0, no props. */
-export function eraseCells(doc: MapDocument, cells: Cell[], base: TerrainId = "grass"): MapDocument {
+/** Layers the eraser must leave alone (locked in the editor). */
+export interface EraseKeep {
+  terrain?: boolean;
+  props?: boolean;
+  notes?: boolean;
+}
+
+/** Eraser: back to base ground, level 0, no props, no notes — except on kept layers. */
+export function eraseCells(doc: MapDocument, cells: Cell[], base: TerrainId = "grass", keep: EraseKeep = {}): MapDocument {
   const valid = inside(doc, cells);
   const set = new Set(valid.map(key));
   const terrain = [...doc.terrain];
   const elevation = [...doc.elevation];
-  for (const c of valid) {
-    const i = cellIndex(doc, c.x, c.y);
-    terrain[i] = base;
-    elevation[i] = 0;
+  if (!keep.terrain) {
+    for (const c of valid) {
+      const i = cellIndex(doc, c.x, c.y);
+      terrain[i] = base;
+      elevation[i] = 0;
+    }
   }
-  return { ...doc, terrain, elevation, props: doc.props.filter((p) => !set.has(key(p))) };
+  return {
+    ...doc,
+    terrain,
+    elevation,
+    props: keep.props ? doc.props : doc.props.filter((p) => !set.has(key(p))),
+    notes: keep.notes ? doc.notes : doc.notes?.filter((n) => !set.has(key(n))),
+  };
+}
+
+/** Pins a GM note on a square (replacing the one there); empty text removes it. */
+export function placeNote(doc: MapDocument, cell: Cell, text: string): MapDocument {
+  if (!inBounds(doc, cell.x, cell.y)) return doc;
+  const others = (doc.notes ?? []).filter((n) => n.x !== cell.x || n.y !== cell.y);
+  const trimmed = text.trim().slice(0, NOTE_MAX);
+  return { ...doc, notes: trimmed ? [...others, { id: createId("note"), x: cell.x, y: cell.y, text: trimmed }] : others };
 }
 
 export function removeProps(doc: MapDocument, cells: Cell[]): MapDocument {

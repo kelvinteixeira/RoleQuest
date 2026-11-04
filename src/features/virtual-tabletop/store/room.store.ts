@@ -3,6 +3,8 @@ import { createJSONStorage, persist } from "zustand/middleware";
 import { createId } from "@/lib/id";
 import { applyEvents } from "../model/room-engine";
 import { upgradeRooms } from "../model/room-migration";
+import { soundsFor } from "@/features/audio-engine/room-sounds";
+import type { SfxName } from "@/features/audio-engine/sfx";
 import type { RoomEvent, RoomState } from "../model/types";
 
 export type BotSpeed = "slow" | "normal" | "fast";
@@ -53,8 +55,12 @@ type RoomStore = {
   fogBrushSize: number;
   /** GM previews the table as the players see it. */
   playerPreview: boolean;
+  /** GM notes layer at the table (never shown to players). */
+  showNotes: boolean;
   fx: TokenFx[];
   cues: TokenCue[];
+  /** Sounds of the latest batch of events (played by `useRoomSounds`). */
+  sounds: { id: string; names: SfxName[] } | null;
 
   ensureRoom: (campaignId: string, create: () => RoomState) => void;
   resetRoom: (campaignId: string, create: () => RoomState) => void;
@@ -63,6 +69,7 @@ type RoomStore = {
   selectFeature: (propId: string | null) => void;
   setFogBrush: (brush: FogBrush, size?: number) => void;
   setPlayerPreview: (value: boolean) => void;
+  setShowNotes: (value: boolean) => void;
   setBotsRunning: (value: boolean) => void;
   setBotSpeed: (value: BotSpeed) => void;
   setAutoEnemies: (value: boolean) => void;
@@ -80,8 +87,10 @@ export const useRoomStore = create<RoomStore>()(
       fogBrush: null,
       fogBrushSize: 3,
       playerPreview: false,
+      showNotes: true,
       fx: [],
       cues: [],
+      sounds: null,
 
       ensureRoom: (campaignId, factory) => {
         if (!get().rooms[campaignId]) set({ rooms: { ...get().rooms, [campaignId]: factory() } });
@@ -99,7 +108,13 @@ export const useRoomStore = create<RoomStore>()(
           .filter((e): e is Extract<RoomEvent, { type: "token.hp" }> => e.type === "token.hp" && e.delta !== 0)
           .map((e) => ({ id: createId("fx"), tokenId: e.tokenId, text: e.delta > 0 ? `+${e.delta}` : `${e.delta}`, tone: e.delta > 0 ? "heal" : "damage" }));
         const cues = cuesFor(events);
-        set({ rooms: { ...get().rooms, [campaignId]: next }, fx: [...get().fx, ...fx], cues: [...get().cues, ...cues] });
+        const names = soundsFor(events, room);
+        set({
+          rooms: { ...get().rooms, [campaignId]: next },
+          fx: [...get().fx, ...fx],
+          cues: [...get().cues, ...cues],
+          ...(names.length > 0 && { sounds: { id: createId("sfx"), names } }),
+        });
         for (const f of fx) setTimeout(() => set({ fx: get().fx.filter((x) => x.id !== f.id) }), 1300);
         for (const c of cues) setTimeout(() => set({ cues: get().cues.filter((x) => x.id !== c.id) }), 1600);
       },
@@ -108,6 +123,7 @@ export const useRoomStore = create<RoomStore>()(
       selectFeature: (propId) => set({ selectedFeatureId: propId, selectedTokenId: propId ? null : get().selectedTokenId }),
       setFogBrush: (brush, size) => set({ fogBrush: brush, fogBrushSize: size ?? get().fogBrushSize }),
       setPlayerPreview: (value) => set({ playerPreview: value }),
+      setShowNotes: (value) => set({ showNotes: value }),
       setBotsRunning: (value) => set({ botsRunning: value }),
       setBotSpeed: (value) => set({ botSpeed: value }),
       setAutoEnemies: (value) => set({ autoEnemies: value }),

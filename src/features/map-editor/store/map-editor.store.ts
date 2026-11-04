@@ -4,6 +4,7 @@ import {
   eraseCells,
   floodCells,
   paintTerrain,
+  placeNote,
   placeProps,
   rotatePropsAt,
   shapeCells,
@@ -12,7 +13,34 @@ import {
   type ShapeKind,
 } from "@/features/map/model/shapes";
 
-export type EditorTool = "terrain" | "props" | "raise" | "lower" | "erase" | "rotate";
+export type EditorTool = "terrain" | "props" | "raise" | "lower" | "erase" | "rotate" | "note";
+
+/** Editor layers: what is shown while editing and what tools may change. */
+export type LayerId = "background" | "terrain" | "props" | "notes";
+export type LayerState = Record<LayerId, { visible: boolean; locked: boolean }>;
+
+const DEFAULT_LAYERS: LayerState = {
+  background: { visible: true, locked: false },
+  terrain: { visible: true, locked: false },
+  props: { visible: true, locked: false },
+  notes: { visible: true, locked: false },
+};
+
+/** The layer a tool changes (the eraser changes every unlocked one). */
+export const TOOL_LAYER: Record<Exclude<EditorTool, "erase">, LayerId> = {
+  terrain: "terrain",
+  raise: "terrain",
+  lower: "terrain",
+  props: "props",
+  rotate: "props",
+  note: "notes",
+};
+
+/** True when the current tool has nothing it may change. */
+export function toolLocked(tool: EditorTool, layers: LayerState): boolean {
+  if (tool === "erase") return layers.terrain.locked && layers.props.locked && layers.notes.locked;
+  return layers[TOOL_LAYER[tool]].locked;
+}
 export type EditorShape = ShapeKind | "fill";
 
 const HISTORY_LIMIT = 60;
@@ -31,12 +59,18 @@ type MapEditorState = {
   propIds: string[];
   brushSize: number;
   density: number;
+  noteText: string;
+  layers: LayerState;
   stroke: Stroke | null;
+  /** Key of the last coalesced change (slider drags make one undo step, not one per tick). */
+  coalesce: string | null;
 
   open: (doc: MapDocument) => void;
   close: () => void;
-  replace: (doc: MapDocument) => void;
-  set: (patch: Partial<Pick<MapEditorState, "tool" | "shape" | "terrain" | "propIds" | "brushSize" | "density">>) => void;
+  /** `coalesce`: consecutive changes with the same key share one undo step. */
+  replace: (doc: MapDocument, coalesce?: string) => void;
+  set: (patch: Partial<Pick<MapEditorState, "tool" | "shape" | "terrain" | "propIds" | "brushSize" | "density" | "noteText">>) => void;
+  toggleLayer: (id: LayerId, key: "visible" | "locked") => void;
   undo: () => void;
   redo: () => void;
   beginStroke: (cell: Cell) => void;
@@ -48,7 +82,7 @@ type MapEditorState = {
 /** Tools that paint continuously while dragging (instead of a shape released on pointer up). */
 const isContinuous = (s: Pick<MapEditorState, "shape" | "tool">) => s.shape === "brush" || s.tool === "rotate";
 
-function apply(doc: MapDocument, s: Pick<MapEditorState, "tool" | "terrain" | "propIds" | "density">, cells: Cell[], seed: number): MapDocument {
+function apply(doc: MapDocument, s: Pick<MapEditorState, "tool" | "terrain" | "propIds" | "density" | "noteText" | "layers">, cells: Cell[], seed: number): MapDocument {
   switch (s.tool) {
     case "terrain":
       return paintTerrain(doc, cells, s.terrain);
@@ -62,9 +96,16 @@ function apply(doc: MapDocument, s: Pick<MapEditorState, "tool" | "terrain" | "p
     case "lower":
       return shiftElevation(doc, cells, -1);
     case "erase":
-      return eraseCells(doc, cells);
+      // Hidden layers are kept too: the eraser never deletes what the GM cannot see.
+      return eraseCells(doc, cells, "grass", {
+        terrain: s.layers.terrain.locked,
+        props: s.layers.props.locked || !s.layers.props.visible,
+        notes: s.layers.notes.locked || !s.layers.notes.visible,
+      });
     case "rotate":
       return cells.reduce((d, c) => rotatePropsAt(d, c), doc);
+    case "note":
+      return cells[0] ? placeNote(doc, cells[0], s.noteText) : doc;
   }
 }
 
@@ -86,15 +127,23 @@ export const useMapEditorStore = create<MapEditorState>((set, get) => {
     propIds: ["tree-common", "pine", "tree-round"],
     brushSize: 1,
     density: 0.5,
+    noteText: "",
+    layers: DEFAULT_LAYERS,
     stroke: null,
+    coalesce: null,
 
-    open: (doc) => set({ draft: structuredClone(doc), past: [], future: [], dirty: false, stroke: null }),
-    close: () => set({ draft: null, past: [], future: [], dirty: false, stroke: null }),
-    replace: (doc) => {
-      checkpoint();
-      set({ draft: doc, dirty: true });
+    // Every editing session starts with all layers visible and unlocked.
+    open: (doc) => set({ draft: structuredClone(doc), past: [], future: [], dirty: false, stroke: null, coalesce: null, layers: DEFAULT_LAYERS }),
+    close: () => set({ draft: null, past: [], future: [], dirty: false, stroke: null, coalesce: null }),
+    replace: (doc, coalesce) => {
+      if (!coalesce || coalesce !== get().coalesce) checkpoint();
+      set({ draft: doc, dirty: true, coalesce: coalesce ?? null });
     },
     set: (patch) => set(patch),
+    toggleLayer: (id, key) => {
+      const layers = get().layers;
+      set({ layers: { ...layers, [id]: { ...layers[id], [key]: !layers[id][key] } } });
+    },
 
     undo: () => {
       const { past, draft, future } = get();
@@ -109,8 +158,17 @@ export const useMapEditorStore = create<MapEditorState>((set, get) => {
 
     beginStroke: (cell) => {
       const s = get();
-      if (!s.draft) return;
+      if (!s.draft || toolLocked(s.tool, s.layers)) return;
+      if (s.tool === "note") {
+        const next = apply(s.draft, s, [cell], 0);
+        // Empty text on an empty square changes nothing: no undo step, not dirty.
+        if (JSON.stringify(next.notes ?? []) === JSON.stringify(s.draft.notes ?? [])) return;
+        checkpoint();
+        set({ draft: next, dirty: true, coalesce: null });
+        return;
+      }
       checkpoint();
+      set({ coalesce: null });
       if (s.shape === "fill") {
         const cells = s.tool === "rotate" ? [cell] : floodCells(s.draft, cell);
         set({ draft: apply(s.draft, s, cells, Date.now() % 997), dirty: true });

@@ -210,6 +210,60 @@ describe("traps", () => {
   });
 });
 
+describe("lighting", () => {
+  /** 20×1 hall of stone, dark. */
+  const dark = (): MapDocument => ({ ...createBlankMap(20, 1, "stone"), ambient: "dark" });
+
+  it("in the dark the party sees only next to itself, plus what lights reveal", () => {
+    const hero = token({ id: "hero", kind: "pc", x: 0 });
+    const fog = { enabled: true, vision: 12, explored: [] };
+    expect([...partyVision(room(dark(), [hero], fog))].sort((a, b) => a - b)).toEqual([0, 1]);
+
+    // Brazier at 12 (radius 6) lights 6..18; vision 12 stops at 12.
+    const lit = placeProps(dark(), [{ x: 12, y: 0 }], ["brazier"]);
+    const seen = partyVision(room(lit, [hero], fog));
+    expect(seen.has(4)).toBe(false);
+    expect(seen.has(6)).toBe(true);
+    expect(seen.has(12)).toBe(true);
+    expect(seen.has(13)).toBe(false);
+  });
+
+  it("dusk lets them see 3 squares; daylight their whole vision", () => {
+    const hero = token({ id: "hero", kind: "pc", x: 0 });
+    const fog = { enabled: true, vision: 6, explored: [] };
+    expect(partyVision(room({ ...dark(), ambient: "dim" }, [hero], fog)).size).toBe(4);
+    expect(partyVision(room({ ...dark(), ambient: "bright" }, [hero], fog)).size).toBe(7);
+  });
+
+  it("carried lights, put-out fires and the ambient are events", () => {
+    const hero = token({ id: "hero", kind: "pc", x: 0 });
+    let state = applyEvents(room(placeProps(dark(), [{ x: 9, y: 0 }], ["torch"]), [hero], { enabled: true, vision: 12, explored: [] }), [], "gm");
+    const torch = state.map.props[0].id;
+    state = applyEvents(state, [{ type: "prop.updated", propId: torch, lit: false }], "gm");
+    expect(partyVision(state).has(9)).toBe(false);
+    state = applyEvents(state, [{ type: "token.light", tokenId: "hero", radius: 4 }], "gm");
+    expect(state.tokens[0].light).toBe(4);
+    expect(partyVision(state).has(4)).toBe(true);
+    expect(state.fog.explored).toContain(4);
+    state = applyEvents(state, [{ type: "lighting.set", ambient: "bright" }], "gm");
+    expect(state.map.ambient).toBe("bright");
+    expect(partyVision(state).has(12)).toBe(true);
+  });
+});
+
+describe("light pool", () => {
+  it("carried lights first, then the fires nearest the party, at most 12", async () => {
+    const { pickLights, LIGHT_POOL } = await import("@/features/map/model/lights");
+    const spot = (key: string, x: number) => ({ key, x, y: 0, radius: 4, color: "#fff", height: 1 });
+    const fires = Array.from({ length: 20 }, (_, i) => spot(`f${i}`, i));
+    const picked = pickLights([spot("torch", 50)], fires, { x: 10, y: 0 });
+    expect(picked).toHaveLength(LIGHT_POOL);
+    expect(picked[0].key).toBe("torch");
+    expect(picked[1].key).toBe("f10");
+    expect(picked.some((p) => p.key === "f0")).toBe(false);
+  });
+});
+
 describe("crypt template", () => {
   it("has doors facing their corridors, a locked gate and two hidden traps", () => {
     const m = cryptMap();

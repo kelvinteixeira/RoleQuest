@@ -21,6 +21,7 @@ import { createId, slugify } from "@/lib/id";
 import { sha256Hex } from "@/lib/crypto";
 import { AVATAR_COLORS } from "@/constants/campaign";
 import { commit, getDb, nowIso, respond } from "./database";
+import { mockImages } from "./images";
 
 const SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
@@ -272,5 +273,5 @@ const maps: MapRepository = {
   },
 };
 
-export const mockRepositories: Repositories = { auth, users, campaigns, sessions, invites, characters, library, systems, maps };
+export const mockRepositories: Repositories = { auth, users, campaigns, sessions, invites, characters, library, systems, maps, images: mockImages };
 export { resetMockDatabase } from "./database";

@@ -84,6 +84,12 @@ export interface MapRepository {
   remove(id: ID): Promise<void>;
 }
 
+/** Pictures used as map backgrounds. */
+export interface MapImageRepository {
+  put(blob: Blob): Promise<ID>;
+  get(id: ID): Promise<Blob | null>;
+}
+
 export interface Repositories {
   auth: AuthRepository;
   users: UserRepository;
@@ -94,4 +100,5 @@ export interface Repositories {
   library: LibraryRepository;
   systems: SystemRepository;
   maps: MapRepository;
+  images: MapImageRepository;
 }

@@ -9,7 +9,10 @@ import type {
   CharacterRepository,
   InviteRepository,
   LibraryRepository,
+  EncounterRepository,
+  JournalRepository,
   MapRepository,
+  NpcRepository,
   Repositories,
   SessionRepository,
   SystemRepository,
@@ -273,5 +276,91 @@ const maps: MapRepository = {
   },
 };
 
-export const mockRepositories: Repositories = { auth, users, campaigns, sessions, invites, characters, library, systems, maps, images: mockImages };
+const npcs: NpcRepository = {
+  async listForCampaign(campaignId) {
+    return respond(getDb().npcs.filter((n) => n.campaignId === campaignId).sort((a, b) => a.name.localeCompare(b.name, "pt-BR")));
+  },
+  async getById(id) {
+    return respond(getDb().npcs.find((n) => n.id === id) ?? null);
+  },
+  async create(input) {
+    const now = nowIso();
+    const npc = { ...input, id: createId("npc"), createdAt: now, updatedAt: now };
+    getDb().npcs.push(npc);
+    commit();
+    return respond(npc);
+  },
+  async update(id, patch) {
+    const db = getDb();
+    const index = db.npcs.findIndex((n) => n.id === id);
+    if (index < 0) throw new AppError("not_found");
+    db.npcs[index] = { ...db.npcs[index], ...patch, updatedAt: nowIso() };
+    commit();
+    return respond(db.npcs[index]);
+  },
+  async remove(id) {
+    const db = getDb();
+    db.npcs = db.npcs.filter((n) => n.id !== id);
+    // Like ON DELETE CASCADE on encounter entries.
+    for (const e of db.encounters) e.entries = e.entries.filter((x) => x.npcId !== id);
+    commit();
+    return respond(undefined);
+  },
+};
+
+const encounters: EncounterRepository = {
+  async listForCampaign(campaignId) {
+    return respond(getDb().encounters.filter((e) => e.campaignId === campaignId).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)));
+  },
+  async create(input) {
+    const now = nowIso();
+    const encounter = { ...input, id: createId("enc"), createdAt: now, updatedAt: now };
+    getDb().encounters.push(encounter);
+    commit();
+    return respond(encounter);
+  },
+  async update(id, patch) {
+    const db = getDb();
+    const index = db.encounters.findIndex((e) => e.id === id);
+    if (index < 0) throw new AppError("not_found");
+    db.encounters[index] = { ...db.encounters[index], ...patch, updatedAt: nowIso() };
+    commit();
+    return respond(db.encounters[index]);
+  },
+  async remove(id) {
+    const db = getDb();
+    db.encounters = db.encounters.filter((e) => e.id !== id);
+    commit();
+    return respond(undefined);
+  },
+};
+
+const journal: JournalRepository = {
+  async listForCampaign(campaignId) {
+    return respond(getDb().journal.filter((j) => j.campaignId === campaignId).sort((a, b) => a.at.localeCompare(b.at)));
+  },
+  async add(inputs) {
+    const now = nowIso();
+    const added = inputs.map((input) => ({ ...input, id: createId("jr"), createdAt: now, updatedAt: now }));
+    getDb().journal.push(...added);
+    commit();
+    return respond(added);
+  },
+  async update(id, patch) {
+    const db = getDb();
+    const index = db.journal.findIndex((j) => j.id === id);
+    if (index < 0) throw new AppError("not_found");
+    db.journal[index] = { ...db.journal[index], ...patch, updatedAt: nowIso() };
+    commit();
+    return respond(db.journal[index]);
+  },
+  async remove(id) {
+    const db = getDb();
+    db.journal = db.journal.filter((j) => j.id !== id);
+    commit();
+    return respond(undefined);
+  },
+};
+
+export const mockRepositories: Repositories = { auth, users, campaigns, sessions, invites, characters, library, systems, maps, images: mockImages, npcs, encounters, journal };
 export { resetMockDatabase } from "./database";

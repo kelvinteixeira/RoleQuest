@@ -46,8 +46,13 @@ Legenda: ✅ entregue · 🟡 parcial · ⬜ pendente
 ## Fase 4 — Comunicação ⬜
 Chat geral/privado/sistema/anotações, voz WebRTC (LiveKit), presença, sincronização em tempo real, central de áudio.
 
-## Fase 5 — Ferramentas avançadas do mestre ⬜
-NPCs com conhecimento revelável, encontros, combate e iniciativa, linha do tempo, diário, geradores.
+## Fase 5 — Ferramentas avançadas do mestre ✅
+- ✅ NPCs por campanha (`/campaign/[id]/gm`): descrição pública, notas secretas, fatos a revelar, atitude, aparência e bloco de combate que se adapta ao sistema
+- ✅ Revelar fatos na mesa (aba Mestre): vai para o chat e para o diário; os jogadores só veem NPCs conhecidos e fatos revelados
+- ✅ Encontros prontos com estimativa de dificuldade para o grupo; "Rodar" põe as criaturas no mapa e rola a iniciativa
+- ✅ Diário e linha do tempo (`/campaign/[id]/journal`): momentos da mesa registrados com um clique (combates, quedas, armadilhas, revelações, momentos épicos, 20/1 naturais) e anotações do mestre, públicas ou privadas
+- ✅ Geradores por cenário (fantasia, horror, moderno/cyberpunk): NPC rápido por nível de ameaça, nomes, lugares, tesouro e ganchos
+- ✅ Combate e iniciativa (entregues na Fase 3)
 
 ## Fase 6 — Chronicles Studio ⬜
 Log de eventos, momentos épicos, diário automático, roteiro estruturado, editor de episódios, composições Remotion.

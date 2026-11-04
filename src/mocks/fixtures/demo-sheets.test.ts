@@ -56,14 +56,14 @@ describe("local database upgrade", () => {
     const untouched = { ...byId.get("ch_grom")!, sheet: undefined };
     const stored = { ...seed, version: 1, characters: [edited, untouched] } as MockDatabase;
     const upgraded = upgradeDatabase(stored)!;
-    expect(upgraded.version).toBe(3);
+    expect(upgraded.version).toBe(4);
     expect(upgraded.maps).toEqual([]);
     expect(upgraded.characters[0].sheet!.privateNotes).toBe("minha");
     expect(upgraded.characters[1].sheet!.attributes.str).toBe(17);
   });
 
   it("leaves the current version alone and gives up on unknown ones", () => {
-    const current = { ...seed, version: 3 } as MockDatabase;
+    const current = { ...seed, version: 4 } as MockDatabase;
     expect(upgradeDatabase(current)).toBe(current);
     expect(upgradeDatabase({ ...seed, version: 0 } as MockDatabase)).toBeNull();
   });

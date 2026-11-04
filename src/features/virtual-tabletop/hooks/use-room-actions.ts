@@ -17,6 +17,7 @@ import {
   combatWinner,
   epicMoment,
   rollEvent,
+  joinCombat,
   rollInitiative,
   say,
   walk,
@@ -121,6 +122,27 @@ export function useRoomActions(campaignId: string, gm: Author) {
     function toggleLight(propId: string) {
       const prop = propById(propId);
       if (prop) send([{ type: "prop.updated", propId, lit: prop.lit === false }]);
+    }
+
+    /**
+     * Puts tokens on the table (NPCs, an encounter). `rollInitiative` starts a
+     * combat, or adds them to the one running (reinforcements get a turn).
+     */
+    function addTokens(tokens: RoomToken[], options: { announceText?: string; rollInitiative?: boolean } = {}) {
+      if (tokens.length === 0) return;
+      const events: RoomEvent[] = tokens.map((token) => ({ type: "token.added", token }));
+      if (options.announceText) events.push(announce(options.announceText));
+      const state = room();
+      if (options.rollInitiative && state?.combat.active) events.push(...joinCombat(state, tokens));
+      send(events);
+      if (options.rollInitiative && !state?.combat.active) startCombat();
+    }
+
+    /** A public system line at the table (e.g. a revealed NPC fact); returns its message id. */
+    function post(text: string): string {
+      const event = announce(text);
+      send([event]);
+      return event.type === "message.posted" ? event.message.id : "";
     }
 
     function configureFog(patch: { enabled?: boolean; vision?: number }) {
@@ -279,7 +301,7 @@ export function useRoomActions(campaignId: string, gm: Author) {
       toast.success("Mapa aplicado", map.name);
     }
 
-    return { setAmbient, setTokenLight, toggleLight, toggleDoor, setDoorLocked, updateTrap, configureFog, revealCells, hideCells, revealAll: () => revealCells(allCells()), hideAll: () => hideCells(allCells()), setRules, applySheetSoon, forgetSheet, syncSheets, postCheck, setAppearance, replaceMap, rollDice, sendChat, moveToken, adjustHp, toggleCondition, attackWith, startCombat, nextTurn, endCombat, addBots, removeBots, markEpic };
+    return { addTokens, post, setAmbient, setTokenLight, toggleLight, toggleDoor, setDoorLocked, updateTrap, configureFog, revealCells, hideCells, revealAll: () => revealCells(allCells()), hideAll: () => hideCells(allCells()), setRules, applySheetSoon, forgetSheet, syncSheets, postCheck, setAppearance, replaceMap, rollDice, sendChat, moveToken, adjustHp, toggleCondition, attackWith, startCombat, nextTurn, endCombat, addBots, removeBots, markEpic };
   }, [campaignId, gm, dispatch]);
 }
 

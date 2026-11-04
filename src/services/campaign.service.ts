@@ -38,6 +38,8 @@ export interface CampaignOverview {
   members: { profile: MemberPreview; role: CampaignRole; character: Character | null }[];
   upcomingSessions: GameSession[];
   pastSessions: GameSession[];
+  /** The session being played now: live, or scheduled to have started in the last 12 hours and not closed yet. */
+  currentSession: GameSession | null;
   /** Visible to the game master only. */
   pendingInvites: CampaignInvite[];
 }
@@ -51,6 +53,19 @@ export interface InviteModel {
 
 export function roleOf(campaign: Campaign, userId: ID): CampaignRole | null {
   return campaign.members.find((m) => m.userId === userId)?.role ?? null;
+}
+
+const PLAYING_WINDOW_MS = 12 * 60 * 60 * 1000;
+
+/** The session under way: one marked live, else one scheduled to start within the last 12 hours. */
+export function currentSessionOf(sessions: GameSession[], now = Date.now()): GameSession | null {
+  const live = sessions.find((s) => s.status === "live");
+  if (live) return live;
+  return (
+    sessions
+      .filter((s) => s.status === "scheduled" && new Date(s.scheduledAt).getTime() <= now && now - new Date(s.scheduledAt).getTime() <= PLAYING_WINDOW_MS)
+      .sort((a, b) => b.scheduledAt.localeCompare(a.scheduledAt))[0] ?? null
+  );
 }
 
 export function isUpcoming(session: GameSession, now = Date.now()): boolean {
@@ -189,6 +204,7 @@ export const campaignService = {
         .sort((a, b) => (a.role === b.role ? 0 : a.role === "game_master" ? -1 : 1)),
       upcomingSessions: sessions.filter((s) => isUpcoming(s)).sort(byDateAsc),
       pastSessions: sessions.filter((s) => s.status === "completed").sort(byDateDesc),
+      currentSession: currentSessionOf(sessions),
       pendingInvites: invites.filter((i) => i.status === "pending"),
     };
   },

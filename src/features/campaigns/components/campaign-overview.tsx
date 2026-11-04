@@ -93,9 +93,14 @@ function OverviewContent({ data }: { data: Overview }) {
           <Button variant="secondary" disabled leadingIcon={<ScrollText className="size-4" />} title="Fichas — Fase 2">
             Fichas
           </Button>
-          <Button variant="secondary" disabled leadingIcon={<BookOpen className="size-4" />} title="Diário — Fase 5">
+          <ButtonLink href={`/campaign/${campaign.id}/journal`} variant="secondary" leadingIcon={<BookOpen className="size-4" />}>
             Diário
-          </Button>
+          </ButtonLink>
+          {isGM && (
+            <ButtonLink href={`/campaign/${campaign.id}/gm`} variant="secondary" leadingIcon={<Crown className="size-4" />}>
+              Ferramentas do mestre
+            </ButtonLink>
+          )}
           <Button variant="secondary" disabled leadingIcon={<Clapperboard className="size-4" />} title="Chronicles Studio — Fase 6">
             Chronicles
           </Button>

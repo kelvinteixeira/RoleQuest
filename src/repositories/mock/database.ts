@@ -1,9 +1,10 @@
 import { appConfig } from "@/config/app";
 import { withDemoSheet } from "@/mocks/fixtures/demo-sheets";
 import { createSeed, type MockSeed } from "@/mocks/fixtures/seed";
+import { seedGmTools } from "@/mocks/fixtures/gm-tools";
 
-/** v2: demo characters ship with filled-in sheets. v3: campaign map library. */
-const SCHEMA_VERSION = 3;
+/** v2: demo characters ship with filled-in sheets. v3: campaign map library. v4: GM tools (NPCs, encounters, journal). */
+const SCHEMA_VERSION = 4;
 
 export type MockDatabase = MockSeed & { version: number };
 
@@ -19,6 +20,8 @@ export function upgradeDatabase(stored: MockDatabase): MockDatabase | null {
     db = { ...db, version: 2, characters: db.characters.map((c) => (c.sheet ? c : withDemoSheet(c))) };
   }
   if (db.version === 2) db = { ...db, version: 3, maps: db.maps ?? [] };
+  // The demo GM tools are added for the seeded campaigns; local data is kept.
+  if (db.version === 3) db = { ...db, version: 4, ...seedGmTools(new Date()) };
   return db.version === SCHEMA_VERSION ? db : null;
 }
 

@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, Bot, CloudFog, Dices, MapPinned, MessageSquare, Mic, Pause, Play, RotateCcw, Star, Swords, UserMinus, UserPlus, Volume2, VolumeX } from "lucide-react";
+import { ArrowLeft, Bot, CloudFog, Crown, Dices, MapPinned, MessageSquare, Mic, Pause, Play, RotateCcw, Star, Swords, UserMinus, UserPlus, Volume2, VolumeX } from "lucide-react";
 import { toHexColor } from "@/lib/color";
 import { usePreferencesStore } from "@/stores/preferences.store";
 import { DiceTray, type TrayRoll } from "@/features/dice/components/dice-tray";
@@ -29,6 +29,8 @@ import { useMapEditorStore } from "@/features/map-editor/store/map-editor.store"
 import { RoomMap3D } from "./room-map-3d";
 import { ChatPanel, CombatPanel, DicePanel, TokenInspector } from "./room-panels";
 import { FeatureInspector, ScenePanel } from "./scene-panels";
+import { RoomGmPanel } from "@/features/gm/components/room-gm-panel";
+import { partyOf, sessionLabelOf } from "@/features/gm/model/party";
 
 export function SessionRoom({ campaignId }: { campaignId: string }) {
   const user = useCurrentUser();
@@ -54,7 +56,7 @@ export function SessionRoom({ campaignId }: { campaignId: string }) {
   return <Room overview={data} />;
 }
 
-type PanelTab = "combat" | "chat" | "dice" | "scene";
+type PanelTab = "combat" | "chat" | "dice" | "scene" | "gm";
 
 function Room({ overview }: { overview: CampaignOverview }) {
   const user = useCurrentUser();
@@ -243,7 +245,12 @@ function Room({ overview }: { overview: CampaignOverview }) {
               { value: "combat", label: <TabLabel icon={<Swords className="size-3.5" />} text="Combate" /> },
               { value: "chat", label: <TabLabel icon={<MessageSquare className="size-3.5" />} text="Chat" />, count: room.messages.length },
               { value: "dice", label: <TabLabel icon={<Dices className="size-3.5" />} text="Dados" /> },
-              ...(isGM ? [{ value: "scene" as const, label: <TabLabel icon={<CloudFog className="size-3.5" />} text="Cena" /> }] : []),
+              ...(isGM
+                ? [
+                    { value: "scene" as const, label: <TabLabel icon={<CloudFog className="size-3.5" />} text="Cena" /> },
+                    { value: "gm" as const, label: <TabLabel icon={<Crown className="size-3.5" />} text="Mestre" /> },
+                  ]
+                : []),
             ]}
           />
           <div className="min-h-0 flex-1 overflow-y-auto">
@@ -251,6 +258,7 @@ function Room({ overview }: { overview: CampaignOverview }) {
             {tab === "chat" && <ChatPanel room={room} actions={actions} gmId={gm.id} />}
             {tab === "dice" && <DicePanel actions={actions} />}
             {tab === "scene" && isGM && <ScenePanel room={room} actions={actions} />}
+            {tab === "gm" && isGM && <RoomGmPanel room={room} actions={actions} party={partyOf(overview)} sessionLabel={sessionLabelOf(overview)} />}
           </div>
           </>
           )}

@@ -168,6 +168,15 @@ function reduce(state: RoomState, event: RoomEvent): RoomState {
       return { ...state, combat: { active: true, round: 1, turn: 0, order: event.order } };
     case "combat.turn":
       return state.combat.active ? { ...state, combat: nextTurn(state) } : state;
+    case "combat.joined": {
+      if (!state.combat.active) return state;
+      const acting = state.combat.order[state.combat.turn]?.tokenId;
+      const present = new Set(state.combat.order.map((o) => o.tokenId));
+      // Stable sort: on a tie, those already in the order act first.
+      const order = [...state.combat.order, ...event.entries.filter((e) => !present.has(e.tokenId))].sort((a, b) => b.initiative - a.initiative);
+      const turn = Math.max(0, order.findIndex((o) => o.tokenId === acting));
+      return { ...state, combat: { ...state.combat, order, turn } };
+    }
     case "combat.ended":
       return { ...state, combat: { active: false, round: 0, turn: 0, order: [] } };
     case "map.replaced": {
@@ -277,6 +286,15 @@ export function checkEvent(author: Author, result: RollResult, label: string, vi
 export const authorOf = (token: RoomToken): Author => ({ id: token.id, name: token.name, color: token.color });
 
 /* ---------- Combat actions ---------- */
+
+/** Initiative for tokens joining a combat that is already running (reinforcements). */
+export function joinCombat(state: Pick<RoomState, "rules">, tokens: RoomToken[], rng?: Rng): RoomEvent[] {
+  const entries = tokens.filter((t) => !isDown(t)).map((t) => ({ tokenId: t.id, initiative: rollInitiativeFor(state.rules, t.stats, rng) }));
+  if (entries.length === 0) return [];
+  const byId = new Map(tokens.map((t) => [t.id, t.name]));
+  const summary = entries.map((e) => `${byId.get(e.tokenId)} ${Number.isInteger(e.initiative) ? e.initiative : e.initiative.toFixed(2)}`).join(" · ");
+  return [{ type: "combat.joined", entries }, announce(`Entram no combate: ${summary}`)];
+}
 
 export function rollInitiative(state: RoomState, rng?: Rng): RoomEvent[] {
   const living = state.tokens.filter((t) => !isDown(t));

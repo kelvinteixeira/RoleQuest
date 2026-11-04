@@ -17,6 +17,7 @@ import type {
 import type { Character, NewCharacterInput } from "@/types/character";
 import type { LibraryAsset } from "@/types/library";
 import type { SavedMap } from "@/types/map";
+import type { Encounter, EncounterInput, JournalEntry, JournalInput, Npc, NpcInput } from "@/types/gm";
 import type { SystemTemplate } from "@/types/system";
 
 export interface AuthRepository {
@@ -90,6 +91,29 @@ export interface MapImageRepository {
   get(id: ID): Promise<Blob | null>;
 }
 
+/** GM tools: NPCs, encounters and the campaign journal. */
+export interface NpcRepository {
+  listForCampaign(campaignId: ID): Promise<Npc[]>;
+  getById(id: ID): Promise<Npc | null>;
+  create(input: NpcInput): Promise<Npc>;
+  update(id: ID, patch: Partial<NpcInput>): Promise<Npc>;
+  remove(id: ID): Promise<void>;
+}
+
+export interface EncounterRepository {
+  listForCampaign(campaignId: ID): Promise<Encounter[]>;
+  create(input: EncounterInput): Promise<Encounter>;
+  update(id: ID, patch: Partial<EncounterInput>): Promise<Encounter>;
+  remove(id: ID): Promise<void>;
+}
+
+export interface JournalRepository {
+  listForCampaign(campaignId: ID): Promise<JournalEntry[]>;
+  add(entries: JournalInput[]): Promise<JournalEntry[]>;
+  update(id: ID, patch: Partial<Pick<JournalEntry, "text" | "private" | "kind" | "dismissed">>): Promise<JournalEntry>;
+  remove(id: ID): Promise<void>;
+}
+
 export interface Repositories {
   auth: AuthRepository;
   users: UserRepository;
@@ -101,4 +125,7 @@ export interface Repositories {
   systems: SystemRepository;
   maps: MapRepository;
   images: MapImageRepository;
+  npcs: NpcRepository;
+  encounters: EncounterRepository;
+  journal: JournalRepository;
 }

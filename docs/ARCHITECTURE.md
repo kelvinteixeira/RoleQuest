@@ -169,6 +169,14 @@ Regras:
 - **Música/ambiente (Fase 4):** segundo barramento independente, com ganho mestre e ganho local do jogador.
 - **Dados 3D:** `features/dice/components/dice-tray.tsx` anima os dados de cada rolagem num canvas próprio sobre a mesa; o resultado já vem do motor de dados, a animação é só visual.
 
+### Ferramentas do mestre (Fase 5)
+- `types/gm.ts` + contratos `NpcRepository`, `EncounterRepository`, `JournalRepository` (banco local v4, com dados de exemplo para a campanha de demonstração).
+- `services/gm.service.ts`: tudo é do mestre (`npc:manage`); jogadores recebem só `knownNpcs` (NPCs conhecidos, descrição pública e fatos revelados — nunca notas secretas nem estatísticas) e as entradas públicas do diário. Com o Supabase, as mesmas regras viram RLS.
+- `features/gm/model`: `npc.ts` (visão do jogador, validação, token do NPC no sistema da sala), `encounter.ts` (dificuldade estimada: ameaça das criaturas × orçamento do grupo; posicionamento longe do grupo), `journal.ts` (classifica as mensagens públicas da sala em entradas do diário; `sourceId` evita duplicar), `generators.ts` (determinístico por semente; texto original).
+- Na sala, a aba Mestre usa as ações `addTokens` e `post` da mesa, então NPCs e encontros entram como eventos normais (prontos para o Realtime).
+- Reforços durante um combate entram pelo evento `combat.joined` (iniciativa própria; quem está agindo mantém o turno).
+- Diário: remover uma entrada que veio da mesa a marca como `dismissed` (fica oculta), para que "Registrar" não a traga de volta; anotações do mestre são apagadas de fato. Os momentos vão para a sessão em andamento (`currentSession`: ao vivo ou iniciada nas últimas 12 h), não para a próxima agendada.
+
 ### Chronicles Studio (Fase 6)
 - Fonte: log de eventos da sessão (`SessionEvent`) + momentos épicos marcados pelo mestre.
 - Roteiro gerado a partir dos eventos reais; IA (futura) só reorganiza/redige — **não inventa decisões ou falas dos jogadores**.

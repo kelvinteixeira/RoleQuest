@@ -100,6 +100,8 @@ export type RoomEvent =
   | { type: "message.posted"; message: ChatMessage }
   | { type: "combat.started"; order: CombatState["order"] }
   | { type: "combat.turn" }
+  /** Tokens joining a running combat with their own initiative (whoever is acting keeps the turn). */
+  | { type: "combat.joined"; entries: { tokenId: string; initiative: number }[] }
   | { type: "combat.ended" }
   | { type: "map.replaced"; map: MapDocument }
   /** Doors open/close/lock, traps get revealed, disarmed or re-armed. */

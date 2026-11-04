@@ -5,7 +5,7 @@ import type { CombatRules, NpcStatBlock } from "@/features/combat/model/types";
 import { scriptedRng } from "@/test/rng";
 import { decideTurn } from "./bots";
 import { freeCellNear } from "./map";
-import { applyEvents, attack, rollInitiative } from "./room-engine";
+import { applyEvents, attack, createFog, rollInitiative } from "./room-engine";
 import { upgradeRoom } from "./room-migration";
 import type { RoomState, RoomToken } from "./types";
 
@@ -29,7 +29,7 @@ function token(partial: Partial<RoomToken> & Pick<RoomToken, "id" | "kind">): Ro
 }
 
 function room(tokens: RoomToken[], rules: CombatRules = DEFAULT_RULES): RoomState {
-  return { campaignId: "c1", rules, map: riverGladeMap(), tokens, messages: [], combat: { active: false, round: 0, turn: 0, order: [] }, log: [], createdAt: "2026-01-01" };
+  return { campaignId: "c1", rules, map: riverGladeMap(), tokens, messages: [], combat: { active: false, round: 0, turn: 0, order: [] }, fog: createFog(), log: [], createdAt: "2026-01-01" };
 }
 
 describe("attack", () => {

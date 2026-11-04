@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import type { MapDocument, TerrainId } from "@/features/map/model/map-document";
+import { PROP_BY_ID, type MapDocument, type TerrainId } from "@/features/map/model/map-document";
 import {
   eraseCells,
   floodCells,
@@ -52,8 +52,11 @@ function apply(doc: MapDocument, s: Pick<MapEditorState, "tool" | "terrain" | "p
   switch (s.tool) {
     case "terrain":
       return paintTerrain(doc, cells, s.terrain);
-    case "props":
-      return placeProps(doc, cells, s.propIds, s.density, seed);
+    case "props": {
+      // Doors and traps go exactly where they are drawn; only scenery is scattered.
+      const featuresOnly = s.propIds.every((id) => PROP_BY_ID.get(id)?.feature);
+      return placeProps(doc, cells, s.propIds, featuresOnly ? 1 : s.density, seed);
+    }
     case "raise":
       return shiftElevation(doc, cells, 1);
     case "lower":

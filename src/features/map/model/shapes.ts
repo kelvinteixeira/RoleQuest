@@ -7,8 +7,11 @@ import {
   cellIndex,
   cellNoise,
   inBounds,
+  initialFeatureState,
+  isDoorKind,
   MAX_ELEVATION,
   PROP_BY_ID,
+  terrainAt,
   TERRAINS,
   type MapDocument,
   type PlacedProp,
@@ -143,7 +146,19 @@ export function shiftElevation(doc: MapDocument, cells: Cell[], delta: number): 
   return { ...doc, elevation: next };
 }
 
-/** Places one prop per cell (replacing what was there). `density` < 1 scatters randomly, e.g. forests. */
+const wallAt = (doc: MapDocument, x: number, y: number) => !inBounds(doc, x, y) || terrainAt(doc, x, y).blocks;
+
+/** Doors face the passage: walls east and west → the door spans east–west (0°); walls north and south → 90°. */
+export function doorYaw(doc: MapDocument, cell: Cell): number {
+  const eastWest = Number(wallAt(doc, cell.x - 1, cell.y)) + Number(wallAt(doc, cell.x + 1, cell.y));
+  const northSouth = Number(wallAt(doc, cell.x, cell.y - 1)) + Number(wallAt(doc, cell.x, cell.y + 1));
+  return northSouth > eastWest ? 90 : 0;
+}
+
+/**
+ * Places one prop per cell (replacing what was there). `density` < 1 scatters
+ * randomly, e.g. forests. Doors and traps start closed / hidden and armed.
+ */
 export function placeProps(doc: MapDocument, cells: Cell[], propIds: string[], density = 1, seed = 0): MapDocument {
   if (propIds.length === 0) return doc;
   const targets = inside(doc, cells).filter((c, i) => density >= 1 || cellNoise(c.x, c.y, seed + i) < density);
@@ -157,7 +172,8 @@ export function placeProps(doc: MapDocument, cells: Cell[], propIds: string[], d
       propId: pick,
       x: c.x,
       y: c.y,
-      rotation: def?.randomYaw ? Math.floor(cellNoise(c.x, c.y, seed + 13) * 360) : 0,
+      rotation: def?.randomYaw ? Math.floor(cellNoise(c.x, c.y, seed + 13) * 360) : isDoorKind(def?.feature) ? doorYaw(doc, c) : 0,
+      ...initialFeatureState(def),
     };
   });
   return { ...doc, props: [...kept, ...added] };

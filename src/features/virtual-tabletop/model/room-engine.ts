@@ -4,10 +4,12 @@
  */
 import { createId } from "@/lib/id";
 import { roll, type RollMode, type RollResult, type Rng } from "@/features/dice/dice-engine";
-import { adaptNpcStats, resolveAttack, rollInitiativeFor } from "@/features/combat/model/rules";
+import { adaptNpcStats, resolveAttack, rollDamage, rollInitiativeFor } from "@/features/combat/model/rules";
 import type { TokenAttack } from "@/features/combat/model/types";
-import { canStand, freeCellNear, gridDistance } from "./map";
-import type { Author, ChatMessage, CombatState, LoggedEvent, MessageVisibility, RoomEvent, RoomState, RoomToken } from "./types";
+import { PROP_BY_ID, trapOf, type MapDocument, type PlacedProp } from "@/features/map/model/map-document";
+import { DEFAULT_VISION, visibleFromAll } from "@/features/map/model/vision";
+import { canStand, freeCellNear, gridDistance, type Cell } from "./map";
+import type { Author, ChatMessage, CombatState, FogState, LoggedEvent, MessageVisibility, RoomEvent, RoomState, RoomToken } from "./types";
 
 const LOG_LIMIT = 400;
 const MESSAGE_LIMIT = 200;
@@ -22,6 +24,36 @@ export function currentTurnToken(state: RoomState): RoomToken | null {
   if (!state.combat.active) return null;
   const entry = state.combat.order[state.combat.turn];
   return entry ? (state.tokens.find((t) => t.id === entry.tokenId) ?? null) : null;
+}
+
+/* ---------- Fog of war ---------- */
+
+export const createFog = (): FogState => ({ enabled: false, vision: DEFAULT_VISION, explored: [] });
+
+/** The party's eyes: player characters (people and bots) still standing. */
+export const partyViewers = (tokens: RoomToken[]) => tokens.filter((t) => t.kind === "pc" && !isDown(t));
+
+/** Cells the party sees right now. */
+export function partyVision(state: Pick<RoomState, "map" | "tokens" | "fog">): Set<number> {
+  return visibleFromAll(state.map, partyViewers(state.tokens), state.fog.vision);
+}
+
+/** Adds what the party sees now (and from `along`, squares just walked through) to what it has explored. */
+function explore(state: RoomState, along: Cell[] = []): RoomState {
+  if (!state.fog.enabled) return state;
+  const explored = new Set(state.fog.explored);
+  const before = explored.size;
+  const seen = along.length ? visibleFromAll(state.map, [...partyViewers(state.tokens), ...along], state.fog.vision) : partyVision(state);
+  for (const i of seen) explored.add(i);
+  if (explored.size === before) return state;
+  return { ...state, fog: { ...state.fog, explored: [...explored].sort((a, b) => a - b) } };
+}
+
+/** Events after which the party may see more. */
+const SIGHT_EVENTS = new Set<RoomEvent["type"]>(["token.moved", "token.added", "token.hp", "token.synced", "map.replaced", "prop.updated", "fog.configured"]);
+
+function updateProp(map: MapDocument, propId: string, fn: (p: PlacedProp) => PlacedProp): MapDocument {
+  return { ...map, props: map.props.map((p) => (p.id === propId ? fn(p) : p)) };
 }
 
 /* ---------- Reducer ---------- */
@@ -62,6 +94,26 @@ function nextTurn(state: RoomState): CombatState {
 }
 
 export function applyEvent(state: RoomState, event: RoomEvent): RoomState {
+  const next = reduce(state, event);
+  if (!SIGHT_EVENTS.has(event.type)) return next;
+  // A player character sees everything on the way, not just where it stops.
+  const mover = event.type === "token.moved" && event.path ? next.tokens.find((t) => t.id === event.tokenId) : undefined;
+  const along = mover && mover.kind === "pc" && !isDown(mover) && event.type === "token.moved" ? (event.path ?? []) : [];
+  return explore(next, along);
+}
+
+/** Explored indices of a map that was resized (content anchored top-left, like `resizeMap`). */
+function remapExplored(explored: number[], from: { cols: number; rows: number }, to: { cols: number; rows: number }): number[] {
+  const out: number[] = [];
+  for (const i of explored) {
+    const x = i % from.cols;
+    const y = Math.floor(i / from.cols);
+    if (x < to.cols && y < to.rows) out.push(y * to.cols + x);
+  }
+  return out.sort((a, b) => a - b);
+}
+
+function reduce(state: RoomState, event: RoomEvent): RoomState {
   switch (event.type) {
     case "token.added":
       return { ...state, tokens: [...state.tokens, event.token] };
@@ -120,9 +172,45 @@ export function applyEvent(state: RoomState, event: RoomEvent): RoomState {
         const ok = canStand(event.map, tokens, t, t.id);
         tokens.push(ok ? t : { ...t, ...freeCellNear(event.map, tokens, { x: Math.min(t.x, event.map.cols - 1), y: Math.min(t.y, event.map.rows - 1) }) });
       }
-      return { ...state, map: event.map, tokens };
+      // Explored areas survive edits (and resizes) of the same map, not a different one.
+      const explored = event.map.id !== state.map.id ? [] : event.map.cols === state.map.cols && event.map.rows === state.map.rows ? state.fog.explored : remapExplored(state.fog.explored, state.map, event.map);
+      return { ...state, map: event.map, tokens, fog: { ...state.fog, explored } };
+    }
+    case "prop.updated":
+      return {
+        ...state,
+        map: updateProp(state.map, event.propId, (p) => ({
+          ...p,
+          ...(event.door && { door: { open: false, locked: false, ...p.door, ...event.door } }),
+          ...(event.trap && trapOf(p) && { trap: { ...trapOf(p)!, ...event.trap } }),
+        })),
+      };
+    case "fog.configured":
+      return {
+        ...state,
+        fog: {
+          ...state.fog,
+          enabled: event.enabled ?? state.fog.enabled,
+          vision: event.vision === undefined ? state.fog.vision : Math.max(1, Math.min(30, Math.round(event.vision))),
+        },
+      };
+    case "fog.revealed": {
+      const explored = new Set(state.fog.explored);
+      for (const i of event.cells) if (i >= 0 && i < state.map.cols * state.map.rows) explored.add(i);
+      return { ...state, fog: { ...state.fog, explored: [...explored].sort((a, b) => a - b) } };
+    }
+    case "fog.hidden": {
+      const hidden = new Set(event.cells);
+      return { ...state, fog: { ...state.fog, explored: state.fog.explored.filter((i) => !hidden.has(i)) } };
     }
   }
+}
+
+/** Large payloads stay out of the event log; it only needs to know what happened. */
+function forLog(event: RoomEvent): RoomEvent {
+  if (event.type === "map.replaced") return { ...event, map: { ...event.map, terrain: [], elevation: [], props: [] } };
+  if (event.type === "fog.revealed" || event.type === "fog.hidden") return { ...event, cells: event.cells.length > 32 ? [] : event.cells };
+  return event;
 }
 
 export function applyEvents(state: RoomState, events: RoomEvent[], actorId: string): RoomState {
@@ -131,9 +219,7 @@ export function applyEvents(state: RoomState, events: RoomEvent[], actorId: stri
   const logged: LoggedEvent[] = [];
   for (const event of events) {
     next = applyEvent(next, event);
-    // Map payloads are large; the log keeps only which map was applied.
-    const entry: RoomEvent = event.type === "map.replaced" ? { ...event, map: { ...event.map, terrain: [], elevation: [], props: [] } } : event;
-    logged.push({ id: createId("ev"), at, actorId, event: entry });
+    logged.push({ id: createId("ev"), at, actorId, event: forLog(event) });
   }
   return { ...next, log: [...next.log, ...logged].slice(-LOG_LIMIT) };
 }
@@ -237,6 +323,42 @@ export function attack(
   if (damage > 0) events.push({ type: "token.hp", tokenId: target.id, delta: -damage });
   if (downed) events.push(announce(target.kind === "enemy" ? `${target.name} está fora de combate.` : `${target.name} caiu!`));
   return { events, hit, critical, damage, downed };
+}
+
+/* ---------- Movement and traps ---------- */
+
+export const TRAP_AUTHOR: Author = { id: "trap", name: "Armadilha", color: "oklch(0.6 0.17 45)" };
+
+/** An armed trap on the cell, if any. */
+export function armedTrapAt(map: MapDocument, cell: Cell): PlacedProp | undefined {
+  return map.props.find((p) => p.x === cell.x && p.y === cell.y && trapOf(p)?.armed);
+}
+
+/**
+ * Walks `token` along `path`. An armed trap on the way stops it there and
+ * goes off: it is revealed and disarmed, and its damage (ignoring armor) is
+ * rolled against the token.
+ */
+export function walk(state: Pick<RoomState, "map">, token: RoomToken, path: Cell[], rng?: Rng): { events: RoomEvent[]; end: Cell; trapped: boolean } {
+  const start = { x: token.x, y: token.y };
+  const hit = path.findIndex((c) => armedTrapAt(state.map, c));
+  const end = hit === -1 ? (path[path.length - 1] ?? start) : path[hit];
+  const crossed = path.slice(0, hit === -1 ? path.length : hit + 1);
+  const events: RoomEvent[] =
+    end.x === start.x && end.y === start.y ? [] : [{ type: "token.moved", tokenId: token.id, x: end.x, y: end.y, ...(crossed.length > 1 && { path: crossed }) }];
+  if (hit === -1) return { events, end, trapped: false };
+
+  const trap = armedTrapAt(state.map, end)!;
+  const { damage } = trapOf(trap)!;
+  const label = PROP_BY_ID.get(trap.propId)?.label ?? "Armadilha";
+  events.push({ type: "prop.updated", propId: trap.id, trap: { armed: false, hidden: false } }, announce(`${token.name} ativou: ${label.toLowerCase()}!`));
+  // rollDamage falls back to 1 for an invalid formula, so a typo never breaks the table.
+  const result = rollDamage(damage, rng);
+  const total = Math.max(0, result.total);
+  events.push(checkEvent(TRAP_AUTHOR, result, `${label} em ${token.name}`, "public", token.id));
+  if (total > 0) events.push({ type: "token.hp", tokenId: token.id, delta: -total });
+  if (total > 0 && token.hp.current > 0 && token.hp.current - total <= 0) events.push(announce(`${token.name} caiu!`));
+  return { events, end, trapped: true };
 }
 
 /** Combat ends when one side has nobody standing. */

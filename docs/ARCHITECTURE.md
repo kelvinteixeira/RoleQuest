@@ -140,6 +140,8 @@ Regras:
 - `features/map`: `MapDocument` serializável (terreno e elevação por célula + objetos), formas geométricas na grade (`model/shapes.ts`), modelos prontos e o renderizador 3D (`components/map-scene.tsx`, react-three-fiber). Terreno em dois `InstancedMesh` (corpo + topo), água num único plano com shader, objetos GLB normalizados ao tamanho da célula.
 - `features/map-editor`: store do editor (rascunho, ferramenta, histórico) e painel. O mapa da sala só muda ao aplicar, via evento `map.replaced`.
 - Assets 3D CC0 (Kenney, Quaternius) em `public/assets/map/props`, créditos em `public/assets/map/CREDITS.md`.
+- **Portas e armadilhas** são props com `feature` (`door`, `gate`, `trap-spikes`, `trap-darts`), desenhados com primitivas em `map-scene.tsx` (sem GLB). O estado fica no próprio `PlacedProp` (`door: { open, locked }`, `trap: { hidden, armed, damage }`) e muda na mesa pelo evento `prop.updated`. Porta fechada bloqueia movimento (`isBlocked`) e, se for de madeira, a visão (`blocksSight`); grades só o movimento.
+- **Biblioteca de mapas**: `MapRepository` (contrato) + `services/map.service.ts` (só o mestre, `map:edit`). Salvar usa o id do documento (salvar de novo atualiza); "cópia" gera id novo. Banco local na versão 3 (`maps`).
 - Personagens: catálogo em `features/virtual-tabletop/model/character-models.ts` (arquivo, equipamento visível, mapa de animações, tingimento) e `components/character-figure.tsx` (clone com esqueleto, máquina de estados de animação). A store gera "cues" (ataque, conjuração, golpe) a partir dos eventos da mesa. GLBs em `public/assets/characters`, gerados por `scripts/build-character-assets.mjs` a partir dos pacotes originais (créditos em `public/assets/characters/CREDITS.md`).
 
 ### Mesa virtual (Fase 3)
@@ -147,7 +149,9 @@ Regras:
 - Bots existem só no navegador e são marcados como bots na interface. Eles usam o mesmo `dispatch` de eventos que o mestre, então o fluxo será o mesmo com jogadores reais via Realtime.
 - Renderização do mapa em **Canvas 2D** com camadas (terreno, objetos, tokens, fog, iluminação, desenho) e uma engine fora do React (`features/virtual-tabletop/engine`) que lê uma store Zustand; o React cuida só de painéis e ferramentas. Evita re-render do DOM a cada movimento.
 - Estado do mapa como documento serializável (`MapDocument`) com camadas e operações — base para undo/redo e sincronização.
-- Fog of War e visibilidade calculados por jogador no cliente do mestre e **filtrados no servidor** (o jogador não recebe o que não pode ver).
+- **Névoa de guerra (entregue, local):** `features/map/model/vision.ts` calcula linha de visão (Bresenham) com raio. `RoomState.fog` guarda `explored` (índices de células); o reducer (`explore` em `room-engine.ts`) soma o que os personagens de jogador em pé veem após eventos que mudam a visão — determinístico, então cada cliente que aplica os mesmos eventos chega ao mesmo estado. O mestre revela/esconde com `fog.revealed`/`fog.hidden`. A visão atual é derivada (`partyVision`), não armazenada. Listas grandes de células ficam fora do log.
+- Movimento: `walk()` percorre a rota (`routeTo`: linha reta se livre, senão BFS) e para na primeira armadilha armada, revelando, desarmando e rolando o dano (ignora armadura). Bots usam o mesmo caminho.
+- Com jogadores reais (Fase 4/7), o que o jogador não pode ver deve ser **filtrado no servidor** (hoje a prévia "ver como os jogadores" só esconde na renderização).
 
 ### Tempo real (Fase 4)
 - **Supabase Realtime** (broadcast + presence) para movimentos de tokens, rolagens, chat e estado da sessão. Socket.IO só seria adicionado se surgir um requisito que o Realtime não atenda.

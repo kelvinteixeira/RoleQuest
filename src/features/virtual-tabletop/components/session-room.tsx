@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, Bot, Dices, MapPinned, MessageSquare, Mic, Pause, Play, RotateCcw, Star, Swords, UserMinus, UserPlus } from "lucide-react";
+import { ArrowLeft, Bot, CloudFog, Dices, MapPinned, MessageSquare, Mic, Pause, Play, RotateCcw, Star, Swords, UserMinus, UserPlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/field";
 import { Badge, PhaseBadge } from "@/components/ui/primitives";
@@ -24,6 +24,7 @@ import { MapEditorPanel } from "@/features/map-editor/components/map-editor-pane
 import { useMapEditorStore } from "@/features/map-editor/store/map-editor.store";
 import { RoomMap3D } from "./room-map-3d";
 import { ChatPanel, CombatPanel, DicePanel, TokenInspector } from "./room-panels";
+import { FeatureInspector, ScenePanel } from "./scene-panels";
 
 export function SessionRoom({ campaignId }: { campaignId: string }) {
   const user = useCurrentUser();
@@ -49,13 +50,15 @@ export function SessionRoom({ campaignId }: { campaignId: string }) {
   return <Room overview={data} />;
 }
 
-type PanelTab = "combat" | "chat" | "dice";
+type PanelTab = "combat" | "chat" | "dice" | "scene";
 
 function Room({ overview }: { overview: CampaignOverview }) {
   const user = useCurrentUser();
   const campaignId = overview.campaign.id;
   const room = useRoom(campaignId);
   const selectedId = useRoomStore((s) => s.selectedTokenId);
+  const selectedFeatureId = useRoomStore((s) => s.selectedFeatureId);
+  const playerPreview = useRoomStore((s) => s.playerPreview);
   const running = useRoomStore((s) => s.botsRunning);
   const speed = useRoomStore((s) => s.botSpeed);
   const autoEnemies = useRoomStore((s) => s.autoEnemies);
@@ -91,6 +94,9 @@ function Room({ overview }: { overview: CampaignOverview }) {
   if (!room) return <LoadingState label="Preparando a mesa…" className="min-h-dvh" />;
 
   const selected = room.tokens.find((t) => t.id === selectedId) ?? null;
+  const selectedFeature = room.map.props.find((p) => p.id === selectedFeatureId) ?? null;
+  // The player preview only means something while the fog is on.
+  const viewer = isGM && !(playerPreview && room.fog.enabled) ? "gm" : "player";
   const bots = room.tokens.filter((t) => t.controller === "bot");
   const hasParty = room.tokens.some((t) => t.kind !== "enemy");
   const next = overview.upcomingSessions[0];
@@ -98,6 +104,8 @@ function Room({ overview }: { overview: CampaignOverview }) {
   function startEditing() {
     if (!room) return;
     useMapEditorStore.getState().open(room.map);
+    useRoomStore.getState().setFogBrush(null);
+    useRoomStore.getState().selectFeature(null);
     setEditing(true);
   }
   function stopEditing(apply: boolean) {
@@ -182,7 +190,7 @@ function Room({ overview }: { overview: CampaignOverview }) {
       {/* Map + side panel */}
       <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
         <div className="relative h-[52dvh] shrink-0 lg:h-auto lg:min-w-0 lg:flex-1">
-          <RoomMap3D room={room} editing={editing} onMove={actions.moveToken} />
+          <RoomMap3D room={room} editing={editing} viewer={viewer} onMove={actions.moveToken} onFogPaint={(mode, cells) => (mode === "reveal" ? actions.revealCells(cells) : actions.hideCells(cells))} />
           {!hasParty && !editing && (
             <div className="absolute inset-x-4 top-4 mx-auto flex max-w-md items-center gap-3 rounded-xl border border-accent/40 bg-surface/95 p-3 shadow-xl backdrop-blur">
               <Bot className="size-5 shrink-0 text-accent" />
@@ -196,10 +204,11 @@ function Room({ overview }: { overview: CampaignOverview }) {
 
         <aside className="flex min-h-0 flex-1 flex-col gap-3 border-t border-line bg-surface/40 p-3 lg:w-[380px] lg:flex-none lg:border-l lg:border-t-0">
           {editing ? (
-            <MapEditorPanel onApply={() => stopEditing(true)} onCancel={() => stopEditing(false)} />
+            <MapEditorPanel campaignId={campaignId} onApply={() => stopEditing(true)} onCancel={() => stopEditing(false)} />
           ) : (
           <>
           {selected && <TokenInspector room={room} token={selected} actions={actions} />}
+          {selectedFeature && <FeatureInspector key={`${selectedFeature.id}:${selectedFeature.trap?.damage ?? ""}`} prop={selectedFeature} actions={actions} isGM={isGM} />}
           <Tabs
             size="sm"
             value={tab}
@@ -209,12 +218,14 @@ function Room({ overview }: { overview: CampaignOverview }) {
               { value: "combat", label: <TabLabel icon={<Swords className="size-3.5" />} text="Combate" /> },
               { value: "chat", label: <TabLabel icon={<MessageSquare className="size-3.5" />} text="Chat" />, count: room.messages.length },
               { value: "dice", label: <TabLabel icon={<Dices className="size-3.5" />} text="Dados" /> },
+              ...(isGM ? [{ value: "scene" as const, label: <TabLabel icon={<CloudFog className="size-3.5" />} text="Cena" /> }] : []),
             ]}
           />
           <div className="min-h-0 flex-1 overflow-y-auto">
             {tab === "combat" && <CombatPanel room={room} actions={actions} />}
             {tab === "chat" && <ChatPanel room={room} actions={actions} gmId={gm.id} />}
             {tab === "dice" && <DicePanel actions={actions} />}
+            {tab === "scene" && isGM && <ScenePanel room={room} actions={actions} />}
           </div>
           </>
           )}

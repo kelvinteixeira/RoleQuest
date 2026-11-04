@@ -7,7 +7,7 @@ import { createEncounterTokens } from "./bots";
 import { riverGladeMap } from "@/features/map/model/templates";
 import { defaultModelId } from "./character-models";
 import { freeCellNear, PLAYER_SPAWNS } from "./map";
-import { announce, applyEvents } from "./room-engine";
+import { announce, applyEvents, createFog } from "./room-engine";
 import type { RoomState, RoomToken } from "./types";
 
 /**
@@ -54,6 +54,7 @@ export function createInitialRoom(overview: CampaignOverview): RoomState {
     tokens: [...players, ...createEncounterTokens(map, rules, players)],
     messages: [],
     combat: { active: false, round: 0, turn: 0, order: [] },
+    fog: createFog(),
     log: [],
     createdAt: new Date().toISOString(),
   };

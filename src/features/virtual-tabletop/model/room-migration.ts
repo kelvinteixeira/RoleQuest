@@ -3,6 +3,7 @@
  * a single "d20 + attack bonus vs. defense" block per token and no rules.
  */
 import { DEFAULT_RULES } from "@/features/combat/model/rules";
+import { createFog } from "./room-engine";
 import type { RoomState, RoomToken } from "./types";
 
 interface LegacyStats {
@@ -15,7 +16,7 @@ interface LegacyStats {
 }
 
 type StoredToken = Omit<RoomToken, "stats"> & { stats: RoomToken["stats"] | LegacyStats };
-type StoredRoom = Omit<RoomState, "rules" | "tokens"> & { rules?: RoomState["rules"]; tokens: StoredToken[] };
+type StoredRoom = Omit<RoomState, "rules" | "tokens" | "fog"> & { rules?: RoomState["rules"]; fog?: RoomState["fog"]; tokens: StoredToken[] };
 
 const isLegacy = (stats: StoredToken["stats"]): stats is LegacyStats => !("attacks" in stats);
 
@@ -42,7 +43,8 @@ export function upgradeToken(token: StoredToken): RoomToken {
 }
 
 export function upgradeRoom(room: StoredRoom): RoomState {
-  return { ...room, rules: room.rules ?? DEFAULT_RULES, tokens: room.tokens.map(upgradeToken) };
+  // Version 2 added the fog of war (off for existing rooms).
+  return { ...room, rules: room.rules ?? DEFAULT_RULES, fog: room.fog ?? createFog(), tokens: room.tokens.map(upgradeToken) };
 }
 
 export function upgradeRooms(rooms: Record<string, StoredRoom> | undefined): Record<string, RoomState> {

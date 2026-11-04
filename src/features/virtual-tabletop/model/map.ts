@@ -1,4 +1,5 @@
 import { isBlocked, type MapDocument } from "@/features/map/model/map-document";
+import { lineCells } from "@/features/map/model/shapes";
 import type { RoomToken } from "./types";
 
 export type Cell = { x: number; y: number };
@@ -43,13 +44,13 @@ export function canStand(map: MapDocument, tokens: RoomToken[], cell: Cell, toke
 const STEPS: Cell[] = [-1, 0, 1].flatMap((dx) => [-1, 0, 1].map((dy) => ({ x: dx, y: dy }))).filter((d) => d.x || d.y);
 
 /**
- * Breadth-first path from `mover` to any square adjacent to `target`
- * (Chebyshev 1), avoiding blocked cells and other living tokens. Returns the
- * cells after the start, or null when unreachable.
+ * Breadth-first path from `mover` to the first cell that satisfies `goal`,
+ * avoiding blocked cells and other living tokens. Returns the cells after the
+ * start, or null when unreachable.
  */
-export function pathToAdjacent(map: MapDocument, tokens: RoomToken[], mover: RoomToken, target: Cell): Cell[] | null {
+function findPath(map: MapDocument, tokens: RoomToken[], mover: RoomToken, goal: (cell: Cell) => boolean): Cell[] | null {
   const start = { x: mover.x, y: mover.y };
-  if (gridDistance(start, target) <= 1) return [];
+  if (goal(start)) return [];
   const seen = new Map<string, string | null>([[key(start.x, start.y), null]]);
   const queue: Cell[] = [start];
   while (queue.length > 0) {
@@ -59,7 +60,7 @@ export function pathToAdjacent(map: MapDocument, tokens: RoomToken[], mover: Roo
       const k = key(next.x, next.y);
       if (seen.has(k) || !canStand(map, tokens, next, mover.id)) continue;
       seen.set(k, key(current.x, current.y));
-      if (gridDistance(next, target) <= 1) {
+      if (goal(next)) {
         const path: Cell[] = [];
         let cursor: string | null = k;
         while (cursor && cursor !== key(start.x, start.y)) {
@@ -73,6 +74,21 @@ export function pathToAdjacent(map: MapDocument, tokens: RoomToken[], mover: Roo
     }
   }
   return null;
+}
+
+/** Path to any square adjacent to `target` (Chebyshev 1): how bots close in to attack. */
+export function pathToAdjacent(map: MapDocument, tokens: RoomToken[], mover: RoomToken, target: Cell): Cell[] | null {
+  return findPath(map, tokens, mover, (c) => gridDistance(c, target) <= 1);
+}
+
+/**
+ * The squares a token crosses to reach `target`: the straight line when it is
+ * clear, otherwise the shortest way around. Null when there is no way.
+ */
+export function routeTo(map: MapDocument, tokens: RoomToken[], mover: RoomToken, target: Cell): Cell[] | null {
+  const straight = lineCells({ x: mover.x, y: mover.y }, target).slice(1);
+  if (straight.every((c) => canStand(map, tokens, c, mover.id))) return straight;
+  return findPath(map, tokens, mover, (c) => c.x === target.x && c.y === target.y);
 }
 
 /** Closest free square to `origin` (spiral search): used to place and rescue tokens. */

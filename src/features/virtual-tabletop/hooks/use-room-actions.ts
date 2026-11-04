@@ -4,7 +4,7 @@ import { useMemo } from "react";
 import { DiceFormulaError, type RollMode } from "@/features/dice/dice-engine";
 import { toast } from "@/stores/toast.store";
 import { botJoinEvents } from "../model/bots";
-import type { Cell } from "../model/map";
+import { routeTo, type Cell } from "../model/map";
 import type { CheckResult } from "@/features/character-sheet/model/checks";
 import { combatProfile, sheetHitPoints } from "@/features/combat/model/profile";
 import type { CombatRules } from "@/features/combat/model/types";
@@ -19,9 +19,10 @@ import {
   rollEvent,
   rollInitiative,
   say,
+  walk,
   whisper,
 } from "../model/room-engine";
-import type { MapDocument } from "@/features/map/model/map-document";
+import { doorOf, PROP_BY_ID, type MapDocument, type TrapState } from "@/features/map/model/map-document";
 import type { Author, MessageVisibility, RoomEvent, RoomToken } from "../model/types";
 import { useRoomStore } from "../store/room.store";
 
@@ -66,9 +67,65 @@ export function useRoomActions(campaignId: string, gm: Author) {
       send([say(gm, trimmed)]);
     }
 
-    function moveToken(token: RoomToken, cell: Cell) {
-      send([{ type: "token.moved", tokenId: token.id, x: cell.x, y: cell.y }]);
+    /**
+     * Moves along the way the token would walk, so traps on the route go off
+     * and closed doors stop it. `teleport` (Alt-drag, GM only) places it directly.
+     */
+    function moveToken(token: RoomToken, cell: Cell, options: { teleport?: boolean } = {}) {
+      const state = room();
+      if (!state) return;
+      if (options.teleport) return void send([{ type: "token.moved", tokenId: token.id, x: cell.x, y: cell.y }]);
+      const path = routeTo(state.map, state.tokens, token, cell);
+      if (!path) return void toast.info("Sem caminho até lá", "Uma porta fechada ou parede está no caminho. Segure Alt ao soltar para teleportar.");
+      send(walk(state, token, path).events);
     }
+
+    /** Anyone on the square, standing or fallen, keeps a door from shutting. */
+    const blockedBySomeone = (cell: Cell) => !!room()?.tokens.some((t) => t.x === cell.x && t.y === cell.y);
+
+    const propById = (propId: string) => room()?.map.props.find((p) => p.id === propId);
+
+    function toggleDoor(propId: string) {
+      const prop = propById(propId);
+      const door = prop && doorOf(prop);
+      if (!prop || !door) return;
+      if (!door.open && door.locked) return void toast.info("A porta está trancada", "Destranque antes de abrir.");
+      if (door.open && blockedBySomeone(prop)) return void toast.info("Há alguém na passagem", "Mova o token antes de fechar.");
+      send([{ type: "prop.updated", propId, door: { open: !door.open } }]);
+    }
+
+    function setDoorLocked(propId: string, locked: boolean) {
+      const prop = propById(propId);
+      if (!prop || !doorOf(prop)) return;
+      // Locking a door shuts it too (unless someone stands in the way).
+      const shut = locked && !blockedBySomeone(prop);
+      send([{ type: "prop.updated", propId, door: shut ? { locked, open: false } : { locked } }]);
+    }
+
+    function updateTrap(propId: string, trap: Partial<TrapState>) {
+      const prop = propById(propId);
+      if (!prop) return;
+      const events: RoomEvent[] = [{ type: "prop.updated", propId, trap }];
+      if (trap.hidden === false) events.push(announce(`O mestre revelou: ${(PROP_BY_ID.get(prop.propId)?.label ?? "armadilha").toLowerCase()}.`));
+      send(events);
+    }
+
+    function configureFog(patch: { enabled?: boolean; vision?: number }) {
+      send([{ type: "fog.configured", ...patch }]);
+    }
+
+    function revealCells(cells: number[]) {
+      if (cells.length) send([{ type: "fog.revealed", cells }]);
+    }
+
+    function hideCells(cells: number[]) {
+      if (cells.length) send([{ type: "fog.hidden", cells }]);
+    }
+
+    const allCells = () => {
+      const map = room()?.map;
+      return map ? Array.from({ length: map.cols * map.rows }, (_, i) => i) : [];
+    };
 
     function adjustHp(token: RoomToken, delta: number) {
       if (!delta) return;
@@ -209,7 +266,7 @@ export function useRoomActions(campaignId: string, gm: Author) {
       toast.success("Mapa aplicado", map.name);
     }
 
-    return { setRules, applySheetSoon, forgetSheet, syncSheets, postCheck, setAppearance, replaceMap, rollDice, sendChat, moveToken, adjustHp, toggleCondition, attackWith, startCombat, nextTurn, endCombat, addBots, removeBots, markEpic };
+    return { toggleDoor, setDoorLocked, updateTrap, configureFog, revealCells, hideCells, revealAll: () => revealCells(allCells()), hideAll: () => hideCells(allCells()), setRules, applySheetSoon, forgetSheet, syncSheets, postCheck, setAppearance, replaceMap, rollDice, sendChat, moveToken, adjustHp, toggleCondition, attackWith, startCombat, nextTurn, endCombat, addBots, removeBots, markEpic };
   }, [campaignId, gm, dispatch]);
 }
 

@@ -6,6 +6,8 @@ import { upgradeRooms } from "../model/room-migration";
 import type { RoomEvent, RoomState } from "../model/types";
 
 export type BotSpeed = "slow" | "normal" | "fast";
+/** GM brush over the fog of war (null: the map is in play mode). */
+export type FogBrush = "reveal" | "hide" | null;
 export const BOT_DELAY: Record<BotSpeed, number> = { slow: 2600, normal: 1500, fast: 700 };
 
 /** Short-lived visual feedback over a token (damage numbers, heals). */
@@ -45,6 +47,12 @@ type RoomStore = {
   botSpeed: BotSpeed;
   autoEnemies: boolean;
   selectedTokenId: string | null;
+  /** Selected door, gate or trap (exclusive with the token selection). */
+  selectedFeatureId: string | null;
+  fogBrush: FogBrush;
+  fogBrushSize: number;
+  /** GM previews the table as the players see it. */
+  playerPreview: boolean;
   fx: TokenFx[];
   cues: TokenCue[];
 
@@ -52,6 +60,9 @@ type RoomStore = {
   resetRoom: (campaignId: string, create: () => RoomState) => void;
   dispatch: (campaignId: string, actorId: string, events: RoomEvent[]) => void;
   select: (tokenId: string | null) => void;
+  selectFeature: (propId: string | null) => void;
+  setFogBrush: (brush: FogBrush, size?: number) => void;
+  setPlayerPreview: (value: boolean) => void;
   setBotsRunning: (value: boolean) => void;
   setBotSpeed: (value: BotSpeed) => void;
   setAutoEnemies: (value: boolean) => void;
@@ -65,13 +76,18 @@ export const useRoomStore = create<RoomStore>()(
       botSpeed: "normal",
       autoEnemies: true,
       selectedTokenId: null,
+      selectedFeatureId: null,
+      fogBrush: null,
+      fogBrushSize: 3,
+      playerPreview: false,
       fx: [],
       cues: [],
 
       ensureRoom: (campaignId, factory) => {
         if (!get().rooms[campaignId]) set({ rooms: { ...get().rooms, [campaignId]: factory() } });
       },
-      resetRoom: (campaignId, factory) => set({ rooms: { ...get().rooms, [campaignId]: factory() }, selectedTokenId: null }),
+      resetRoom: (campaignId, factory) =>
+        set({ rooms: { ...get().rooms, [campaignId]: factory() }, selectedTokenId: null, selectedFeatureId: null, fogBrush: null, playerPreview: false }),
 
       dispatch: (campaignId, actorId, events) => {
         const room = get().rooms[campaignId];
@@ -88,15 +104,18 @@ export const useRoomStore = create<RoomStore>()(
         for (const c of cues) setTimeout(() => set({ cues: get().cues.filter((x) => x.id !== c.id) }), 1600);
       },
 
-      select: (tokenId) => set({ selectedTokenId: tokenId }),
+      select: (tokenId) => set({ selectedTokenId: tokenId, selectedFeatureId: tokenId ? null : get().selectedFeatureId }),
+      selectFeature: (propId) => set({ selectedFeatureId: propId, selectedTokenId: propId ? null : get().selectedTokenId }),
+      setFogBrush: (brush, size) => set({ fogBrush: brush, fogBrushSize: size ?? get().fogBrushSize }),
+      setPlayerPreview: (value) => set({ playerPreview: value }),
       setBotsRunning: (value) => set({ botsRunning: value }),
       setBotSpeed: (value) => set({ botSpeed: value }),
       setAutoEnemies: (value) => set({ autoEnemies: value }),
     }),
     {
       name: "rq:rooms:v2",
-      // v1: per-system combat (rules on the room, attacks on tokens).
-      version: 1,
+      // v1: per-system combat (rules on the room, attacks on tokens). v2: fog of war.
+      version: 2,
       migrate: (persisted) => {
         const state = (persisted ?? {}) as Partial<RoomStore> & { rooms?: Parameters<typeof upgradeRooms>[0] };
         return { ...state, rooms: upgradeRooms(state.rooms) } as RoomStore;

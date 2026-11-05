@@ -29,6 +29,7 @@ export function SheetEditor({
   characterId,
   embedded = false,
   onRoll,
+  onRequestCheck,
   onChange,
   liveHp,
   actions,
@@ -36,6 +37,8 @@ export function SheetEditor({
   characterId: string;
   embedded?: boolean;
   onRoll?: (check: CheckResult, character: EditableCharacter["character"]) => void;
+  /** At a table hosted by the GM, checks are rolled there: the sheet only asks. */
+  onRequestCheck?: (request: CheckRequest) => void;
   /** Called with the edited character after every local change. */
   onChange?: (data: EditableCharacter) => void;
   /** Current HP at the table; shown on the sheet as it changes (the room saves it). */
@@ -76,6 +79,7 @@ export function SheetEditor({
   const readOnly = !canEdit;
 
   function check(req: CheckRequest) {
+    if (onRequestCheck) return onRequestCheck({ ...req, mode: system.dice.supportsAdvantage ? mode : "normal" });
     const result = resolveCheck(system, character.sheet, character.level, { ...req, mode: system.dice.supportsAdvantage ? mode : "normal" });
     setLast({ id: Date.now(), check: result });
     onRoll?.(result, character);

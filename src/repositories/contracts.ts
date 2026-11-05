@@ -122,6 +122,61 @@ export interface JournalRepository {
   remove(id: ID): Promise<void>;
 }
 
+/** An intent a member sent to the table's host (see features/virtual-tabletop/sync). */
+export interface RoomIntentEnvelope {
+  id: string;
+  userId: ID;
+  intent: unknown;
+  createdAt: string;
+}
+
+export interface RoomPresenceEntry {
+  userId: ID;
+  hosting: boolean;
+  seenAt: string;
+}
+
+export type RoomSyncStatus = "connecting" | "connected" | "offline";
+
+export interface RoomSyncHandlers {
+  /** This member's view changed (`null`: too big for the notification, read it again). */
+  onView?: (view: unknown | null) => void;
+  /** The players' map changed: read it again. */
+  onPlayerMap?: () => void;
+  /** A member sent an intent (the host listens; RLS lets only GMs see others' intents). */
+  onIntent?: (intent: RoomIntentEnvelope) => void;
+  /** Someone arrived, left or is still there: read the presence again. */
+  onPresence?: () => void;
+  onStatus?: (status: RoomSyncStatus) => void;
+}
+
+/**
+ * The table in real time. Payloads are opaque JSON here; the virtual tabletop
+ * owns their shape (views.ts, intents.ts). Absent in local mode: the room then
+ * lives on this device only.
+ */
+export interface RoomSyncRepository {
+  /** Takes (or keeps) the host role for this client; `takeover` takes it from another GM. */
+  claimHost(campaignId: ID, clientId: string, takeover: boolean): Promise<{ hosting: boolean; holderUserId: ID | null }>;
+  releaseHost(campaignId: ID, clientId: string): Promise<void>;
+  /** Host: the saved full state (null when the room was never saved). */
+  loadState(campaignId: ID): Promise<unknown | null>;
+  /** Host: saves the full state; false when this client no longer holds the table (taken over). */
+  saveState(campaignId: ID, clientId: string, state: unknown): Promise<boolean>;
+  /** Host: members' views (and the players' map when it changed) in one write; false when the table was taken over. */
+  publish(campaignId: ID, clientId: string, views: { userId: ID; view: unknown; revision: number }[], map: { map: unknown; revision: number } | null): Promise<boolean>;
+  loadView(campaignId: ID, userId: ID): Promise<unknown | null>;
+  loadPlayerMap(campaignId: ID): Promise<{ map: unknown; revision: number } | null>;
+  sendIntent(campaignId: ID, intent: unknown): Promise<void>;
+  /** Host: intents not handled yet (sent while it was away or reconnecting), at most a minute old. */
+  pendingIntents(campaignId: ID): Promise<RoomIntentEnvelope[]>;
+  clearIntents(ids: string[]): Promise<void>;
+  heartbeat(campaignId: ID, userId: ID, hosting: boolean): Promise<void>;
+  leave(campaignId: ID, userId: ID): Promise<void>;
+  presence(campaignId: ID): Promise<RoomPresenceEntry[]>;
+  subscribe(campaignId: ID, userId: ID, handlers: RoomSyncHandlers): () => void;
+}
+
 export interface Repositories {
   auth: AuthRepository;
   users: UserRepository;
@@ -136,4 +191,6 @@ export interface Repositories {
   npcs: NpcRepository;
   encounters: EncounterRepository;
   journal: JournalRepository;
+  /** null in local mode (no real-time backend). */
+  roomSync: RoomSyncRepository | null;
 }

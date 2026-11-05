@@ -166,9 +166,13 @@ Regras:
 - Movimento: `walk()` percorre a rota (`routeTo`: linha reta se livre, senão BFS) e para na primeira armadilha armada, revelando, desarmando e rolando o dano (ignora armadura). Bots usam o mesmo caminho.
 - Com jogadores reais (Fase 4/7), o que o jogador não pode ver deve ser **filtrado no servidor** (hoje a prévia "ver como os jogadores" só esconde na renderização).
 
-### Tempo real (Fase 4)
-- **Supabase Realtime** (broadcast + presence) para movimentos de tokens, rolagens, chat e estado da sessão. Socket.IO só seria adicionado se surgir um requisito que o Realtime não atenda.
-- Operações de mesa são eventos (`token.moved`, `dice.rolled`…) — o mesmo log alimenta o Chronicles Studio.
+### Tempo real (mesa compartilhada)
+- **Um anfitrião por mesa:** o cliente de um mestre conduz a mesa (`features/virtual-tabletop/sync/use-room-sync.ts`). Ele guarda o estado completo, aplica os eventos (`room-engine.ts`), salva em `room_states` e escreve a visão de cada participante em `room_views`. A vez de conduzir é um "aluguel" renovado a cada 10 s (`claim_room_host`); outro mestre pode assumir.
+- **Visões filtradas no anfitrião** (`sync/views.ts`): jogadores nunca recebem o estado completo. Ficam de fora inimigos fora da visão do grupo, armadilhas ocultas, notas do mestre, blocos de estatística de NPCs, rolagens secretas e sussurros de outros. O mapa dos jogadores vai à parte (`room_view_maps`), sem notas nem armadilhas ocultas. Cada visão leva os eventos recentes que a pessoa pode ver, para tocar animações, números de dano e sons.
+- **Pedidos (intents)** (`sync/intents.ts`): jogadores inserem em `room_intents` (o RLS garante que falam só por si); o anfitrião valida contra a mesa e os direitos da pessoa (personagem próprio, sua vez no combate, regras da mesa, alcance, porta ao lado) e rola os dados ele mesmo. Co-mestres mandam eventos prontos (`kind: "events"`).
+- **Transporte:** Supabase Realtime `postgres_changes` sobre essas tabelas (o RLS vale para cada inscrito), atrás do contrato `RoomSyncRepository`. Sem backend (modo local) a mesa fica no aparelho, como antes.
+- **Presença:** `room_presence` com batimento a cada 10 s; só mestres podem marcar que conduzem.
+- Operações de mesa são eventos (`token.moved`, `message.posted`…) — o mesmo log alimenta o Chronicles Studio.
 
 ### Voz (Fase 4)
 - LiveKit (self-host ou cloud). Token de acesso emitido por uma Edge Function após checar a participação na campanha.

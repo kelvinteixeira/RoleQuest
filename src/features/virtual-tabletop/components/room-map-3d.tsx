@@ -44,9 +44,12 @@ export function RoomMap3D({
   viewer,
   onMove,
   onFogPaint,
+  canMove,
 }: {
   room: RoomState;
   editing: boolean;
+  /** Which tokens this viewer may drag (players: their own). Everyone by default. */
+  canMove?: (token: RoomToken) => boolean;
   /** "player": the fog hides what the party has not seen, and hidden traps are invisible. */
   viewer: FeatureView;
   onMove: (token: RoomToken, cell: Cell, options: { teleport?: boolean }) => void;
@@ -194,7 +197,7 @@ export function RoomMap3D({
     if (editing || painting || e.nativeEvent.button !== 0) return;
     e.stopPropagation();
     select(token.id);
-    if (!isDown(token)) setDrag({ tokenId: token.id, origin: { x: token.x, y: token.y }, hover: { x: token.x, y: token.y } });
+    if (!isDown(token) && (canMove?.(token) ?? true)) setDrag({ tokenId: token.id, origin: { x: token.x, y: token.y }, hover: { x: token.x, y: token.y } });
   }
 
   const dragging = drag ? room.tokens.find((t) => t.id === drag.tokenId) : undefined;
@@ -324,6 +327,18 @@ function Token3D({
   const ring = useRef<THREE.Mesh>(null);
   const moving = useRef(false);
   const cue = useRoomStore((s) => s.cues.filter((c) => c.tokenId === token.id).at(-1));
+  // A move with a route: walk it square by square (turning at corners) instead of cutting across.
+  const route = useRoomStore((s) => s.routes[token.id]);
+  const waypoints = useRef<[number, number, number][]>([]);
+  const routeId = useRef<string | null>(null);
+  useEffect(() => {
+    if (!route || route.id === routeId.current) return;
+    routeId.current = route.id;
+    waypoints.current = route.cells.map((c) => {
+      const [x, z] = cellToWorld(doc, c.x, c.y);
+      return [x, z, cellStandY(doc, c.x, c.y)];
+    });
+  }, [route, doc]);
   const model = modelFor(token);
   const [wx, wz] = cellToWorld(doc, token.x, token.y);
   const y = cellStandY(doc, token.x, token.y);
@@ -336,17 +351,24 @@ function Token3D({
   useFrame((state, delta) => {
     const g = group.current;
     if (g) {
-      const dx = wx - g.position.x;
-      const dz = wz - g.position.z;
+      // Next square of the route, else the token's square.
+      let next = waypoints.current[0];
+      while (next && Math.hypot(next[0] - g.position.x, next[1] - g.position.z) < 0.06) {
+        waypoints.current.shift();
+        next = waypoints.current[0];
+      }
+      const [gx, gz, gy] = next ?? [wx, wz, y];
+      const dx = gx - g.position.x;
+      const dz = gz - g.position.z;
       const dist = Math.hypot(dx, dz);
-      moving.current = dist > 0.04;
+      moving.current = dist > 0.04 || waypoints.current.length > 0;
       // Walk speed in cells/second, so long moves read as walking, not sliding.
-      const step = Math.min(dist, 3.2 * delta + dist * 0.02);
+      const step = Math.min(dist, (next ? 4.2 : 3.2) * delta + (next ? 0 : dist * 0.02));
       if (dist > 0) {
         g.position.x += (dx / dist) * Math.max(step, Math.min(dist, 0.05));
         g.position.z += (dz / dist) * Math.max(step, Math.min(dist, 0.05));
       }
-      g.position.y += (y - g.position.y) * 0.2;
+      g.position.y += (gy - g.position.y) * 0.25;
       // Face the walking direction, or the target of an attack/spell.
       let yaw: number | null = null;
       if (moving.current) yaw = Math.atan2(dx, dz);

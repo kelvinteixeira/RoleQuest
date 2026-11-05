@@ -257,6 +257,9 @@ export const whisper = (author: Author, to: { id: string; name: string }, text: 
 
 export const announce = (text: string): RoomEvent => message({ kind: "system", author: SYSTEM_AUTHOR, text, visibility: "public" });
 
+/** A system line only GMs see (e.g. initiative rolls that name creatures the party hasn't seen). */
+export const gmAnnounce = (text: string): RoomEvent => message({ kind: "system", author: SYSTEM_AUTHOR, text, visibility: "gm" });
+
 export const epicMoment = (author: Author, text: string): RoomEvent => message({ kind: "epic", author, text, visibility: "public" });
 
 export function rollEvent(
@@ -293,7 +296,7 @@ export function joinCombat(state: Pick<RoomState, "rules">, tokens: RoomToken[],
   if (entries.length === 0) return [];
   const byId = new Map(tokens.map((t) => [t.id, t.name]));
   const summary = entries.map((e) => `${byId.get(e.tokenId)} ${Number.isInteger(e.initiative) ? e.initiative : e.initiative.toFixed(2)}`).join(" · ");
-  return [{ type: "combat.joined", entries }, announce(`Entram no combate: ${summary}`)];
+  return [{ type: "combat.joined", entries }, gmAnnounce(`Entram no combate: ${summary}`)];
 }
 
 export function rollInitiative(state: RoomState, rng?: Rng): RoomEvent[] {
@@ -303,7 +306,7 @@ export function rollInitiative(state: RoomState, rng?: Rng): RoomEvent[] {
     .sort((a, b) => b.total - a.total || b.token.stats.initiative - a.token.stats.initiative || a.tiebreak - b.tiebreak)
     .map(({ token, total }) => ({ tokenId: token.id, initiative: total }));
   const summary = results.map(({ token, total }) => `${token.name} ${Number.isInteger(total) ? total : total.toFixed(2)}`).join(" · ");
-  return [{ type: "combat.started", order }, announce(`Combate! Iniciativa: ${summary}`)];
+  return [{ type: "combat.started", order }, announce("Combate! Cada um na sua vez."), gmAnnounce(`Combate! Iniciativa: ${summary}`)];
 }
 
 /** Attacks of `attacker` that reach `target` from where it stands. */

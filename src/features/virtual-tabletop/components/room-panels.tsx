@@ -18,10 +18,13 @@ import { currentTurnToken, isDown } from "../model/room-engine";
 import type { ChatMessage, MessageVisibility, RoomState, RoomToken } from "../model/types";
 import type { RoomActions } from "../hooks/use-room-actions";
 import { useRoomStore } from "../store/room.store";
+import { GM_RECIPIENT } from "../sync/intents";
+import type { CheckRequest } from "@/features/character-sheet/model/checks";
 
 /* ---------- Combat & initiative ---------- */
 
-export function CombatPanel({ room, actions }: { room: RoomState; actions: RoomActions }) {
+/** `canRun`: only GMs start, advance and end combat. */
+export function CombatPanel({ room, actions, canRun = true, ownTokenIds = [] }: { room: RoomState; actions: RoomActions; canRun?: boolean; ownTokenIds?: string[] }) {
   const select = useRoomStore((s) => s.select);
   const selectedId = useRoomStore((s) => s.selectedTokenId);
   const autoEnemies = useRoomStore((s) => s.autoEnemies);
@@ -35,7 +38,11 @@ export function CombatPanel({ room, actions }: { room: RoomState; actions: RoomA
         ? `${current.name} está agindo…`
         : "Bots pausados: retome ou avance o turno."
       : current
-        ? `Vez de ${current.name}: mova, ataque e avance.`
+        ? ownTokenIds.includes(current.id)
+          ? `Sua vez, ${current.name}! Mova e ataque; o mestre avança o turno.`
+          : canRun
+            ? `Vez de ${current.name}: mova, ataque e avance.`
+            : `Vez de ${current.name}.`
         : null;
 
   const row = (token: RoomToken, initiative?: number) => (
@@ -66,9 +73,13 @@ export function CombatPanel({ room, actions }: { room: RoomState; actions: RoomA
     const enemies = room.tokens.filter((t) => t.kind === "enemy");
     return (
       <div className="flex flex-col gap-4">
-        <Button onClick={actions.startCombat} leadingIcon={<Swords className="size-4" />} className="w-full">
-          Iniciar combate
-        </Button>
+        {canRun ? (
+          <Button onClick={actions.startCombat} leadingIcon={<Swords className="size-4" />} className="w-full">
+            Iniciar combate
+          </Button>
+        ) : (
+          <p className="rounded-lg bg-surface-2/60 px-3 py-2 text-center text-xs text-fg-muted">Fora de combate. O mestre inicia quando for a hora.</p>
+        )}
         <Group title={`Grupo (${party.length})`}>{party.map((t) => row(t))}</Group>
         <Group title={`Inimigos (${enemies.length})`}>{enemies.map((t) => row(t))}</Group>
       </div>
@@ -81,14 +92,16 @@ export function CombatPanel({ room, actions }: { room: RoomState; actions: RoomA
         <Badge tone="accent" dot>
           Rodada {room.combat.round}
         </Badge>
-        <div className="flex gap-1.5">
-          <Button size="sm" onClick={actions.nextTurn}>
-            Próximo turno
-          </Button>
-          <Button size="sm" variant="ghost" onClick={() => actions.endCombat()}>
-            Encerrar
-          </Button>
-        </div>
+        {canRun && (
+          <div className="flex gap-1.5">
+            <Button size="sm" onClick={actions.nextTurn}>
+              Próximo turno
+            </Button>
+            <Button size="sm" variant="ghost" onClick={() => actions.endCombat()}>
+              Encerrar
+            </Button>
+          </div>
+        )}
       </div>
       {waiting && <p className="rounded-lg bg-surface-2/60 px-3 py-2 text-xs text-fg-muted">{waiting}</p>}
       <ol className="flex flex-col gap-1">
@@ -112,11 +125,15 @@ function Group({ title, children }: { title: string; children: React.ReactNode }
 
 /* ---------- Chat ---------- */
 
-export function ChatPanel({ room, actions, gmId }: { room: RoomState; actions: RoomActions; gmId: string }) {
+/**
+ * `mineIds`: ids this viewer writes as (their user, their tokens). Players can
+ * only whisper to the GM (when the table allows private messages).
+ */
+export function ChatPanel({ room, actions, mineIds, isGM = true, allowPrivate = true }: { room: RoomState; actions: RoomActions; mineIds: string[]; isGM?: boolean; allowPrivate?: boolean }) {
   const [text, setText] = useState("");
   const [to, setTo] = useState("all");
   const listRef = useRef<HTMLDivElement>(null);
-  const recipients = room.tokens.filter((t) => t.kind !== "enemy");
+  const recipients: { id: string; name: string }[] = isGM ? room.tokens.filter((t) => t.kind !== "enemy") : allowPrivate ? [GM_RECIPIENT] : [];
   const count = room.messages.length;
 
   useEffect(() => {
@@ -134,7 +151,7 @@ export function ChatPanel({ room, actions, gmId }: { room: RoomState; actions: R
       <div ref={listRef} className="-mx-1 flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto px-1 pb-2" aria-live="polite">
         {room.messages.length === 0 && <p className="py-8 text-center text-sm text-fg-subtle">Nenhuma mensagem ainda.</p>}
         {room.messages.map((m) => (
-          <MessageItem key={m.id} message={m} mine={m.author.id === gmId} />
+          <MessageItem key={m.id} message={m} mine={mineIds.includes(m.author.id)} />
         ))}
       </div>
       <form onSubmit={onSubmit} className="flex flex-col gap-2 border-t border-line pt-3">
@@ -160,7 +177,7 @@ export function ChatPanel({ room, actions, gmId }: { room: RoomState; actions: R
           <input
             value={text}
             onChange={(e) => setText(e.target.value)}
-            placeholder={to === "all" ? "Mensagem, /r 1d20+3, /gm 1d20, /w Nome…" : "Mensagem privada…"}
+            placeholder={to === "all" ? (isGM ? "Mensagem, /r 1d20+3, /gm 1d20, /w Nome…" : "Mensagem, /r 1d20+3, /gm 1d20…") : "Mensagem privada…"}
             className="h-9 min-w-0 flex-1 rounded-lg border border-line bg-surface-2/60 px-3 text-sm outline-none placeholder:text-fg-subtle focus:border-accent/60"
             aria-label="Mensagem"
           />
@@ -371,7 +388,25 @@ const CARRIED_LIGHTS = [
   { radius: 8, label: "Magia de luz (8 □)" },
 ];
 
-export function TokenInspector({ room, token, actions }: { room: RoomState; token: RoomToken; actions: RoomActions }) {
+/**
+ * `access`: "gm" sees and changes everything; "own" is a player's character
+ * (attacks, sheet; checks rolled by the host through `onRequestCheck`); "view"
+ * is someone else's token (name, life, conditions).
+ */
+export function TokenInspector({
+  room,
+  token,
+  actions,
+  access = "gm",
+  onRequestCheck,
+}: {
+  room: RoomState;
+  token: RoomToken;
+  actions: RoomActions;
+  access?: "gm" | "own" | "view";
+  onRequestCheck?: (request: CheckRequest) => void;
+}) {
+  const gm = access === "gm";
   const select = useRoomStore((s) => s.select);
   const [amount, setAmount] = useState(5);
   const [sheetOpen, setSheetOpen] = useState(false);
@@ -408,6 +443,8 @@ export function TokenInspector({ room, token, actions }: { room: RoomState; toke
           </button>
         </div>
 
+        {gm && (
+        <>
         <label className="mt-3 flex items-center gap-2 text-xs text-fg-subtle">
           Aparência
           <select
@@ -441,8 +478,11 @@ export function TokenInspector({ room, token, actions }: { room: RoomState; toke
             ))}
           </select>
         </label>
+        </>
+        )}
 
         <ResourceBar className="mt-3" label="Pontos de vida" value={token.hp.current} max={token.hp.max} color={token.kind === "enemy" ? "var(--color-danger)" : "var(--color-success)"} />
+        {gm && (
         <div className="mt-2 flex items-center gap-1.5">
           <Button size="sm" variant="danger" onClick={() => actions.adjustHp(token, -amount)}>
             Dano
@@ -459,7 +499,10 @@ export function TokenInspector({ room, token, actions }: { room: RoomState; toke
             Cura
           </Button>
         </div>
+        )}
 
+        {(gm || access === "own" || token.kind !== "enemy") && (
+        <>
         <dl className="mt-3 grid grid-cols-4 gap-1.5 text-center">
           <Stat icon={<Shield className="size-3" />} label="Def" title={rules.defenseLabel} value={formatDefense(rules, token.stats.defense)} />
           <Stat icon={<ShieldHalf className="size-3" />} label="Arm." title="Armadura: reduz o dano" value={token.stats.armor} />
@@ -492,17 +535,27 @@ export function TokenInspector({ room, token, actions }: { room: RoomState; toke
         ) : (
           <p className="mt-2 text-[11px] text-fg-subtle">Sem ataques{token.characterId ? " na ficha (aba Combate)." : "."}</p>
         )}
+        </>
+        )}
 
         <div className="mt-3 flex flex-wrap gap-1">
-          {CONDITIONS.map((c) => (
-            <Chip key={c} active={token.conditions.includes(c)} onClick={() => actions.toggleCondition(token, c)}>
-              {c}
-            </Chip>
-          ))}
+          {gm
+            ? CONDITIONS.map((c) => (
+                <Chip key={c} active={token.conditions.includes(c)} onClick={() => actions.toggleCondition(token, c)}>
+                  {c}
+                </Chip>
+              ))
+            : token.conditions
+                .filter((c) => c !== "Caído")
+                .map((c) => (
+                  <Badge key={c} tone="info">
+                    {c}
+                  </Badge>
+                ))}
           {token.conditions.includes("Caído") && <Badge tone="danger">Caído</Badge>}
         </div>
 
-        {token.controller !== "bot" && chosen && foesInReach.length > 0 && (
+        {access !== "view" && token.controller !== "bot" && chosen && foesInReach.length > 0 && (
           <div className="mt-3 flex flex-wrap gap-1.5 border-t border-line pt-3">
             {foesInReach.map((foe) => (
               <Button key={foe.id} size="sm" variant="secondary" leadingIcon={<Swords className="size-3.5" />} onClick={() => actions.attackWith(token, foe, chosen.id)}>
@@ -511,12 +564,12 @@ export function TokenInspector({ room, token, actions }: { room: RoomState; toke
             ))}
           </div>
         )}
-        {token.characterId && (
+        {token.characterId && access !== "view" && (
           <Button size="sm" variant="secondary" className="mt-3 w-full" leadingIcon={<ScrollText className="size-3.5" />} onClick={() => setSheetOpen(true)}>
             Abrir ficha
           </Button>
         )}
-        {token.characterId && (
+        {token.characterId && access !== "view" && (
           <Modal
             open={sheetOpen}
             onClose={() => {
@@ -532,6 +585,7 @@ export function TokenInspector({ room, token, actions }: { room: RoomState; toke
               embedded
               liveHp={token.hp.current}
               onRoll={(check) => actions.postCheck(token, check)}
+              onRequestCheck={onRequestCheck}
               onChange={(data) => actions.applySheetSoon(token.id, data)}
             />
           </Modal>

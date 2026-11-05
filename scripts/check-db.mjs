@@ -193,6 +193,91 @@ await as(out, "fora@mesa.com", async () => {
   ok("a character can't move into a campaign its owner doesn't play", !!move, move?.slice(0, 60));
 });
 
+// ---------- The table in real time ----------
+// A fresh table: the GM, two players (Ana, Bia), and the outsider.
+const { tid, tcode } = await as(gm, "mestre@mesa.com", async () => {
+  const c = (await db.query(`insert into public.campaigns (name, system_id, visual_style_id, owner_id, player_policy) values ('Mesa Viva', 'dnd5e', 'ember', $1, '{"maxPlayers": 4}') returning id`, [gm])).rows[0].id;
+  return { tid: c, tcode: (await db.query(`select code from public.new_invite_link($1)`, [c])).rows[0].code };
+});
+for (const [id, email] of [[p1, "ana@mesa.com"], [p2, "bia@mesa.com"]]) await as(id, email, () => db.query(`select public.join_campaign($1)`, [tcode]));
+
+await as(gm, "mestre@mesa.com", async () => {
+  const claim = (await db.query(`select * from public.claim_room_host($1, 'aba-1')`, [tid])).rows[0];
+  ok("the GM hosts the table", claim.hosting === true && claim.holder_client === "aba-1");
+  ok("another tab doesn't steal a live host", (await db.query(`select hosting from public.claim_room_host($1, 'aba-2')`, [tid])).rows[0].hosting === false);
+  ok("…unless it takes over", (await db.query(`select hosting from public.claim_room_host($1, 'aba-2', true)`, [tid])).rows[0].hosting === true);
+  ok("the host saves the full state", (await db.query(`select public.save_room_state($1, 'aba-2', '{"secret": "emboscada no rio"}') as ok`, [tid])).rows[0].ok === true);
+  ok("a tab without the lease can't save over it", (await db.query(`select public.save_room_state($1, 'aba-1', '{"secret": "velho"}') as ok`, [tid])).rows[0].ok === false);
+  const views = JSON.stringify([{ user_id: p1, view: { me: "ana" }, revision: 1 }, { user_id: p2, view: { me: "bia" }, revision: 1 }, { user_id: out, view: { me: "fora" }, revision: 1 }]);
+  ok("the host publishes views and the players' map", (await db.query(`select public.publish_room($1, 'aba-2', $2, '{"name": "Rio"}', 1) as ok`, [tid, views])).rows[0].ok === true);
+  ok("…and publishes again over them (upsert)", (await db.query(`select public.publish_room($1, 'aba-2', $2) as ok`, [tid, views])).rows[0].ok === true);
+  ok("views are only written for members", (await db.query(`select user_id from public.room_views where campaign_id = $1`, [tid])).rows.length === 2);
+  ok("a tab without the lease can't publish", (await db.query(`select public.publish_room($1, 'aba-1', $2) as ok`, [tid, JSON.stringify([{ user_id: p1, view: { me: "velho" }, revision: 9 }])])).rows[0].ok === false);
+  await db.query(`insert into public.room_presence (campaign_id, user_id, hosting, seen_at) values ($1, $2, true, '2000-01-01')`, [tid, gm]);
+  ok("presence is stamped by the server's clock", new Date((await db.query(`select seen_at from public.room_presence where user_id = $1 and campaign_id = $2`, [gm, tid])).rows[0].seen_at).getFullYear() > 2020);
+});
+
+await as(p1, "ana@mesa.com", async () => {
+  const steal = await fails(() => db.query(`select * from public.claim_room_host($1, 'aba-ana', true)`, [tid]));
+  ok("a player can't host the table", !!steal, steal?.slice(0, 60));
+  const pub = await fails(() => db.query(`select public.publish_room($1, 'aba-2', '[]')`, [tid]));
+  ok("a player can't publish views", !!pub, pub?.slice(0, 60));
+  const pend = await fails(() => db.query(`select * from public.pending_room_intents($1)`, [tid]));
+  ok("a player can't read the pending intents", !!pend, pend?.slice(0, 60));
+  ok("players never read the full state", (await db.query(`select state from public.room_states`)).rows.length === 0);
+  const views = (await db.query(`select view from public.room_views`)).rows;
+  ok("a player reads only her own view", views.length === 1 && views[0].view.me === "ana", JSON.stringify(views));
+  const forge = await fails(async () => {
+    const r = await db.query(`update public.room_views set view = '{"me": "hacked"}' where user_id = $1 returning user_id`, [p1]);
+    if (r.rows.length === 0) throw new Error("no rows updated (RLS)");
+  });
+  ok("a player can't write views (not even her own)", !!forge, forge?.slice(0, 60));
+  const forgeInsert = await fails(() => db.query(`insert into public.room_views (campaign_id, user_id, view) values ($1, $2, '{}')`, [tid, p2]));
+  ok("a player can't write someone else's view", !!forgeInsert, forgeInsert?.slice(0, 60));
+  ok("members read the players' map", (await db.query(`select map from public.room_view_maps where campaign_id = $1`, [tid])).rows[0]?.map.name === "Rio");
+  await db.query(`insert into public.room_intents (campaign_id, intent) values ($1, '{"kind": "move", "tokenId": "t", "x": 1, "y": 1}')`, [tid]);
+  ok("a player sends intents as herself", (await db.query(`select user_id from public.room_intents`)).rows.every((r) => r.user_id === p1));
+  const spoof = await fails(() => db.query(`insert into public.room_intents (campaign_id, user_id, intent) values ($1, $2, '{"kind": "chat", "text": "fui eu"}')`, [tid, p2]));
+  ok("…and never as someone else", !!spoof, spoof?.slice(0, 60));
+  const huge = await fails(() => db.query(`insert into public.room_intents (campaign_id, intent) values ($1, $2)`, [tid, { kind: "chat", text: "x".repeat(25000) }]));
+  ok("oversized intents are refused", !!huge, huge?.slice(0, 60));
+  const host = await fails(() => db.query(`insert into public.room_presence (campaign_id, user_id, hosting) values ($1, $2, true)`, [tid, p1]));
+  ok("a player can't claim to host in presence", !!host, host?.slice(0, 60));
+  await db.query(`insert into public.room_presence (campaign_id, user_id) values ($1, $2)`, [tid, p1]);
+  ok("members see who is at the table", (await db.query(`select user_id from public.room_presence where campaign_id = $1`, [tid])).rows.length === 2);
+  await db.query(`delete from public.room_intents`);
+  ok("a player can't clear intents", (await db.query(`select id from public.room_intents`)).rows.length === 1);
+});
+
+await as(p2, "bia@mesa.com", async () => {
+  ok("another player doesn't see her intents", (await db.query(`select id from public.room_intents where campaign_id = $1`, [tid])).rows.length === 0);
+  ok("…and reads only her own view", (await db.query(`select view from public.room_views`)).rows.map((r) => r.view.me).join() === "bia");
+});
+
+await as(gm, "mestre@mesa.com", async () => {
+  ok("the GM reads the full state and every intent", (await db.query(`select state from public.room_states where campaign_id = $1`, [tid])).rows[0].state.secret === "emboscada no rio" && (await db.query(`select id from public.room_intents where campaign_id = $1`, [tid])).rows.length === 1);
+  await db.exec(`reset role`);
+  await db.query(`insert into public.room_intents (campaign_id, user_id, intent, created_at) values ($1, $2, '{"kind": "chat", "text": "velho"}', now() - interval '5 minutes')`, [tid, p1]);
+  await db.query(`select set_config('request.jwt.claim.sub', $1, false)`, [gm]);
+  await db.exec(`set role authenticated`);
+  const pending = (await db.query(`select intent from public.pending_room_intents($1)`, [tid])).rows;
+  ok("pending intents: fresh ones only, stale ones dropped", pending.length === 1 && pending[0].intent.kind === "move" && (await db.query(`select id from public.room_intents where campaign_id = $1`, [tid])).rows.length === 1);
+  await db.query(`delete from public.room_intents where campaign_id = $1`, [tid]);
+  ok("the host clears handled intents", (await db.query(`select id from public.room_intents where campaign_id = $1`, [tid])).rows.length === 0);
+  await db.query(`delete from public.campaign_members where campaign_id = $1 and user_id = $2`, [tid, p1]);
+  ok("leaving the campaign leaves the table (presence and view)", (await db.query(`select 1 from public.room_presence where campaign_id = $1 and user_id = $2 union all select 1 from public.room_views where campaign_id = $1 and user_id = $2`, [tid, p1])).rows.length === 0);
+  await db.query(`select public.release_room_host($1, 'aba-1')`, [tid]);
+  ok("releasing someone else's tab does nothing", (await db.query(`select host_client from public.room_states where campaign_id = $1`, [tid])).rows[0].host_client === "aba-2");
+  await db.query(`select public.release_room_host($1, 'aba-2')`, [tid]);
+  ok("the host releases the table when it leaves", (await db.query(`select host_client from public.room_states where campaign_id = $1`, [tid])).rows[0].host_client === null);
+});
+
+await as(out, "fora@mesa.com", async () => {
+  ok("outsiders see nothing of the table", (await db.query(`select 1 from public.room_views union all select 1 from public.room_view_maps union all select 1 from public.room_presence union all select 1 from public.room_states`)).rows.length === 0);
+  const send = await fails(() => db.query(`insert into public.room_intents (campaign_id, intent) values ($1, '{"kind": "chat", "text": "oi"}')`, [tid]));
+  ok("outsiders can't send intents", !!send, send?.slice(0, 60));
+});
+
 // Signed out: nothing.
 await db.exec(`reset role`);
 await db.query(`select set_config('request.jwt.claim.sub', '', false)`);

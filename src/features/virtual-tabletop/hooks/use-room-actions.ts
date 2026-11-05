@@ -33,13 +33,16 @@ const lastSheetHp = new Map<string, number | undefined>();
 const hpEdited = new Set<string>();
 const normalizeName = (name: string) => name.trim().toLocaleLowerCase("pt-BR");
 
-/** GM actions for one room. Each one becomes RoomEvents through the store. */
-export function useRoomActions(campaignId: string, gm: Author) {
+/**
+ * GM actions for one room. Each one becomes RoomEvents through the store, or,
+ * for a GM following a table hosted elsewhere, through `forward` (to the host).
+ */
+export function useRoomActions(campaignId: string, gm: Author, forward?: (events: RoomEvent[], actorId: string) => void) {
   const dispatch = useRoomStore((s) => s.dispatch);
 
   return useMemo(() => {
     const room = () => useRoomStore.getState().rooms[campaignId];
-    const send = (events: RoomEvent[], actorId = gm.id) => dispatch(campaignId, actorId, events);
+    const send = (events: RoomEvent[], actorId = gm.id) => (forward ? forward(events, actorId) : dispatch(campaignId, actorId, events));
 
     function rollDice(formula: string, options: { mode?: RollMode; visibility?: MessageVisibility; label?: string } = {}) {
       try {
@@ -52,7 +55,7 @@ export function useRoomActions(campaignId: string, gm: Author) {
     }
 
     /** Chat with commands: /r 1d20+3, /gm 2d6 (secret), /w Nome mensagem. */
-    function sendChat(text: string, whisperTo?: RoomToken) {
+    function sendChat(text: string, whisperTo?: Pick<RoomToken, "id" | "name">) {
       const trimmed = text.trim();
       if (!trimmed) return;
       const [command, ...rest] = trimmed.split(/\s+/);
@@ -198,6 +201,11 @@ export function useRoomActions(campaignId: string, gm: Author) {
       send([{ type: "token.synced", tokenId, stats, hpMax, hpCurrent }], "system");
     }
 
+    /** A player's sheet changed (at a hosted table): stats follow, HP stays the table's. */
+    function refreshFromSheet(tokenId: string, data: Pick<EditableCharacter, "character" | "system">) {
+      applySheet(tokenId, data, false);
+    }
+
     /** Sheet edits arrive per keystroke; the token follows a moment later. */
     function applySheetSoon(tokenId: string, data: Pick<EditableCharacter, "character" | "system">) {
       // Only an HP change made on the sheet moves the token's HP (a stale copy must not undo damage).
@@ -301,8 +309,8 @@ export function useRoomActions(campaignId: string, gm: Author) {
       toast.success("Mapa aplicado", map.name);
     }
 
-    return { addTokens, post, setAmbient, setTokenLight, toggleLight, toggleDoor, setDoorLocked, updateTrap, configureFog, revealCells, hideCells, revealAll: () => revealCells(allCells()), hideAll: () => hideCells(allCells()), setRules, applySheetSoon, forgetSheet, syncSheets, postCheck, setAppearance, replaceMap, rollDice, sendChat, moveToken, adjustHp, toggleCondition, attackWith, startCombat, nextTurn, endCombat, addBots, removeBots, markEpic };
-  }, [campaignId, gm, dispatch]);
+    return { addTokens, post, setAmbient, setTokenLight, toggleLight, toggleDoor, setDoorLocked, updateTrap, configureFog, revealCells, hideCells, revealAll: () => revealCells(allCells()), hideAll: () => hideCells(allCells()), setRules, applySheetSoon, refreshFromSheet, forgetSheet, syncSheets, postCheck, setAppearance, replaceMap, rollDice, sendChat, moveToken, adjustHp, toggleCondition, attackWith, startCombat, nextTurn, endCombat, addBots, removeBots, markEpic };
+  }, [campaignId, gm, dispatch, forward]);
 }
 
 export type RoomActions = ReturnType<typeof useRoomActions>;

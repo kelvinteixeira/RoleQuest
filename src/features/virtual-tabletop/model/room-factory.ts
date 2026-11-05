@@ -10,6 +10,32 @@ import { freeCellNear, PLAYER_SPAWNS } from "./map";
 import { announce, applyEvents, createFog } from "./room-engine";
 import type { RoomState, RoomToken } from "./types";
 
+type Member = CampaignOverview["members"][number];
+
+/** A player's token, from their character sheet, on a free square near `near`. */
+export function partyTokenFor(member: Member, system: CampaignOverview["system"], map: RoomState["map"], tokens: RoomToken[], near: { x: number; y: number }): RoomToken {
+  const character = member.character!;
+  const sheet = ensureSheet(character, system);
+  const hp = sheetHitPoints(system, sheet) ?? { current: 20, max: 20 };
+  const spawn = freeCellNear(map, tokens, near);
+  return {
+    id: createId("tok"),
+    kind: "pc",
+    controller: "player",
+    name: character.name,
+    ownerName: member.profile.displayName,
+    concept: character.concept,
+    characterId: character.id,
+    modelId: defaultModelId({ kind: "pc", concept: character.concept, name: character.name }),
+    color: character.portraitColor,
+    x: spawn.x,
+    y: spawn.y,
+    hp,
+    stats: combatProfile(system, sheet, character.level),
+    conditions: [],
+  };
+}
+
 /**
  * Builds a fresh room for a campaign: starter map, the system's combat rules,
  * a test encounter and a token (stats from the sheet) for every player whose
@@ -23,26 +49,7 @@ export function createInitialRoom(overview: CampaignOverview): RoomState {
   const players: RoomToken[] = overview.members
     .filter((m) => m.role === "player" && m.character)
     .map((m, i) => {
-      const character = m.character!;
-      const sheet = ensureSheet(character, system);
-      const hp = sheetHitPoints(system, sheet) ?? { current: 20, max: 20 };
-      const spawn = freeCellNear(map, placed, PLAYER_SPAWNS[i % PLAYER_SPAWNS.length]);
-      const token: RoomToken = {
-        id: createId("tok"),
-        kind: "pc",
-        controller: "player",
-        name: character.name,
-        ownerName: m.profile.displayName,
-        concept: character.concept,
-        characterId: character.id,
-        modelId: defaultModelId({ kind: "pc", concept: character.concept, name: character.name }),
-        color: character.portraitColor,
-        x: spawn.x,
-        y: spawn.y,
-        hp,
-        stats: combatProfile(system, sheet, character.level),
-        conditions: [],
-      };
+      const token = partyTokenFor(m, system, map, placed, PLAYER_SPAWNS[i % PLAYER_SPAWNS.length]);
       placed.push(token);
       return token;
     });

@@ -15,8 +15,10 @@ const WRITE_DELAY_MS = 500;
  * value is saved to the linked sheet a moment later. Pending writes are
  * flushed when the room closes.
  */
-export function useSheetHpWriteback(campaignId: string, userId: string) {
+export function useSheetHpWriteback(campaignId: string, userId: string, enabled = true) {
   useEffect(() => {
+    // Only the client that runs the table writes sheets.
+    if (!enabled) return;
     const seen = new Map<string, number>();
     const pending = new Map<string, { timer: ReturnType<typeof setTimeout>; characterId: string }>();
 
@@ -58,5 +60,5 @@ export function useSheetHpWriteback(campaignId: string, userId: string) {
         void write(tokenId, characterId);
       }
     };
-  }, [campaignId, userId]);
+  }, [campaignId, userId, enabled]);
 }

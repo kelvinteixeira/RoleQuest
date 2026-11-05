@@ -17,8 +17,8 @@ const LICENSE_LABEL: Record<SystemTemplate["licensing"]["basis"], string> = {
 
 const INVENTORY_LABEL = { weight: "Por peso", slots: "Por espaços", list: "Lista livre" } as const;
 
-/** Read-only view of a template. Editing comes with the system builder (Phase 2). */
-export function SystemDetail({ system }: { system: SystemTemplate }) {
+/** Read-only view of a template; `actions` holds edit / duplicate buttons. */
+export function SystemDetail({ system, actions }: { system: SystemTemplate; actions?: ReactNode }) {
   const [tab, setTab] = useState<Tab>("overview");
   const groups = groupBy(system.attributes, (a) => a.group ?? "Atributos");
 
@@ -36,6 +36,7 @@ export function SystemDetail({ system }: { system: SystemTemplate }) {
           </div>
         </div>
       </div>
+      {actions && <div className="flex flex-wrap gap-2">{actions}</div>}
 
       <Tabs
         size="sm"

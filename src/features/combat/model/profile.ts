@@ -79,7 +79,7 @@ export function deriveInitiative(system: SystemTemplate, sheet: CharacterSheet):
   switch (system.dice.mechanic) {
     case "d20-plus-modifier":
       // Pathfinder rolls Perception, which rides on Wisdom.
-      return { value: system.id === "pathfinder2e" ? mod(["wis"]) : mod(["dex", "des"]) };
+      return { value: (system.baseSystemId ?? system.id) === "pathfinder2e" ? mod(["wis"]) : mod(["dex", "des"]) };
     case "d20-pool-keep-highest":
       return { value: 0, dice: value(["agi"]) };
     case "d100-roll-under":

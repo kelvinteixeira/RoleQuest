@@ -120,10 +120,34 @@ export interface RuleToggle {
   enabledByDefault: boolean;
 }
 
+/** One step of the progression table (custom systems). */
+export interface LevelDefinition {
+  level: number;
+  /** XP / points needed to reach this level (none for milestone play). */
+  threshold?: number;
+  /** What the character gains here. */
+  perks: string;
+}
+
 export interface ProgressionConfig {
   model: "levels" | "experience-points" | "milestones" | "character-points";
   label: string;
   max?: number;
+  /** Custom systems: the level table. */
+  levels?: LevelDefinition[];
+}
+
+/** A class / archetype / origin of a custom system. */
+export interface ClassDefinition {
+  key: string;
+  label: string;
+  description: string;
+  /** Skills characters of this class start trained in. */
+  skillKeys: string[];
+  /** Extra starting maximum per resource key (e.g. +4 Vida). */
+  resourceBonus: Record<string, number>;
+  /** Names of the class's starting abilities (become abilities on the sheet). */
+  abilities: string[];
 }
 
 export interface CampaignTemplate {
@@ -156,6 +180,8 @@ export interface MapTemplate {
 export interface SystemTemplate {
   id: SystemId;
   kind: "builtin" | "custom";
+  /** Copies of a built-in keep its rules (proficiency curve, critical rules) through this. */
+  baseSystemId?: BuiltInSystemId;
   name: string;
   shortName: string;
   tagline: string;
@@ -173,6 +199,10 @@ export interface SystemTemplate {
   combat: CombatConfig;
   inventory: InventoryConfig;
   progression: ProgressionConfig;
+  /** Classes (custom systems; built-ins leave class choice to the sheet's concept). */
+  classes?: ClassDefinition[];
+  /** Label for classes in this system ("Classe", "Arquétipo", "Origem"). */
+  classesLabel?: string;
   customFields: CustomFieldDefinition[];
   rules: RuleToggle[];
   campaignTemplates: CampaignTemplate[];

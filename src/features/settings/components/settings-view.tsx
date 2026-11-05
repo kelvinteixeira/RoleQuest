@@ -7,6 +7,7 @@ import { Card, CardHeader, PhaseBadge } from "@/components/ui/primitives";
 import { Modal } from "@/components/ui/modal";
 import { Switch } from "@/components/ui/switch";
 import { PageContainer, PageHeader } from "@/components/layout/page-header";
+import { cn } from "@/lib/cn";
 import { formatDate } from "@/lib/format";
 import { localDataService } from "@/services/local-data.service";
 import { usePreferencesStore } from "@/stores/preferences.store";
@@ -62,13 +63,24 @@ export function SettingsView() {
               <Switch
                 checked={prefs.diceSounds}
                 onChange={prefs.setDiceSounds}
-                label={
-                  <span className="flex items-center gap-2">
-                    Sons dos dados <PhaseBadge phase={3} />
-                  </span>
-                }
-                description="Preferência guardada agora; aplicada quando o rolador de dados chegar."
+                label="Efeitos sonoros na mesa"
+                description="Dados, golpes, portas, armadilhas e fogo. Também dá para silenciar pelo botão na sala."
               />
+              <label className={cn("flex items-center gap-3 text-sm text-fg-muted", !prefs.diceSounds && "opacity-50")}>
+                Volume
+                <input
+                  type="range"
+                  min={0}
+                  max={1}
+                  step={0.05}
+                  disabled={!prefs.diceSounds}
+                  value={prefs.effectsVolume}
+                  onChange={(e) => prefs.setEffectsVolume(Number(e.target.value))}
+                  className="flex-1 accent-[var(--color-accent-solid)]"
+                  aria-label="Volume dos efeitos sonoros"
+                />
+                <span className="w-10 text-right font-mono text-xs">{Math.round(prefs.effectsVolume * 100)}%</span>
+              </label>
             </div>
           </Section>
         </div>

@@ -19,10 +19,14 @@ export function attributeModifier(attr: AttributeDefinition, value: number): num
   return usesScoreModifier(attr) ? Math.floor((value - 10) / 2) : value;
 }
 
-/** Proficiency/training bonus by level, per system family. */
+/**
+ * Proficiency/training bonus by level, per system family (custom copies keep
+ * their base's curve). Other custom d20 systems use a gentle default curve, so
+ * "trained" means something there too.
+ */
 export function proficiencyBonus(system: SystemTemplate, level: number | null): number {
   const lvl = Math.max(1, level ?? 1);
-  switch (system.id) {
+  switch (system.baseSystemId ?? system.id) {
     case "dnd5e":
       return 2 + Math.floor((lvl - 1) / 4);
     case "pathfinder2e":
@@ -30,7 +34,7 @@ export function proficiencyBonus(system: SystemTemplate, level: number | null): 
     case "tormenta20":
       return 2 + Math.floor(lvl / 2);
     default:
-      return 0;
+      return system.kind === "custom" && system.dice.mechanic === "d20-plus-modifier" ? 2 + Math.floor((lvl - 1) / 4) : 0;
   }
 }
 
@@ -90,4 +94,42 @@ export function newItem(name = "Novo item"): SheetItem {
 
 export function newAbility(name = "Nova habilidade"): CharacterSheet["abilities"][number] {
   return { id: createId("ab"), name, kind: "", cost: "", description: "" };
+}
+
+/**
+ * Picks (or clears) a custom-system class: resource maximums move by the
+ * difference between the old and new class bonuses (current values follow),
+ * the class's skills become trained and its abilities are added once.
+ * Nothing the player wrote is removed.
+ */
+export function applyClass(system: SystemTemplate, sheet: CharacterSheet, classKey: string | null): CharacterSheet {
+  const classes = system.classes ?? [];
+  const after = classKey ? classes.find((c) => c.key === classKey) : undefined;
+  if (classKey && !after) return sheet;
+  // Undo what was really applied (the GM may have changed or deleted the class since).
+  const applied = sheet.classBonus ?? classes.find((c) => c.key === sheet.classKey)?.resourceBonus ?? {};
+  const granted = after?.resourceBonus ?? {};
+
+  const resources = { ...sheet.resources };
+  for (const key of new Set([...Object.keys(applied), ...Object.keys(granted)])) {
+    const delta = (granted[key] ?? 0) - (applied[key] ?? 0);
+    const value = resources[key];
+    if (!delta || !value) continue;
+    const max = Math.max(0, value.max + delta);
+    // A bonus raises current too; losing one only caps it (switching class doesn't deal damage).
+    resources[key] = { max, current: delta > 0 ? value.current + delta : Math.min(value.current, max) };
+  }
+  const skills = { ...sheet.skills };
+  for (const key of after?.skillKeys ?? []) skills[key] = { ...(skills[key] ?? { bonus: 0 }), trained: true };
+  const known = new Set(sheet.abilities.map((a) => a.name.trim().toLocaleLowerCase("pt-BR")));
+  const abilities = [
+    ...sheet.abilities,
+    ...(after?.abilities ?? []).filter((name) => !known.has(name.trim().toLocaleLowerCase("pt-BR"))).map((name) => ({ ...newAbility(name), kind: after!.label })),
+  ];
+  return { ...sheet, classKey: after?.key, classBonus: after ? { ...granted } : undefined, resources, skills, abilities };
+}
+
+/** Perks of a level in the system's table, if any. */
+export function levelPerks(system: SystemTemplate, level: number | null): string | null {
+  return system.progression.levels?.find((l) => l.level === level)?.perks || null;
 }

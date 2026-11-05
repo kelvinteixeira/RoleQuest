@@ -11,7 +11,7 @@ import type { CombatRules, CombatStats, NpcStatBlock, TokenAttack } from "./type
 export const DEFAULT_RULES: CombatRules = { systemId: "dnd5e", mechanic: "d20-plus-modifier", primaryDie: "d20", defenseLabel: "Classe de Armadura" };
 
 export function rulesFor(system: SystemTemplate): CombatRules {
-  return { systemId: system.id, mechanic: system.dice.mechanic, primaryDie: system.dice.primaryDie, defenseLabel: system.combat.defenseLabel };
+  return { systemId: system.id, family: system.baseSystemId ?? system.id, mechanic: system.dice.mechanic, primaryDie: system.dice.primaryDie, defenseLabel: system.combat.defenseLabel };
 }
 
 const signed = (n: number) => (n >= 0 ? `+${n}` : `${n}`);
@@ -215,7 +215,7 @@ export function resolveAttack(
       const nat = toHit.dice.find((d) => d.kept)?.value ?? 0;
       // Natural 20 always hits, natural 1 always misses; Pathfinder also crits by beating the defense by 10.
       const autoMiss = d20 && nat === 1;
-      const critical = d20 && !autoMiss && (nat === 20 || (rules.systemId === "pathfinder2e" && toHit.total >= defender.defense + 10));
+      const critical = d20 && !autoMiss && (nat === 20 || ((rules.family ?? rules.systemId) === "pathfinder2e" && toHit.total >= defender.defense + 10));
       const hit = critical || (!autoMiss && toHit.total >= defender.defense);
       attackRoll(toHit, critical ? "Crítico!" : hit ? "Acerto" : autoMiss ? "1 natural" : "Erro");
       return hit ? land(rollDamage(attack.damage, rng, critical ? "double" : "none"), critical) : miss();
@@ -364,7 +364,7 @@ export function formatInitiative(rules: CombatRules, stats: Pick<CombatStats, "i
 export function attackRuleHint(rules: CombatRules): string {
   switch (rules.mechanic) {
     case "d20-plus-modifier":
-      return `1d20 + ataque contra ${rules.defenseLabel}; 20 natural é crítico (dados de dano dobrados)${rules.systemId === "pathfinder2e" ? ", superar por 10 também" : ""}.`;
+      return `1d20 + ataque contra ${rules.defenseLabel}; 20 natural é crítico (dados de dano dobrados)${(rules.family ?? rules.systemId) === "pathfinder2e" ? ", superar por 10 também" : ""}.`;
     case "d20-pool-keep-highest":
       return `Atributo em d20, mantém o maior, + perícia contra ${rules.defenseLabel}; 20 é crítico.`;
     case "d100-roll-under":

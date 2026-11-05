@@ -305,6 +305,32 @@ await as(out, "fora@mesa.com", async () => {
   ok("only the campaign's GMs spend its AI allowance", !!spend, spend?.slice(0, 60));
 });
 
+// ---------- Audio library ----------
+await as(gm, "mestre@mesa.com", async () => {
+  await db.query(`insert into public.campaign_audio_tracks (campaign_id, title, path, mime_type) values ($1, 'Tema da taverna', $1 || '/a.mp3', 'audio/mpeg')`, [tid]);
+  const outside = await fails(() => db.query(`insert into public.campaign_audio_tracks (campaign_id, title, path, mime_type) values ($1, 'Fora da pasta', 'outra-campanha/a.mp3', 'audio/mpeg')`, [tid]));
+  ok("a track's file must be in its campaign's folder", !!outside, outside?.slice(0, 60));
+  // The players' map shows one picture; another one is still being prepared.
+  await db.query(`update public.room_view_maps set map = jsonb_set(map, '{background}', jsonb_build_object('imageId', $1 || '/shown.png')) where campaign_id = $1`, [tid]);
+  ok("GMs see every map picture", (await db.query(`select public.can_see_map_image($1 || '/secret.png') as ok`, [tid])).rows[0].ok === true);
+});
+await as(p2, "bia@mesa.com", async () => {
+  const see = async (name) => (await db.query(`select public.can_see_map_image($1 || '/' || $2) as ok`, [tid, name])).rows[0].ok;
+  ok("players see the picture of the map on the table", (await see("shown.png")) === true);
+  ok("players can't fetch a map picture the GM hasn't shown", (await see("secret.png")) === false);
+});
+await as(out, "fora@mesa.com", async () => {
+  ok("outsiders see no map pictures", (await db.query(`select public.can_see_map_image($1 || '/shown.png') as ok`, [tid])).rows[0].ok === false);
+});
+await as(p2, "bia@mesa.com", async () => {
+  ok("players see the campaign's tracks (to play along)", (await db.query(`select title from public.campaign_audio_tracks where campaign_id = $1`, [tid])).rows.length === 1);
+  const add = await fails(() => db.query(`insert into public.campaign_audio_tracks (campaign_id, title, path, mime_type) values ($1, 'minha', $1 || '/b.mp3', 'audio/mpeg')`, [tid]));
+  ok("players can't add tracks", !!add, add?.slice(0, 60));
+});
+await as(out, "fora@mesa.com", async () => {
+  ok("outsiders see no tracks", (await db.query(`select id from public.campaign_audio_tracks`)).rows.length === 0);
+});
+
 // Signed out: nothing.
 await db.exec(`reset role`);
 await db.query(`select set_config('request.jwt.claim.sub', '', false)`);

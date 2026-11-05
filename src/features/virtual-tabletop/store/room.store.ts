@@ -168,8 +168,8 @@ export const useRoomStore = create<RoomStore>()(
     }),
     {
       name: "rq:rooms:v2",
-      // v1: per-system combat (rules on the room, attacks on tokens). v2: fog of war.
-      version: 2,
+      // v1: per-system combat (rules on the room, attacks on tokens). v2: fog of war. v3: table audio.
+      version: 3,
       migrate: (persisted) => {
         const state = (persisted ?? {}) as Partial<RoomStore> & { rooms?: Parameters<typeof upgradeRooms>[0] };
         return { ...state, rooms: upgradeRooms(state.rooms) } as RoomStore;

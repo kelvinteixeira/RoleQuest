@@ -70,6 +70,32 @@ export interface FogState {
   explored: number[];
 }
 
+/** Music playing at the table: a synthesised theme or an uploaded track, from a point in time. */
+export interface MusicCue {
+  /** Changes on every play (so "play again" restarts it everywhere). */
+  id: string;
+  source: "theme" | "track";
+  /** Theme id, or the uploaded track's id. */
+  ref: string;
+  title: string;
+  /** When it started, by the host's clock: everyone joins at the same point. */
+  startedAt: string;
+  /** 0..1, the GM's mix (each listener also has their own music volume). */
+  volume: number;
+  loop: boolean;
+}
+
+export interface AmbienceLayer {
+  id: string;
+  volume: number;
+}
+
+/** The table's sound: what the GM put on for everyone. */
+export interface TableAudio {
+  music: MusicCue | null;
+  ambience: AmbienceLayer[];
+}
+
 export interface CombatState {
   active: boolean;
   round: number;
@@ -104,6 +130,12 @@ export type RoomEvent =
   | { type: "combat.joined"; entries: { tokenId: string; initiative: number }[] }
   | { type: "combat.ended" }
   | { type: "map.replaced"; map: MapDocument }
+  /** The map's picture moved (e.g. uploaded from the GM's browser to the backend): only its id changes. */
+  | { type: "map.image"; imageId: string }
+  | { type: "audio.music"; music: MusicCue | null }
+  | { type: "audio.ambience"; ambience: AmbienceLayer[] }
+  /** One layer on, off (null) or to a new level: two GMs mixing don't undo each other. */
+  | { type: "audio.layer"; id: string; volume: number | null }
   /** Doors open/close/lock, traps get revealed, disarmed or re-armed. */
   | { type: "prop.updated"; propId: string; door?: Partial<DoorState>; trap?: Partial<TrapState>; lit?: boolean }
   /** Light carried by a token (0 puts it out). */
@@ -129,6 +161,7 @@ export interface RoomState {
   messages: ChatMessage[];
   combat: CombatState;
   fog: FogState;
+  audio: TableAudio;
   log: LoggedEvent[];
   createdAt: string;
 }

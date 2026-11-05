@@ -49,7 +49,7 @@ function room(partial: Partial<RoomState> = {}): RoomState {
     tokens: [hero, friend, nearFoe, farFoe],
     messages: [],
     combat: { active: false, round: 0, turn: 0, order: [] },
-    fog: { ...createFog(), enabled: true, vision: 4 },
+    fog: { ...createFog(), enabled: true, vision: 4 }, audio: { music: null, ambience: [] },
     log: [],
     createdAt: "2026-11-06",
     ...partial,

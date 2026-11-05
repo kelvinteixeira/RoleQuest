@@ -18,6 +18,7 @@ import type { SavedMap } from "@/types/map";
 import type { Encounter, EncounterInput, JournalEntry, JournalInput, Npc, NpcInput } from "@/types/gm";
 import type { SystemTemplate } from "@/types/system";
 import type { ChronicleEpisode, ChronicleEpisodeInput } from "@/types/chronicle";
+import type { AudioTrack } from "@/features/audio-engine/catalog";
 
 export interface AuthRepository {
   signIn(email: string, password: string): Promise<AuthSession>;
@@ -96,7 +97,8 @@ export interface MapRepository {
 
 /** Pictures used as map backgrounds. */
 export interface MapImageRepository {
-  put(blob: Blob): Promise<ID>;
+  /** Stores a map picture; with a campaign it is shared with the campaign's members (Supabase). */
+  put(blob: Blob, campaignId?: ID): Promise<ID>;
   get(id: ID): Promise<Blob | null>;
   remove?(id: ID): Promise<void>;
 }
@@ -124,6 +126,15 @@ export interface JournalRepository {
   add(entries: JournalInput[]): Promise<JournalEntry[]>;
   update(id: ID, patch: Partial<Pick<JournalEntry, "text" | "private" | "kind" | "dismissed">>): Promise<JournalEntry>;
   remove(id: ID): Promise<void>;
+}
+
+/** The audio centre's uploaded tracks (members play them; GMs manage them). */
+export interface AudioTrackRepository {
+  list(campaignId: ID): Promise<AudioTrack[]>;
+  upload(campaignId: ID, file: Blob, title: string, userId: ID): Promise<AudioTrack>;
+  remove(track: AudioTrack): Promise<void>;
+  /** The file itself, by its reference (null when it is gone). */
+  file(ref: string): Promise<Blob | null>;
 }
 
 /** Chronicles Studio: episodes and their generated images. GMs only. */
@@ -212,4 +223,5 @@ export interface Repositories {
   /** null in local mode (no real-time backend). */
   roomSync: RoomSyncRepository | null;
   chronicles: ChronicleRepository;
+  audioTracks: AudioTrackRepository;
 }

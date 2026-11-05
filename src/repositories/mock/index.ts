@@ -9,6 +9,7 @@ import type {
   CharacterRepository,
   InviteLinkRepository,
   ChronicleRepository,
+  AudioTrackRepository,
   LibraryRepository,
   EncounterRepository,
   JournalRepository,
@@ -440,5 +441,27 @@ const chronicles: ChronicleRepository = {
   },
 };
 
-export const mockRepositories: Repositories = { auth, users, campaigns, sessions, inviteLinks, characters, library, systems, maps, images: mockImages, npcs, encounters, journal, roomSync: null, chronicles };
+// Uploaded tracks: rows in the local database, files in this browser (IndexedDB).
+const audioTracks: AudioTrackRepository = {
+  async list(campaignId) {
+    return respond(getDb().audioTracks.filter((t) => t.campaignId === campaignId));
+  },
+  async upload(campaignId, file, title) {
+    const ref = await mockImages.put(file);
+    const track = { id: createId("trk"), campaignId, title, ref, mimeType: file.type || "audio/mpeg", createdAt: nowIso() };
+    getDb().audioTracks.push(track);
+    commit();
+    return respond(track);
+  },
+  async remove(track) {
+    const db = getDb();
+    db.audioTracks = db.audioTracks.filter((t) => t.id !== track.id);
+    commit();
+    await mockImages.remove?.(track.ref);
+    return respond(undefined);
+  },
+  file: (ref) => mockImages.get(ref),
+};
+
+export const mockRepositories: Repositories = { auth, users, campaigns, sessions, inviteLinks, characters, library, systems, maps, images: mockImages, npcs, encounters, journal, roomSync: null, chronicles, audioTracks };
 export { resetMockDatabase } from "./database";

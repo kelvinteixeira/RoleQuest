@@ -31,7 +31,7 @@ describe("reinforcements", () => {
       tokens: [token("hero", "pc"), token("foe", "enemy")],
       messages: [],
       combat: { active: true, round: 2, turn: 1, order: [{ tokenId: "hero", initiative: 15 }, { tokenId: "foe", initiative: 8 }] },
-      fog: createFog(),
+      fog: createFog(), audio: { music: null, ambience: [] },
       log: [],
       createdAt: "",
     };

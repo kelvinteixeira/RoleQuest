@@ -8,6 +8,11 @@ type PreferencesState = {
   reduceMotion: boolean;
   /** Table sound effects volume, 0..1. */
   effectsVolume: number;
+  /** This listener's level for the table's music and ambience. */
+  musicVolume: number;
+  ambienceVolume: number;
+  setMusicVolume: (value: number) => void;
+  setAmbienceVolume: (value: number) => void;
   setEffectsVolume: (value: number) => void;
   setSidebarCollapsed: (value: boolean) => void;
   toggleSidebar: () => void;
@@ -23,6 +28,10 @@ export const usePreferencesStore = create<PreferencesState>()(
       diceSounds: true,
       reduceMotion: false,
       effectsVolume: 0.6,
+      musicVolume: 0.7,
+      ambienceVolume: 0.7,
+      setMusicVolume: (value) => set({ musicVolume: Math.max(0, Math.min(1, value)) }),
+      setAmbienceVolume: (value) => set({ ambienceVolume: Math.max(0, Math.min(1, value)) }),
       setEffectsVolume: (value) => set({ effectsVolume: Math.max(0, Math.min(1, value)) }),
       setSidebarCollapsed: (value) => set({ sidebarCollapsed: value }),
       toggleSidebar: () => set({ sidebarCollapsed: !get().sidebarCollapsed }),
@@ -32,7 +41,7 @@ export const usePreferencesStore = create<PreferencesState>()(
     {
       name: "rq:preferences:v1",
       storage: createJSONStorage(() => localStorage),
-      partialize: ({ sidebarCollapsed, diceSounds, reduceMotion, effectsVolume }) => ({ sidebarCollapsed, diceSounds, reduceMotion, effectsVolume }),
+      partialize: ({ sidebarCollapsed, diceSounds, reduceMotion, effectsVolume, musicVolume, ambienceVolume }) => ({ sidebarCollapsed, diceSounds, reduceMotion, effectsVolume, musicVolume, ambienceVolume }),
       skipHydration: true,
     },
   ),

@@ -3,7 +3,7 @@
 /**
  * Table sound effects, synthesised with the Web Audio API (no audio files to
  * ship or license). Everything goes through one effects bus with its own
- * volume; the ambient-music bus comes with the audio centre (Phase 4).
+ * volume. Music and ambience (audio centre) share the context, on their own buses.
  */
 export type SfxName = "dice" | "hit" | "heal" | "door-open" | "door-close" | "gate" | "trap" | "combat" | "fire" | "step";
 
@@ -23,12 +23,26 @@ function audio(): { ctx: AudioContext; bus: GainNode } | null {
   return { ctx, bus: bus! };
 }
 
+/** The page's audio context (shared by effects, music and ambience); null where Web Audio is missing. */
+export function sharedAudioContext(): AudioContext | null {
+  return audio()?.ctx ?? null;
+}
+
+/** Browsers keep audio off until the page gets a click or key press. */
+export function audioLocked(): boolean {
+  return !!ctx && ctx.state !== "running";
+}
+
+export async function unlockAudio(): Promise<void> {
+  await audio()?.ctx.resume();
+}
+
 export function setEffectsVolume(volume: number) {
   const a = audio();
   if (a) a.bus.gain.value = Math.max(0, Math.min(1, volume));
 }
 
-function noise(c: AudioContext): AudioBuffer {
+export function noise(c: AudioContext): AudioBuffer {
   if (!noiseBuffer) {
     noiseBuffer = c.createBuffer(1, c.sampleRate, c.sampleRate);
     const data = noiseBuffer.getChannelData(0);

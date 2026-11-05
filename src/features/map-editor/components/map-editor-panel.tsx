@@ -273,7 +273,7 @@ export function MapEditorPanel({ campaignId, onApply, onCancel }: { campaignId: 
         </ul>
       </Section>
 
-      <BackgroundSection onResize={(doc) => setSize({ cols: doc.cols, rows: doc.rows })} />
+      <BackgroundSection campaignId={campaignId} onResize={(doc) => setSize({ cols: doc.cols, rows: doc.rows })} />
 
       <Library campaignId={campaignId} onLoad={(doc) => setSize({ cols: doc.cols, rows: doc.rows })} />
 

@@ -22,10 +22,11 @@ import type { Session } from "@supabase/supabase-js";
 import { AppError } from "@/lib/errors";
 import { supabase } from "@/lib/supabase/client";
 import type { AuthSession } from "@/types/user";
-import { mockImages } from "../mock/images";
 import { toAppError, unwrap, unwrapMaybe } from "./errors";
 import { supabaseRoomSync } from "./room-sync";
 import { supabaseChronicles } from "./chronicles";
+import { supabaseMapImages } from "./map-images";
+import { supabaseAudioTracks } from "./audio-tracks";
 import {
   campaignPatch,
   characterPatch,
@@ -330,4 +331,4 @@ const journal: JournalRepository = {
 };
 
 /** Map pictures stay in this browser (IndexedDB) until the Storage step. */
-export const supabaseRepositories: Repositories = { auth, users, campaigns, sessions, inviteLinks, characters, library, systems, maps, images: mockImages, npcs, encounters, journal, roomSync: supabaseRoomSync, chronicles: supabaseChronicles };
+export const supabaseRepositories: Repositories = { auth, users, campaigns, sessions, inviteLinks, characters, library, systems, maps, images: supabaseMapImages, npcs, encounters, journal, roomSync: supabaseRoomSync, chronicles: supabaseChronicles, audioTracks: supabaseAudioTracks };

@@ -397,5 +397,5 @@ const journal: JournalRepository = {
   },
 };
 
-export const mockRepositories: Repositories = { auth, users, campaigns, sessions, inviteLinks, characters, library, systems, maps, images: mockImages, npcs, encounters, journal };
+export const mockRepositories: Repositories = { auth, users, campaigns, sessions, inviteLinks, characters, library, systems, maps, images: mockImages, npcs, encounters, journal, roomSync: null };
 export { resetMockDatabase } from "./database";

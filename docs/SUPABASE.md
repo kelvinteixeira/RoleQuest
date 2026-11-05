@@ -73,8 +73,9 @@ As permissões de `src/lib/permissions.ts` estão replicadas no banco, então va
 - Entradas privadas do diário só para os mestres.
 - Sistemas personalizados: o dono, e quem joga numa campanha do mesmo dono que usa o sistema.
 - O e-mail do perfil vem da conta e não muda pelo perfil.
+- Mesa ao vivo: só os mestres leem o estado completo; cada jogador lê apenas a própria visão (já filtrada pelo mestre); pedidos são enviados só em nome de quem está logado; só mestres conduzem a mesa.
 
-Para conferir essas regras localmente (Postgres em memória, sem Docker, 53 cenários incluindo tentativas de burlar cada regra):
+Para conferir essas regras localmente (Postgres em memória, sem Docker, 88 cenários incluindo tentativas de burlar cada regra):
 
 ```bash
 npm run db:check
@@ -84,8 +85,19 @@ npm run db:check
 
 Esta é a primeira etapa. Limitação conhecida: as mudanças de membros (papel, remoção, vínculo do personagem) comparam com a lista carregada na tela; se alguém entrar pelo link no mesmo instante em que o mestre remove outra pessoa, recarregue e confira.
 
+## Mesa ao vivo
+
+Com o Supabase ligado, a mesa é compartilhada em tempo real:
+
+1. O mestre abre a sessão: o navegador dele **conduz a mesa** (selo "Ao vivo · você conduz").
+2. Os jogadores abrem a mesma sessão: veem o mapa, os personagens e o chat como o mestre deixa ver, e agem com o próprio personagem.
+3. Se o mestre fechar a aba, os jogadores continuam vendo a mesa parada até ele voltar; o estado fica salvo no banco.
+
+Para isso funcionar, as tabelas da mesa precisam estar no **Realtime**: a migração `20261106000000_realtime_table.sql` já as adiciona à publicação `supabase_realtime`. Se o seu projeto não tiver essa publicação, ative o Realtime em **Database → Publications** para `room_views`, `room_view_maps`, `room_intents` e `room_presence`.
+
+## O que ainda fica no navegador
+
 Por enquanto continuam locais (por navegador):
 
-- o estado da mesa ao vivo (tokens, névoa, chat, rolagens) — vem com a sincronização em tempo real;
-- as imagens importadas como mapa (IndexedDB) — vão para o Supabase Storage;
+- as imagens importadas como mapa (IndexedDB) — vão para o Supabase Storage na próxima etapa (até lá, quem não tem a imagem vê o mapa sem o desenho);
 - a voz e a central de áudio (LiveKit).

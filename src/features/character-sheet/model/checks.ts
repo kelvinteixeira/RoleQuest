@@ -24,8 +24,11 @@ export interface CheckResult {
 
 const signed = (n: number) => (n >= 0 ? `+${n}` : `${n}`);
 
+/** Pools never exceed this many dice (a sheet with absurd values can't stall whoever rolls). */
+const MAX_POOL = 60;
+
 function dice(count: number, sides: number, rng: Rng) {
-  return Array.from({ length: count }, () => rng(sides));
+  return Array.from({ length: Math.max(0, Math.min(MAX_POOL, Math.floor(count) || 0)) }, () => rng(sides));
 }
 
 function checkInputs(system: SystemTemplate, sheet: CharacterSheet, req: Pick<CheckRequest, "attributeKey" | "skillKey">) {

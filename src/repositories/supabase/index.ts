@@ -25,6 +25,7 @@ import type { AuthSession } from "@/types/user";
 import { mockImages } from "../mock/images";
 import { toAppError, unwrap, unwrapMaybe } from "./errors";
 import { supabaseRoomSync } from "./room-sync";
+import { supabaseChronicles } from "./chronicles";
 import {
   campaignPatch,
   characterPatch,
@@ -90,6 +91,10 @@ const auth: AuthRepository = {
     const { data } = await supabase().auth.getSession();
     if (!data.session) throw new AppError("unauthenticated");
     return toAuthSession(data.session);
+  },
+  async accessToken() {
+    const { data } = await supabase().auth.getSession();
+    return data.session?.access_token ?? null;
   },
   async resume(stored) {
     const { data } = await supabase().auth.getSession();
@@ -325,4 +330,4 @@ const journal: JournalRepository = {
 };
 
 /** Map pictures stay in this browser (IndexedDB) until the Storage step. */
-export const supabaseRepositories: Repositories = { auth, users, campaigns, sessions, inviteLinks, characters, library, systems, maps, images: mockImages, npcs, encounters, journal, roomSync: supabaseRoomSync };
+export const supabaseRepositories: Repositories = { auth, users, campaigns, sessions, inviteLinks, characters, library, systems, maps, images: mockImages, npcs, encounters, journal, roomSync: supabaseRoomSync, chronicles: supabaseChronicles };

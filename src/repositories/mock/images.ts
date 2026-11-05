@@ -54,6 +54,11 @@ export const mockImages: MapImageRepository = {
     else memory.set(id, blob);
     return id;
   },
+  async remove(id) {
+    const db = await open();
+    if (db) await run(db, "readwrite", (s) => s.delete(id));
+    else memory.delete(id);
+  },
   async get(id) {
     const db = await open();
     if (!db) return memory.get(id) ?? null;

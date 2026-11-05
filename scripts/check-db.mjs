@@ -278,6 +278,33 @@ await as(out, "fora@mesa.com", async () => {
   ok("outsiders can't send intents", !!send, send?.slice(0, 60));
 });
 
+// ---------- Chronicles Studio ----------
+const episode = await as(gm, "mestre@mesa.com", async () => {
+  const id = (await db.query(`insert into public.chronicle_episodes (campaign_id, title, script, created_by) values ($1, 'A Ponte', '{"scenes": []}', $2) returning id`, [tid, gm])).rows[0].id;
+  ok("the GM saves an episode", !!id);
+  return id;
+});
+await as(p2, "bia@mesa.com", async () => {
+  ok("players don't see episodes (secrets of the GM's cut)", (await db.query(`select id from public.chronicle_episodes`)).rows.length === 0);
+  const write = await fails(() => db.query(`insert into public.chronicle_episodes (campaign_id, title) values ($1, 'falso')`, [tid]));
+  ok("players can't create episodes", !!write, write?.slice(0, 60));
+});
+await as(out, "fora@mesa.com", async () => {
+  await db.query(`delete from public.chronicle_episodes where id = $1`, [episode]);
+});
+await as(gm, "mestre@mesa.com", async () => {
+  ok("outsiders can't delete episodes", (await db.query(`select id from public.chronicle_episodes where id = $1`, [episode])).rows.length === 1);
+  const forged = await fails(() => db.query(`insert into public.chronicle_episodes (campaign_id, title, created_by) values ($1, 'falso', $2)`, [tid, p2]));
+  ok("an episode's author is whoever creates it", !!forged, forged?.slice(0, 60));
+  let allowed = 0;
+  for (let i = 0; i < 22; i++) if ((await db.query(`select public.spend_chronicle_quota($1, 'script') as ok`, [tid])).rows[0].ok) allowed++;
+  ok("the AI allowance stops at 20 scripts a day", allowed === 20, String(allowed));
+});
+await as(out, "fora@mesa.com", async () => {
+  const spend = await fails(() => db.query(`select public.spend_chronicle_quota($1, 'image')`, [tid]));
+  ok("only the campaign's GMs spend its AI allowance", !!spend, spend?.slice(0, 60));
+});
+
 // Signed out: nothing.
 await db.exec(`reset role`);
 await db.query(`select set_config('request.jwt.claim.sub', '', false)`);

@@ -4,6 +4,7 @@
  * when the database is first seeded (or reset from Settings).
  */
 import type { Campaign, CampaignMember, GameSession, InviteLink } from "@/types/campaign";
+import type { ChronicleEpisode } from "@/types/chronicle";
 import type { Character } from "@/types/character";
 import type { LibraryAsset } from "@/types/library";
 import type { UserProfile } from "@/types/user";
@@ -24,6 +25,7 @@ export interface MockSeed {
   campaigns: Campaign[];
   sessions: GameSession[];
   inviteLinks: InviteLink[];
+  episodes: ChronicleEpisode[];
   characters: Character[];
   library: LibraryAsset[];
   customSystems: { ownerId: string; system: SystemTemplate }[];
@@ -554,5 +556,5 @@ export function createSeed(now: Date = new Date()): MockSeed {
   ];
 
   const inviteLinks: InviteLink[] = campaigns.map((c) => ({ campaignId: c.id, code: crypto.randomUUID().replace(/-/g, ""), createdAt: c.createdAt }));
-  return { users, campaigns, sessions, inviteLinks, characters: characters.map(withDemoSheet), library, customSystems: [], maps: [], ...seedGmTools(now) };
+  return { users, campaigns, sessions, inviteLinks, episodes: [], characters: characters.map(withDemoSheet), library, customSystems: [], maps: [], ...seedGmTools(now) };
 }

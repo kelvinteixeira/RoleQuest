@@ -26,6 +26,13 @@ export function currentNext(): string | null {
   return safeNextPath(raw, "") || null;
 }
 
+/** Where a signed-in, onboarded user goes: past a stale onboarding step to what came after it. */
+export function afterOnboarding(next: string | null): string {
+  const target = safeNextPath(next);
+  if (!target.startsWith("/onboarding")) return target;
+  return safeNextPath(new URL(target, "https://role.quest.invalid").searchParams.get("next"));
+}
+
 /** `path`, carrying `next` along when there is one. */
 export function withNext(path: string, next: string | null): string {
   return next ? `${path}?next=${encodeURIComponent(next)}` : path;

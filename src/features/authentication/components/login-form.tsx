@@ -11,7 +11,7 @@ import { fieldErrorsOf, toUserMessage } from "@/lib/errors";
 import { hasErrors } from "@/lib/validation";
 import { validateSignIn } from "@/services/auth.service";
 import { useAuth } from "../hooks/use-auth";
-import { currentNext, safeNextPath, withNext } from "../model/next-path";
+import { afterOnboarding, currentNext, withNext } from "../model/next-path";
 import { FormAlert } from "./form-alert";
 
 
@@ -32,7 +32,7 @@ export function LoginForm() {
     setPending(source);
     try {
       const profile = await signIn(credentials.email, credentials.password);
-      router.replace(profile.onboardingCompleted ? safeNextPath(currentNext()) : withNext("/onboarding", currentNext()));
+      router.replace(profile.onboardingCompleted ? afterOnboarding(currentNext()) : withNext("/onboarding", currentNext()));
     } catch (error) {
       setErrors(fieldErrorsOf(error));
       setFormError(toUserMessage(error));

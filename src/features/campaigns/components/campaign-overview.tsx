@@ -17,7 +17,7 @@ import {
   Users,
   UserPlus,
 } from "lucide-react";
-import { Button, ButtonLink } from "@/components/ui/button";
+import { ButtonLink } from "@/components/ui/button";
 import { Avatar, Badge, Card, CardHeader, ResourceBar, Skeleton } from "@/components/ui/primitives";
 import { ErrorState } from "@/components/feedback/states";
 import { PageContainer } from "@/components/layout/page-header";
@@ -101,9 +101,11 @@ function OverviewContent({ data }: { data: Overview }) {
               Ferramentas do mestre
             </ButtonLink>
           )}
-          <Button variant="secondary" disabled leadingIcon={<Clapperboard className="size-4" />} title="Chronicles Studio — Fase 6">
-            Chronicles
-          </Button>
+          {isGM && (
+            <ButtonLink href={`/campaign/${campaign.id}/chronicles`} variant="secondary" leadingIcon={<Clapperboard className="size-4" />}>
+              Chronicles
+            </ButtonLink>
+          )}
           {isGM && can(role, "campaign:manage") && (
             <ButtonLink href={`/campaign/${campaign.id}/settings`} variant="ghost" leadingIcon={<Settings2 className="size-4" />}>
               Configurar

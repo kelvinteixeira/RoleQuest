@@ -6,11 +6,10 @@ import type { ID } from "@/types/common";
 import type { AuthSession, ProfileUpdate, SignUpInput, UserProfile } from "@/types/user";
 import type {
   Campaign,
-  CampaignInvite,
   GameSession,
-  InviteStatus,
   NewCampaignInput,
-  NewInviteInput,
+  InviteLink,
+  InvitePreview,
   NewSessionInput,
 } from "@/types/campaign";
 import type { Character, NewCharacterInput } from "@/types/character";
@@ -50,14 +49,17 @@ export interface SessionRepository {
   create(input: NewSessionInput): Promise<GameSession>;
 }
 
-export interface InviteRepository {
-  listForEmail(email: string): Promise<CampaignInvite[]>;
-  listForCampaign(campaignId: ID): Promise<CampaignInvite[]>;
-  getById(id: ID): Promise<CampaignInvite | null>;
-  create(input: NewInviteInput): Promise<CampaignInvite>;
-  updateStatus(id: ID, status: InviteStatus): Promise<CampaignInvite>;
-  /** Joins the invited user as a player and marks the invite accepted, atomically (checks the free seats). */
-  accept(id: ID, userId: ID): Promise<CampaignInvite>;
+export interface InviteLinkRepository {
+  /** The campaign's link (GMs only), or null when it is turned off. */
+  getForCampaign(campaignId: ID): Promise<InviteLink | null>;
+  /** Creates the link, or replaces its code: old links stop working. */
+  renew(campaignId: ID): Promise<InviteLink>;
+  /** Turns the link off. */
+  revoke(campaignId: ID): Promise<void>;
+  /** What the link opens (any signed-in user); null when the code is not valid. */
+  preview(code: string, userId: ID): Promise<InvitePreview | null>;
+  /** Joins as a player, atomically checking the free seats; returns the campaign id (also when already a member). */
+  join(code: string, userId: ID): Promise<ID>;
 }
 
 export interface CharacterRepository {
@@ -125,7 +127,7 @@ export interface Repositories {
   users: UserRepository;
   campaigns: CampaignRepository;
   sessions: SessionRepository;
-  invites: InviteRepository;
+  inviteLinks: InviteLinkRepository;
   characters: CharacterRepository;
   library: LibraryRepository;
   systems: SystemRepository;

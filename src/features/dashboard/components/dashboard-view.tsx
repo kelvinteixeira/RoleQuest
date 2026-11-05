@@ -11,7 +11,7 @@ import { PageContainer, PageHeader } from "@/components/layout/page-header";
 import { CampaignCard, CampaignCardSkeleton } from "@/features/campaigns/components/campaign-card";
 import { CharacterCard } from "@/features/characters/components/character-card";
 import { useDashboard } from "../hooks/use-dashboard";
-import { InvitesPanel, LibraryShortcuts, NextSessionHero, SessionListCard, StatTile, SystemsStrip } from "./widgets";
+import { JoinByLinkPanel, LibraryShortcuts, NextSessionHero, SessionListCard, StatTile, SystemsStrip } from "./widgets";
 
 function greeting(date: Date): string {
   const h = date.getHours();
@@ -27,7 +27,7 @@ const fadeUp = {
 };
 
 export function DashboardView() {
-  const { status, data, error, reload, user, respondToInvite, respondingTo } = useDashboard();
+  const { status, data, error, reload, user } = useDashboard();
   const [tab, setTab] = useState<"recent" | "active">("recent");
   const now = new Date();
   const firstName = user.displayName.split(" ")[0];
@@ -37,7 +37,7 @@ export function DashboardView() {
       <PageHeader
         eyebrow={now.toLocaleDateString("pt-BR", { weekday: "long", day: "numeric", month: "long" })}
         title={`${greeting(now)}, ${firstName}`}
-        description="Suas mesas, convites e próximas sessões em um só lugar."
+        description="Suas mesas e próximas sessões em um só lugar."
         actions={
           <ButtonLink href="/campaigns/new" size="lg" leadingIcon={<Plus className="size-4" />}>
             Criar nova campanha
@@ -99,7 +99,7 @@ export function DashboardView() {
             </div>
 
             <aside className="flex flex-col gap-4">
-              <InvitesPanel invites={data.invites} respondingTo={respondingTo} onRespond={respondToInvite} />
+              <JoinByLinkPanel />
               <SessionListCard title="Próximas sessões" icon={<CalendarDays />} items={data.upcoming.slice(1)} empty="Nenhuma outra sessão marcada." />
               <SessionListCard title="Histórico de sessões" icon={<History />} items={data.history} empty="Nenhuma sessão jogada ainda." showSummary />
             </aside>

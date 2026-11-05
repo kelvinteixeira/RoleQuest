@@ -4,6 +4,7 @@ import { useEffect, useRef, type ReactNode } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { LogoMark } from "@/components/brand/logo";
 import { useAuth } from "../hooks/use-auth";
+import { currentNext, safeNextPath, withNext } from "../model/next-path";
 
 function SplashScreen() {
   return (
@@ -25,7 +26,7 @@ export function AuthGuard({ children, requireOnboarding = true }: { children: Re
 
   useEffect(() => {
     if (status === "anonymous") {
-      router.replace(`/login?next=${encodeURIComponent(pathname)}`);
+      router.replace(withNext("/login", pathname + window.location.search));
     }
     if (status === "authenticated" && !refreshed.current) {
       refreshed.current = true;
@@ -36,8 +37,8 @@ export function AuthGuard({ children, requireOnboarding = true }: { children: Re
   const needsOnboarding = status === "authenticated" && requireOnboarding && user && !user.onboardingCompleted;
 
   useEffect(() => {
-    if (needsOnboarding) router.replace("/onboarding");
-  }, [needsOnboarding, router]);
+    if (needsOnboarding) router.replace(withNext("/onboarding", pathname));
+  }, [needsOnboarding, router, pathname]);
 
   if (status !== "authenticated" || needsOnboarding) return <SplashScreen />;
   return <>{children}</>;
@@ -49,7 +50,7 @@ export function GuestGuard({ children }: { children: ReactNode }) {
   const router = useRouter();
 
   useEffect(() => {
-    if (status === "authenticated") router.replace("/dashboard");
+    if (status === "authenticated") router.replace(safeNextPath(currentNext()));
   }, [status, router]);
 
   if (status !== "anonymous") return <SplashScreen />;

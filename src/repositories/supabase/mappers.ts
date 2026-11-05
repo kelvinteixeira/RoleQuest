@@ -2,7 +2,7 @@
  * Database rows (snake_case, jsonb) ↔ domain objects (camelCase, see src/types).
  * Pure functions: the repositories stay thin and these are unit-tested.
  */
-import type { Campaign, CampaignInvite, CampaignMember, GameSession, NewCampaignInput } from "@/types/campaign";
+import type { Campaign, CampaignMember, GameSession, InviteLink, InvitePreview, NewCampaignInput } from "@/types/campaign";
 import type { Character, NewCharacterInput } from "@/types/character";
 import type { Encounter, EncounterInput, JournalEntry, JournalInput, Npc, NpcInput } from "@/types/gm";
 import type { LibraryAsset } from "@/types/library";
@@ -118,14 +118,14 @@ export function diffMembers(current: CampaignMember[], wanted: CampaignMember[])
       const old = before.get(m.userId);
       return old && (old.role !== m.role || (old.characterId ?? null) !== (m.characterId ?? null));
     }),
-    // Never written: people join through accept_invite. Reported so callers can tell.
+    // Never written: people join through an invite link. Reported so callers can tell.
     added: wanted.filter((m) => !before.has(m.userId)),
   };
 }
 
 export const memberRow = (campaignId: string, m: CampaignMember): Row => ({ campaign_id: campaignId, user_id: m.userId, role: m.role, character_id: m.characterId ?? null });
 
-/* ---------- Sessions, invites ---------- */
+/* ---------- Sessions, invite links ---------- */
 
 export function toSession(r: Row): GameSession {
   return {
@@ -158,33 +158,18 @@ export function sessionRow(s: Omit<GameSession, "id" | "createdAt" | "updatedAt"
   };
 }
 
-export function toInvite(r: Row): CampaignInvite {
-  return {
-    id: r.id,
-    campaignId: r.campaign_id,
-    campaignName: r.campaign_name,
-    systemId: r.system_id,
-    invitedById: r.invited_by_id,
-    invitedByName: r.invited_by_name,
-    email: r.email,
-    message: r.message,
-    status: r.status,
-    createdAt: r.created_at,
-    updatedAt: r.updated_at,
-  };
-}
+export const toInviteLink = (r: Row): InviteLink => ({ campaignId: r.campaign_id, code: r.code, createdAt: r.created_at });
 
-export function inviteRow(i: Omit<CampaignInvite, "id" | "createdAt" | "updatedAt" | "status">): Row {
-  return {
-    campaign_id: i.campaignId,
-    campaign_name: i.campaignName,
-    system_id: i.systemId,
-    invited_by_id: i.invitedById,
-    invited_by_name: i.invitedByName,
-    email: i.email.trim().toLowerCase(),
-    message: i.message,
-  };
-}
+export const toInvitePreview = (r: Row): InvitePreview => ({
+  campaignId: r.campaign_id,
+  campaignName: r.campaign_name,
+  tagline: r.tagline,
+  systemId: r.system_id,
+  systemName: r.system_name ?? null,
+  gameMasterName: r.game_master_name,
+  freeSeats: r.free_seats,
+  alreadyMember: r.already_member,
+});
 
 /* ---------- Characters, systems, library ---------- */
 

@@ -42,30 +42,45 @@ describe("campaign administration", () => {
     expect(back.members.find((m) => m.userId === "user_camila")!.role).toBe("player");
   });
 
-  it("removing a player takes their character out of the campaign; the owner can't be removed", async () => {
+  it("removing a player takes their character out of the campaign and renews the link; the owner can't be removed", async () => {
     await expect(campaignAdminService.removeMember(CAMPAIGN, GM, DEMO_USER_ID)).rejects.toMatchObject({ code: "validation" });
+    const before = (await campaignAdminService.inviteLink(CAMPAIGN, GM))!;
     const after = await campaignAdminService.removeMember(CAMPAIGN, GM, "user_camila");
+    const renewed = (await campaignAdminService.inviteLink(CAMPAIGN, GM))!;
+    expect(renewed.code).not.toBe(before.code);
+    await expect(campaignService.joinWithInvite(before.code, { id: "user_camila" })).rejects.toMatchObject({ code: "not_found" });
     expect(after.members.some((m) => m.userId === "user_camila")).toBe(false);
     expect((await repositories().characters.getById("ch_isolde"))!.campaignId).toBeNull();
     await expect(campaignService.getOverview(CAMPAIGN, "user_camila")).rejects.toMatchObject({ code: "forbidden" });
   });
 
-  it("invites respect free seats, skip pending duplicates and can be revoked", async () => {
+  it("invite links: only GMs manage them; whoever opens one joins while there are seats; a new code kills the old link", async () => {
+    await expect(campaignAdminService.renewInviteLink(CAMPAIGN, PLAYER)).rejects.toMatchObject({ code: "forbidden" });
+    await expect(campaignAdminService.inviteLink(CAMPAIGN, PLAYER)).rejects.toMatchObject({ code: "forbidden" });
+    const link = await campaignAdminService.renewInviteLink(CAMPAIGN, GM);
+    expect(await campaignAdminService.inviteLink(CAMPAIGN, GM)).toEqual(link);
+
+    // Four players, four seats: the link opens but nobody can join.
     const s = await settings();
-    await campaignAdminService.updateSettings(CAMPAIGN, GM, { ...s, playerPolicy: { ...s.playerPolicy, maxPlayers: 6 } });
-    const sent = await campaignAdminService.invite(CAMPAIGN, GM, ["Nova@Mesa.com", "nova@mesa.com", "outra@mesa.com"], "Bem-vinda!");
-    expect(sent.map((i) => i.email).sort()).toEqual(["nova@mesa.com", "outra@mesa.com"]);
-    // 4 players + 2 pending = 6 seats: no room for more.
-    await expect(campaignAdminService.invite(CAMPAIGN, GM, ["mais@mesa.com"], "")).rejects.toMatchObject({ code: "validation" });
-    await expect(campaignAdminService.invite(CAMPAIGN, GM, ["não-é-email"], "")).rejects.toMatchObject({ code: "validation" });
+    await campaignAdminService.updateSettings(CAMPAIGN, GM, { ...s, playerPolicy: { ...s.playerPolicy, maxPlayers: 4 } });
+    const pasted = `https://mesa.exemplo/join/${link.code}`;
+    const { preview } = await campaignService.previewInvite(pasted, { id: "user_bruno" });
+    expect(preview).toMatchObject({ campaignId: CAMPAIGN, freeSeats: 0, alreadyMember: false });
+    await expect(campaignService.joinWithInvite(pasted, { id: "user_bruno" })).rejects.toMatchObject({ code: "validation" });
 
-    // Someone already at the table isn't invited (and takes no seat).
-    const players = await repositories().users.getMany(["user_camila"]);
-    expect(await campaignAdminService.invite(CAMPAIGN, GM, [players[0].email], "")).toEqual([]);
+    await campaignAdminService.updateSettings(CAMPAIGN, GM, { ...s, playerPolicy: { ...s.playerPolicy, maxPlayers: 5 } });
+    expect(await campaignService.joinWithInvite(link.code, { id: "user_bruno" })).toBe(CAMPAIGN);
+    expect((await repositories().campaigns.getById(CAMPAIGN))!.members.find((m) => m.userId === "user_bruno")?.role).toBe("player");
+    // Opening it again is harmless.
+    expect(await campaignService.joinWithInvite(link.code, { id: "user_bruno" })).toBe(CAMPAIGN);
 
-    const revoked = await campaignAdminService.revokeInvite(CAMPAIGN, GM, sent[0].id);
-    expect(revoked.status).toBe("revoked");
-    expect(await campaignService.listPendingInvites(sent[0].email)).toEqual([]);
-    await expect(campaignAdminService.invite(CAMPAIGN, PLAYER, ["x@y.com"], "")).rejects.toMatchObject({ code: "forbidden" });
+    // A new code: the shared link stops working. Turned off: no link at all.
+    const renewed = await campaignAdminService.renewInviteLink(CAMPAIGN, GM);
+    expect(renewed.code).not.toBe(link.code);
+    await expect(campaignService.previewInvite(link.code, { id: "user_lia" })).rejects.toMatchObject({ code: "not_found" });
+    await campaignAdminService.disableInviteLink(CAMPAIGN, GM);
+    expect(await campaignAdminService.inviteLink(CAMPAIGN, GM)).toBeNull();
+    await expect(campaignService.joinWithInvite(renewed.code, { id: "user_lia" })).rejects.toMatchObject({ code: "not_found" });
+    await expect(campaignService.joinWithInvite("isto não é um link", { id: "user_lia" })).rejects.toMatchObject({ code: "validation" });
   }, 15_000);
 });

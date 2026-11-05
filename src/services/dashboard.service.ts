@@ -1,5 +1,5 @@
 import { repositories } from "@/repositories";
-import { buildCampaignCards, campaignService, isUpcoming, type CampaignCardModel, type InviteModel } from "./campaign.service";
+import { buildCampaignCards, isUpcoming, type CampaignCardModel } from "./campaign.service";
 import { collectionService, type CharacterCardModel } from "./collection.service";
 import { systemService, toSummary, type SystemSummary } from "./system.service";
 import type { GameSession } from "@/types/campaign";
@@ -14,7 +14,6 @@ export interface DashboardData {
   stats: { activeCampaigns: number; sessionsThisMonth: number; characters: number; hoursPlayed: number };
   recent: CampaignCardModel[];
   inProgress: CampaignCardModel[];
-  invites: InviteModel[];
   upcoming: SessionWithCampaign[];
   history: SessionWithCampaign[];
   characters: CharacterCardModel[];
@@ -24,13 +23,12 @@ export interface DashboardData {
 
 /** Aggregates everything the dashboard shows in one round of parallel reads. */
 export const dashboardService = {
-  async load(user: Pick<UserProfile, "id" | "email">): Promise<DashboardData> {
+  async load(user: Pick<UserProfile, "id">): Promise<DashboardData> {
     const repo = repositories();
     const campaigns = await repo.campaigns.listForUser(user.id);
 
-    const [sessions, invites, characters, library, systems] = await Promise.all([
+    const [sessions, characters, library, systems] = await Promise.all([
       repo.sessions.listForCampaigns(campaigns.map((c) => c.id)),
-      campaignService.listPendingInvites(user.email),
       collectionService.listCharacters(user.id),
       repo.library.listForUser(user.id),
       systemService.listForUser(user.id),
@@ -54,7 +52,6 @@ export const dashboardService = {
       },
       recent: [...cards].sort((a, b) => lastActivity(b).localeCompare(lastActivity(a))).slice(0, 6),
       inProgress: cards.filter((c) => c.campaign.status === "active" || c.campaign.status === "planning"),
-      invites,
       upcoming: sessions
         .filter((s) => isUpcoming(s, now.getTime()))
         .sort((a, b) => a.scheduledAt.localeCompare(b.scheduledAt))

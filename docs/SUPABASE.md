@@ -27,7 +27,7 @@ Em **Authentication**:
 
 - **Sign In / Providers → Email**: deixe habilitado.
 - **URL Configuration**: em *Site URL* coloque `http://localhost:3000`; em *Redirect URLs* adicione `http://localhost:3000/login` e `http://localhost:3000/reset-password` (e depois os mesmos caminhos no domínio de produção).
-- **Confirm email**: deixe **ligado** em qualquer projeto com pessoas de verdade. Os convites são entregues pelo e-mail da conta: sem confirmação, alguém poderia criar uma conta com o e-mail de outra pessoa e aceitar os convites dela. Só desligue num projeto de testes, só seu.
+- **Confirm email**: opcional. Os convites são por link (o app não manda e-mail de convite), então desligar só tira a etapa de confirmar a conta. Lembre que o e-mail embutido do Supabase tem limite baixo por hora; ele é usado só na confirmação de conta e na recuperação de senha.
 
 A recuperação de senha funciona assim: **Esqueci a senha** envia o link, o link abre `/reset-password` já autenticado para a troca, e a nova senha entra direto.
 
@@ -35,7 +35,7 @@ A recuperação de senha funciona assim: **Esqueci a senha** envia o link, o lin
 
 O esquema inteiro (tabelas, RLS, gatilhos e funções) está em `supabase/migrations/`, em arquivos aplicados em ordem de nome (o primeiro cria tudo; os seguintes ajustam). Use uma das opções abaixo.
 
-**Pelo painel:** abra **SQL Editor**, cole o conteúdo de cada arquivo de `supabase/migrations/` em ordem e execute — um de cada vez, todos eles.
+**Pelo painel:** abra **SQL Editor**, cole o conteúdo de cada arquivo de `supabase/migrations/` em ordem e execute — um de cada vez, todos eles. Se já aplicou alguns, rode só os que faltam (os de nome mais novo).
 
 **Pela CLI:**
 
@@ -65,16 +65,16 @@ O projeto deve estar vazio (ou sem tabelas com os mesmos nomes no schema `public
 As permissões de `src/lib/permissions.ts` estão replicadas no banco, então valem mesmo se alguém chamar a API direto:
 
 - Só membros enxergam a campanha; quem cria vira mestre automaticamente e a campanha nunca muda de dono.
-- Entrar numa campanha só por convite (`accept_invite` confere o e-mail e as vagas); ninguém, nem o mestre, adiciona pessoas direto.
+- Entrar numa campanha só pelo link de convite (`join_campaign` confere o código e as vagas); ninguém, nem o mestre, adiciona pessoas direto. O código é aleatório, gerado pelo banco e visível só aos mestres; gerar outro invalida o anterior.
 - Só quem criou a campanha muda papéis; o criador não pode ser removido nem rebaixado.
 - As notas do mestre ficam numa tabela só dos mestres (`campaign_gm_notes`), fora da linha da campanha que os jogadores leem.
 - Fichas completas só para o dono do personagem e para os mestres; os outros jogadores veem o grupo sem a ficha (`campaign_characters`). Personagem não muda de dono, e só entra numa campanha em que o dono joga.
 - NPCs, encontros e mapas salvos são só do mestre; jogadores recebem os NPCs conhecidos sem segredos e só com fatos revelados (`known_npcs`).
 - Entradas privadas do diário só para os mestres.
-- Sistemas personalizados: o dono, e quem joga (ou foi convidado) numa campanha do mesmo dono que usa o sistema.
-- O e-mail do perfil vem da conta e não muda pelo perfil; quem foi convidado só recusa um convite pendente.
+- Sistemas personalizados: o dono, e quem joga numa campanha do mesmo dono que usa o sistema.
+- O e-mail do perfil vem da conta e não muda pelo perfil.
 
-Para conferir essas regras localmente (Postgres em memória, sem Docker, 42 cenários incluindo tentativas de burlar cada regra):
+Para conferir essas regras localmente (Postgres em memória, sem Docker, 53 cenários incluindo tentativas de burlar cada regra):
 
 ```bash
 npm run db:check
@@ -82,7 +82,7 @@ npm run db:check
 
 ## O que ainda fica no navegador
 
-Esta é a primeira etapa. Limitação conhecida: as mudanças de membros (papel, remoção, vínculo do personagem) comparam com a lista carregada na tela; se alguém aceitar um convite no mesmo instante em que o mestre remove outra pessoa, recarregue e confira.
+Esta é a primeira etapa. Limitação conhecida: as mudanças de membros (papel, remoção, vínculo do personagem) comparam com a lista carregada na tela; se alguém entrar pelo link no mesmo instante em que o mestre remove outra pessoa, recarregue e confira.
 
 Por enquanto continuam locais (por navegador):
 

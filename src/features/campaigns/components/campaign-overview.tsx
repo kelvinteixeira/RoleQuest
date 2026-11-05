@@ -10,12 +10,12 @@ import {
   DoorOpen,
   Globe2,
   History,
-  MailPlus,
   MapPin,
   ScrollText,
   Settings2,
   Sparkles,
   Users,
+  UserPlus,
 } from "lucide-react";
 import { Button, ButtonLink } from "@/components/ui/button";
 import { Avatar, Badge, Card, CardHeader, ResourceBar, Skeleton } from "@/components/ui/primitives";
@@ -57,7 +57,7 @@ function BackLink() {
 }
 
 function OverviewContent({ data }: { data: Overview }) {
-  const { campaign, role, system, members, upcomingSessions, pastSessions, pendingInvites } = data;
+  const { campaign, role, system, members, upcomingSessions, pastSessions } = data;
   const summary = toSummary(system);
   const status = CAMPAIGN_STATUS[campaign.status];
   const isGM = role === "game_master";
@@ -183,8 +183,8 @@ function OverviewContent({ data }: { data: Overview }) {
                 description={`${members.filter((m) => m.role === "player").length}/${campaign.playerPolicy.maxPlayers} jogadores`}
                 action={
                   isGM && can(role, "campaign:invite") ? (
-                    <ButtonLink href={`/campaign/${campaign.id}/settings`} size="icon-sm" variant="ghost" title="Convidar e gerenciar jogadores" aria-label="Convidar e gerenciar jogadores">
-                      <MailPlus className="size-4" />
+                    <ButtonLink href={`/campaign/${campaign.id}/settings?tab=players`} size="icon-sm" variant="ghost" title="Link de convite e jogadores" aria-label="Link de convite e jogadores">
+                      <UserPlus className="size-4" />
                     </ButtonLink>
                   ) : undefined
                 }
@@ -219,16 +219,6 @@ function OverviewContent({ data }: { data: Overview }) {
                   </li>
                 ))}
               </ul>
-              {isGM && pendingInvites.length > 0 && (
-                <div className="border-t border-line px-5 py-3">
-                  <p className="mb-1.5 text-xs font-medium text-fg-subtle">Convites pendentes</p>
-                  {pendingInvites.map((i) => (
-                    <p key={i.id} className="truncate text-xs text-fg-muted">
-                      {i.email}
-                    </p>
-                  ))}
-                </div>
-              )}
             </Card>
 
             <Card className="p-5">

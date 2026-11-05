@@ -99,7 +99,7 @@ Regras:
 - `lib/supabase/client.ts`: cliente único do navegador com a chave anon/publishable (nunca a `service_role`).
 - `repositories/supabase/mappers.ts`: conversão linha (snake_case) ↔ domínio, sem I/O e testada; objetos aninhados (mundo, política de jogadores, ficha, sistema) ficam em colunas `jsonb`.
 - `repositories/supabase/errors.ts`: erros do PostgREST/Auth viram `AppError` (`42501` → `forbidden`, vagas esgotadas → `validation`…).
-- O que o RLS sozinho não expressa vira função `security definer`: aceitar convite, ver o grupo sem as fichas alheias, NPCs conhecidos sem segredos.
+- O que o RLS sozinho não expressa vira função `security definer`: entrar pelo link de convite (e a prévia antes de entrar), gerar o código do link, ver o grupo sem as fichas alheias, NPCs conhecidos sem segredos.
 - Esquema em `supabase/migrations/`; `npm run db:check` aplica as migrações num Postgres em memória (PGlite) e roda os cenários de acesso. Configuração passo a passo em [SUPABASE.md](SUPABASE.md).
 
 ## 5. Autenticação e permissões
@@ -131,7 +131,7 @@ Regras:
 - Identidade visual por sistema: `theme.accent` vira a CSS variable `--system-accent` no escopo do componente, mantendo o design neutro global.
 - "Criar meu próprio sistema" gera um `SystemTemplate` com `kind: 'custom'` armazenado no repositório; o editor (`features/systems/components/editor`, regras em `features/systems/model/system-editor.ts`) só edita sistemas do próprio dono. As chaves (atributo, perícia, recurso, classe) nascem do nome e nunca mudam ao renomear, para as fichas existentes não perderem dados; remover algo limpa as referências (`pruneReferences`). As fórmulas do template são texto descritivo: quem decide a rolagem é `dice.mechanic`.
 - Classes (`SystemTemplate.classes`) ficam na ficha em `sheet.classKey`; `applyClass` move os máximos de recurso pela diferença de bônus ao trocar de classe, treina as perícias da classe e adiciona as habilidades uma vez.
-- Administração da campanha em `services/campaign-admin.service.ts` (`campaign:manage` / `campaign:invite`): quem criou a campanha continua mestre e nunca é removido; sempre há pelo menos um mestre; convites pendentes contam como vagas ocupadas.
+- Administração da campanha em `services/campaign-admin.service.ts` (`campaign:manage` / `campaign:invite`): quem criou a campanha continua mestre e nunca é removido; sempre há pelo menos um mestre. Jogadores entram pelo **link de convite** (`/join/[code]`): um código aleatório por campanha, visível só aos mestres, que podem gerar outro (o anterior para de valer) ou desativá-lo; a entrada confere as vagas na hora.
 - Nomes de sistemas são usados apenas de forma nominativa (compatibilidade). Role Quest não é afiliado aos titulares.
 
 ## 7. Decisões para as próximas fases

@@ -51,19 +51,24 @@ describe("demo sheets", () => {
 });
 
 describe("local database upgrade", () => {
-  it("v1 → current fills only characters that were never edited and adds the map library", () => {
+  it("v1 → current fills only characters that were never edited, adds the map library and trades e-mail invites for links", () => {
     const edited = { ...byId.get("ch_isolde")!, sheet: { ...byId.get("ch_isolde")!.sheet!, privateNotes: "minha" } };
     const untouched = { ...byId.get("ch_grom")!, sheet: undefined };
-    const stored = { ...seed, version: 1, characters: [edited, untouched] } as MockDatabase;
+    const { inviteLinks: _links, ...withoutLinks } = seed;
+    void _links;
+    const stored = { ...withoutLinks, invites: [{ id: "inv" }], version: 1, characters: [edited, untouched] } as unknown as MockDatabase;
     const upgraded = upgradeDatabase(stored)!;
-    expect(upgraded.version).toBe(4);
+    expect(upgraded.version).toBe(5);
     expect(upgraded.maps).toEqual([]);
+    // Every campaign gets an invite link, like the database migration backfill.
+    expect(upgraded.inviteLinks.map((l) => l.campaignId).sort()).toEqual(seed.campaigns.map((c) => c.id).sort());
+    expect("invites" in upgraded).toBe(false);
     expect(upgraded.characters[0].sheet!.privateNotes).toBe("minha");
     expect(upgraded.characters[1].sheet!.attributes.str).toBe(17);
   });
 
   it("leaves the current version alone and gives up on unknown ones", () => {
-    const current = { ...seed, version: 4 } as MockDatabase;
+    const current = { ...seed, version: 5 } as MockDatabase;
     expect(upgradeDatabase(current)).toBe(current);
     expect(upgradeDatabase({ ...seed, version: 0 } as MockDatabase)).toBeNull();
   });

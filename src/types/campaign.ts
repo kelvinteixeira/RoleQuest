@@ -68,19 +68,22 @@ export interface GameSession extends Timestamps {
 
 export type NewSessionInput = Omit<GameSession, "id" | "createdAt" | "updatedAt">;
 
-export type InviteStatus = "pending" | "accepted" | "declined" | "revoked";
-
-export interface CampaignInvite extends Timestamps {
-  id: ID;
+/** A campaign's invite link: whoever opens /join/{code} signed in joins as a player (while there are seats). */
+export interface InviteLink {
   campaignId: ID;
-  /** Denormalised preview: invitees cannot read the campaign until they join. */
-  campaignName: string;
-  systemId: SystemId;
-  invitedById: ID;
-  invitedByName: string;
-  email: string;
-  message: string;
-  status: InviteStatus;
+  code: string;
+  createdAt: ISODateString;
 }
 
-export type NewInviteInput = Omit<CampaignInvite, "id" | "createdAt" | "updatedAt" | "status">;
+/** What an invite link shows before joining: enough to decide, nothing private. */
+export interface InvitePreview {
+  campaignId: ID;
+  campaignName: string;
+  tagline: string;
+  systemId: SystemId;
+  /** Custom systems can't be read before joining: their name comes with the preview. Null for built-in ones. */
+  systemName: string | null;
+  gameMasterName: string;
+  freeSeats: number;
+  alreadyMember: boolean;
+}

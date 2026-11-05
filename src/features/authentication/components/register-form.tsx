@@ -10,6 +10,7 @@ import { fieldErrorsOf, toUserMessage } from "@/lib/errors";
 import { hasErrors } from "@/lib/validation";
 import { PASSWORD_MIN_LENGTH, validateSignUp } from "@/services/auth.service";
 import { useAuth } from "../hooks/use-auth";
+import { currentNext, withNext } from "../model/next-path";
 import { FormAlert } from "./form-alert";
 
 function passwordStrength(password: string): { score: number; label: string } {
@@ -42,7 +43,7 @@ export function RegisterForm() {
     setPending(true);
     try {
       await signUp(values);
-      router.replace("/onboarding");
+      router.replace(withNext("/onboarding", currentNext()));
     } catch (error) {
       setErrors(fieldErrorsOf(error));
       setFormError(toUserMessage(error));
@@ -101,7 +102,16 @@ export function RegisterForm() {
 
       <p className="mt-8 text-center text-sm text-fg-muted">
         Já tem conta?{" "}
-        <Link href="/login" className="font-medium text-accent hover:underline">
+        <Link
+          href="/login"
+          onClick={(e) => {
+            // Keep ?next= (e.g. an invite link) through sign-up/sign-in; new-tab clicks behave as usual.
+            if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
+            e.preventDefault();
+            router.push(withNext("/login", currentNext()));
+          }}
+          className="font-medium text-accent hover:underline"
+        >
           Entrar
         </Link>
       </p>

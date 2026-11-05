@@ -1,6 +1,7 @@
 // Applies every migration in supabase/migrations to an in-memory Postgres
 // (PGlite) with a minimal stand-in for Supabase's auth schema, then plays
-// access scenarios as different users (RLS, guard triggers, functions).
+// access scenarios as different users (RLS, guard triggers, functions),
+// including attempts to get around each rule.
 // Usage: npm run db:check
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -12,7 +13,7 @@ const ok = (name, cond, detail = "") => results.push(`${cond ? "PASS" : "FAIL"} 
 
 await db.exec(`
   create schema auth;
-  create table auth.users (id uuid primary key default gen_random_uuid(), email text not null, raw_user_meta_data jsonb not null default '{}');
+  create table auth.users (id uuid primary key default gen_random_uuid(), email text, raw_user_meta_data jsonb not null default '{}');
   create function auth.uid() returns uuid language sql stable as $$ select nullif(current_setting('request.jwt.claim.sub', true), '')::uuid $$;
   create function auth.jwt() returns jsonb language sql stable as $$ select jsonb_build_object('email', current_setting('request.jwt.claim.email', true)) $$;
   create role anon; create role authenticated;
@@ -24,12 +25,13 @@ const files = readdirSync(dir).filter((f) => f.endsWith(".sql")).sort();
 const sql = files.map((f) => readFileSync(join(dir, f), "utf8")).join(String.fromCharCode(10));
 try {
   await db.exec(sql);
-  ok("migration applies", true);
+  ok("migrations apply", true, files.length + " files");
 } catch (e) {
-  ok("migration applies", false, e.message);
+  ok("migrations apply", false, e.message);
   console.log(results.join("\n"));
   process.exit(1);
 }
+// Supabase grants table privileges to these roles by default; RLS decides the rows.
 await db.exec(`grant usage on schema public to authenticated, anon; grant select, insert, update, delete on all tables in schema public to authenticated;`);
 
 // Users (inserted as the superuser; the trigger creates profiles).
@@ -64,56 +66,76 @@ const generated = (await db.query(`select username from public.profiles where id
 ok("generated usernames follow the app's rule", /^[a-z0-9._]{3,20}$/.test(generated), generated);
 ok("profiles created by trigger with lowercase e-mail", profiles.length === 5 && profiles.some((p) => p.email === "mestre@mesa.com" && p.display_name === "Mestre"), JSON.stringify(profiles.map((p) => p.username)));
 
-// GM creates a campaign: becomes its GM through the trigger, and can read it back.
-const cid = await as(gm, "mestre@mesa.com", async () => {
-  const c = (await db.query(`insert into public.campaigns (name, system_id, visual_style_id, owner_id, player_policy) values ('Cinzas', 'dnd5e', 'ember', $1, '{"maxPlayers": 1}') returning id`, [gm])).rows[0].id;
+// GM creates a campaign (1 seat): becomes its GM through the trigger, and makes the invite link.
+const { cid, code } = await as(gm, "mestre@mesa.com", async () => {
+  const c = (await db.query(`insert into public.campaigns (name, system_id, visual_style_id, owner_id, player_policy, game_master) values ('Cinzas', 'dnd5e', 'ember', $1, '{"maxPlayers": 1}', '{"narratorName": "O Cronista", "notes": "vilão é o rei"}') returning id`, [gm])).rows[0].id;
   const members = (await db.query(`select user_id, role from public.campaign_members where campaign_id = $1`, [c])).rows;
   ok("creator joins as GM", members.length === 1 && members[0].role === "game_master");
+  ok("GM notes never stay in the shared campaign row", !("notes" in (await db.query(`select game_master from public.campaigns where id = $1`, [c])).rows[0].game_master));
+  await db.query(`insert into public.campaign_gm_notes (campaign_id, notes) values ($1, 'vilão é o rei')`, [c]);
   await db.query(`insert into public.npcs (campaign_id, name, portrait_color, stats, known, secret_notes, facts) values ($1, 'Mira', 'red', '{"hp": 5}', true, 'trai o grupo', '[{"id":"a","text":"mapa","revealed":true},{"id":"b","text":"cartas","revealed":false}]')`, [c]);
   await db.query(`insert into public.npcs (campaign_id, name, portrait_color, stats, known) values ($1, 'Oculto', 'red', '{}', false)`, [c]);
   await db.query(`insert into public.journal_entries (campaign_id, at, session_label, kind, text, private) values ($1, now(), 'S1', 'note', 'pública', false), ($1, now(), 'S1', 'note', 'secreta', true)`, [c]);
-  await db.query(`insert into public.campaign_invites (campaign_id, campaign_name, system_id, invited_by_id, invited_by_name, email) values ($1, 'Cinzas', 'dnd5e', $2, 'Mestre', 'ana@mesa.com'), ($1, 'Cinzas', 'dnd5e', $2, 'Mestre', 'bia@mesa.com')`, [c, gm]);
-  return c;
+  const forged = await fails(() => db.query(`insert into public.campaign_invite_links (campaign_id, code) values ($1, 'escolhido')`, [c]));
+  ok("invite codes can't be picked by hand", !!forged, forged?.slice(0, 60));
+  const link = (await db.query(`select * from public.new_invite_link($1)`, [c])).rows[0];
+  ok("the GM creates a random invite link", /^[0-9a-f]{32}$/.test(link.code));
+  return { cid: c, code: link.code };
 });
 
-// Ana: not a member yet; sees her invite; accepts it.
+// Ana: not a member yet; opens the link; joins.
 await as(p1, "ana@mesa.com", async () => {
   ok("non-member can't see the campaign", (await db.query(`select id from public.campaigns`)).rows.length === 0);
-  const inv = (await db.query(`select id from public.campaign_invites`)).rows;
-  ok("invitee sees only her invite", inv.length === 1);
+  ok("non-member can't read invite links", (await db.query(`select code from public.campaign_invite_links`)).rows.length === 0);
+  const preview = (await db.query(`select * from public.invite_preview($1)`, [code])).rows;
+  ok("the link shows a preview (name, GM, seats)", preview.length === 1 && preview[0].campaign_name === "Cinzas" && preview[0].game_master_name === "O Cronista" && preview[0].free_seats === 1 && !preview[0].already_member, JSON.stringify(preview[0]));
+  ok("a wrong code shows nothing", (await db.query(`select * from public.invite_preview('nao-existe')`)).rows.length === 0);
+  const wrong = await fails(() => db.query(`select public.join_campaign('nao-existe')`));
+  ok("a wrong code doesn't join", !!wrong && /não vale mais/.test(wrong), wrong?.slice(0, 60));
   const err = await fails(() => db.query(`insert into public.campaign_members (campaign_id, user_id, role) values ($1, $2, 'player')`, [cid, p1]));
-  ok("invitee can't insert herself directly", !!err, err?.slice(0, 60));
-  await db.query(`select public.accept_invite($1)`, [inv[0].id]);
-  ok("accept_invite joins the campaign", (await db.query(`select id from public.campaigns`)).rows.length === 1);
+  ok("nobody inserts themselves directly", !!err, err?.slice(0, 60));
+  ok("join_campaign joins and returns the campaign", (await db.query(`select public.join_campaign($1) as id`, [code])).rows[0].id === cid);
+  ok("opening the link again is harmless", (await db.query(`select public.join_campaign($1) as id`, [code])).rows[0].id === cid);
+  ok("members see the campaign", (await db.query(`select id from public.campaigns`)).rows.length === 1);
+  ok("players can't read invite links", (await db.query(`select code from public.campaign_invite_links`)).rows.length === 0);
+  const renew = await fails(() => db.query(`select * from public.new_invite_link($1)`, [cid]));
+  ok("players can't make invite links", !!renew, renew?.slice(0, 60));
   ok("players can't read NPCs", (await db.query(`select id from public.npcs`)).rows.length === 0);
   const known = (await db.query(`select name, secret_notes, facts, stats from public.known_npcs($1)`, [cid])).rows;
   ok("known_npcs: only known NPCs, no secrets, only revealed facts", known.length === 1 && known[0].secret_notes === "" && known[0].facts.length === 1 && Object.keys(known[0].stats).length === 0, JSON.stringify(known));
   const journal = (await db.query(`select text from public.journal_entries`)).rows.map((r) => r.text);
   ok("players see only public journal entries", journal.length === 1 && journal[0] === "pública", JSON.stringify(journal));
+  ok("players don't read the GM notes", (await db.query(`select notes from public.campaign_gm_notes`)).rows.length === 0);
   const roleErr = await fails(() => db.query(`update public.campaign_members set role = 'game_master' where campaign_id = $1 and user_id = $2`, [cid, p1]));
   ok("a player can't promote herself", !!roleErr, roleErr?.slice(0, 60));
   const ch = (await db.query(`insert into public.characters (owner_id, campaign_id, system_id, name, portrait_color, sheet) values ($1, $2, 'dnd5e', 'Isolde', 'red', '{"privateNotes": "segredo"}') returning id`, [p1, cid])).rows[0].id;
   await db.query(`update public.campaign_members set character_id = $1 where campaign_id = $2 and user_id = $3`, [ch, cid, p1]);
   ok("a player links her own character", (await db.query(`select character_id from public.campaign_members where user_id = $1`, [p1])).rows[0].character_id === ch);
+  const mail = await fails(() => db.query(`update public.profiles set email = 'mestre@mesa.com' where id = $1`, [p1]));
+  ok("profile e-mail can't be rewritten", !!mail, mail?.slice(0, 60));
 });
 
-// Bia: the only seat is taken → accept fails.
+// Bia: the only seat is taken → joining fails.
 await as(p2, "bia@mesa.com", async () => {
-  const inv = (await db.query(`select id from public.campaign_invites`)).rows[0].id;
-  const err = await fails(() => db.query(`select public.accept_invite($1)`, [inv]));
-  ok("accept_invite respects the free seats", !!err && /vagas/.test(err), err?.slice(0, 60));
+  ok("the preview shows no free seats", (await db.query(`select free_seats from public.invite_preview($1)`, [code])).rows[0].free_seats === 0);
+  const err = await fails(() => db.query(`select public.join_campaign($1)`, [code]));
+  ok("join_campaign respects the free seats", !!err && /vagas/.test(err), err?.slice(0, 60));
 });
 
-// GM: raises seats; Bia joins; sees Ana's character without the sheet.
+// GM: raises seats; reads the full sheet; custom system for the table.
 await as(gm, "mestre@mesa.com", async () => {
   await db.query(`update public.campaigns set player_policy = '{"maxPlayers": 4}' where id = $1`, [cid]);
   ok("GM reads the player's full sheet", (await db.query(`select sheet from public.characters where campaign_id = $1`, [cid])).rows[0]?.sheet?.privateNotes === "segredo");
+  ok("GM reads the invite link", (await db.query(`select code from public.campaign_invite_links`)).rows[0]?.code === code);
+  await db.query(`insert into public.custom_systems (id, owner_id, system) values ('custom_mesa', $1, '{"name": "Mesa Própria"}')`, [gm]);
+  await db.query(`update public.campaigns set system_id = 'custom_mesa' where id = $1`, [cid]);
 });
 await as(p2, "bia@mesa.com", async () => {
-  await db.query(`select public.accept_invite((select id from public.campaign_invites limit 1))`);
+  await db.query(`select public.join_campaign($1)`, [code]);
   const party = (await db.query(`select name, sheet from public.campaign_characters($1)`, [cid])).rows;
   ok("another player sees the party without sheets", party.length === 1 && party[0].sheet === null, JSON.stringify(party));
   ok("another player can't select the character table directly", (await db.query(`select id from public.characters`)).rows.length === 0);
+  ok("members read the campaign's custom system", (await db.query(`select id from public.custom_systems`)).rows.length === 1);
   const removeErr = await fails(async () => {
     const r = await db.query(`delete from public.campaign_members where campaign_id = $1 and user_id = $2 returning user_id`, [cid, p1]);
     if (r.rows.length === 0) throw new Error("no rows deleted (RLS)");
@@ -128,59 +150,42 @@ await as(gm, "mestre@mesa.com", async () => {
   ok("the creator can't be removed", !!err && /criou/.test(err), err?.slice(0, 60));
   const demote = await fails(() => db.query(`update public.campaign_members set role = 'player' where campaign_id = $1 and user_id = $2`, [cid, gm]));
   ok("the creator stays GM", !!demote, demote?.slice(0, 60));
+  const ch = (await db.query(`select id from public.characters where owner_id = $1`, [p1])).rows[0].id;
+  const take = await fails(() => db.query(`update public.characters set owner_id = $1 where id = $2`, [gm, ch]));
+  ok("a GM can't take a player's character", !!take, take?.slice(0, 60));
   await db.query(`update public.campaign_members set role = 'game_master' where campaign_id = $1 and user_id = $2`, [cid, p1]);
   ok("the creator promotes a co-GM", (await db.query(`select role from public.campaign_members where user_id = $1`, [p1])).rows[0].role === "game_master");
   ok("username_taken works", (await db.query(`select public.username_taken('ana') as t`)).rows[0].t === true);
 });
 
-// The co-GM can't remove the creator nor another GM's role.
-await as(p1, "ana@mesa.com", async () => {
+// The co-GM: manages players and the link, but can't take the campaign or change roles.
+const renewedCode = await as(p1, "ana@mesa.com", async () => {
+  await fails(() => db.query(`update public.campaigns set owner_id = $1 where id = $2`, [p1, cid]));
+  ok("a co-GM can't take the campaign", (await db.query(`select owner_id from public.campaigns where id = $1`, [cid])).rows[0].owner_id === gm);
+  ok("a co-GM reads the GM notes", (await db.query(`select notes from public.campaign_gm_notes`)).rows[0]?.notes === "vilão é o rei");
   // RLS hides other members' rows from a co-GM's UPDATE (0 rows changed), or the trigger refuses.
   const err = await fails(() => db.query(`update public.campaign_members set role = 'game_master' where campaign_id = $1 and user_id = $2`, [cid, p2]));
   const role = (await db.query(`select role from public.campaign_members where user_id = $1`, [p2])).rows[0]?.role;
   ok("a co-GM can't change roles", role === "player", err ? err.slice(0, 60) : "0 rows updated");
   await db.query(`delete from public.campaign_members where campaign_id = $1 and user_id = $2`, [cid, p2]);
   ok("a co-GM removes a player", (await db.query(`select user_id from public.campaign_members where user_id = $1`, [p2])).rows.length === 0);
+  const renewed = (await db.query(`select * from public.new_invite_link($1)`, [cid])).rows[0].code;
+  ok("a co-GM makes a new link (new code)", renewed !== code);
+  ok("the old link stops working", (await db.query(`select * from public.invite_preview($1)`, [code])).rows.length === 0);
+  return renewed;
 });
 
-// Attacks found in review (guarded by the hardening migration).
-await as(gm, "mestre@mesa.com", async () => {
-  await db.query(`update public.campaigns set game_master = '{"narratorName": "M", "notes": "vilão é o rei"}' where id = $1`, [cid]);
-  await db.query(`insert into public.campaign_gm_notes (campaign_id, notes) values ($1, 'vilão é o rei')`, [cid]);
-  await db.query(`insert into public.custom_systems (id, owner_id, system) values ('custom_mesa', $1, '{}')`, [gm]);
-  await db.query(`update public.campaigns set system_id = 'custom_mesa' where id = $1`, [cid]);
-  await db.query(`insert into public.campaign_invites (campaign_id, campaign_name, system_id, invited_by_id, invited_by_name, email) values ($1, 'Cinzas', 'custom_mesa', $2, 'Mestre', 'fora@mesa.com')`, [cid, gm]);
-});
-await as(p1, "ana@mesa.com", async () => {
-  // Ana is a co-GM now.
-  await fails(() => db.query(`update public.campaigns set owner_id = $1 where id = $2`, [p1, cid]));
-  ok("a co-GM can't take the campaign", (await db.query(`select owner_id from public.campaigns where id = $1`, [cid])).rows[0].owner_id === gm);
-  const add = await fails(() => db.query(`insert into public.campaign_members (campaign_id, user_id, role) values ($1, $2, 'game_master')`, [cid, out]));
-  ok("nobody adds members directly (only by invite)", !!add, add?.slice(0, 60));
-  ok("GM notes stay out of the shared campaign row", !("notes" in (await db.query(`select game_master from public.campaigns where id = $1`, [cid])).rows[0].game_master));
-  ok("a co-GM reads the GM notes", (await db.query(`select notes from public.campaign_gm_notes`)).rows[0]?.notes === "vilão é o rei");
-});
-await as(gm, "mestre@mesa.com", async () => {
-  const ch = (await db.query(`select id from public.characters where owner_id = $1`, [p1])).rows[0].id;
-  const take = await fails(() => db.query(`update public.characters set owner_id = $1 where id = $2`, [gm, ch]));
-  ok("a GM can't take a player's character", !!take, take?.slice(0, 60));
-  await db.query(`update public.campaign_members set role = 'player' where campaign_id = $1 and user_id = $2`, [cid, p1]);
-});
-await as(p1, "ana@mesa.com", async () => {
-  ok("players don't read the GM notes", (await db.query(`select notes from public.campaign_gm_notes`)).rows.length === 0);
-  ok("members read the campaign's custom system", (await db.query(`select id from public.custom_systems`)).rows.length === 1);
-  const mail = await fails(() => db.query(`update public.profiles set email = 'mestre@mesa.com' where id = $1`, [p1]));
-  ok("profile e-mail can't be rewritten", !!mail, mail?.slice(0, 60));
-});
+// Outsider.
 await as(out, "fora@mesa.com", async () => {
-  ok("an invitee reads the campaign's custom system", (await db.query(`select id from public.custom_systems`)).rows.length === 1);
-  const inv = (await db.query(`select id from public.campaign_invites`)).rows[0].id;
-  const edit = await fails(() => db.query(`update public.campaign_invites set message = 'oi' , status = 'declined' where id = $1`, [inv]));
-  ok("an invitee only declines (no other edits)", !!edit, edit?.slice(0, 60));
-  await db.query(`update public.campaign_invites set status = 'declined' where id = $1`, [inv]);
-  ok("an invitee declines a pending invite", (await db.query(`select status from public.campaign_invites where id = $1`, [inv])).rows[0].status === "declined");
-  ok("after declining, the custom system is hidden again", (await db.query(`select id from public.custom_systems`)).rows.length === 0);
-  // Outsider's own campaign naming someone else's system doesn't open it.
+  ok("outsider sees only their own profile", (await db.query(`select id from public.profiles`)).rows.length === 1);
+  ok("outsider sees no campaign", (await db.query(`select id from public.campaigns`)).rows.length === 0);
+  ok("outsider gets nothing from known_npcs", (await db.query(`select * from public.known_npcs($1)`, [cid])).rows.length === 0);
+  ok("outsider can't read the custom system", (await db.query(`select id from public.custom_systems`)).rows.length === 0);
+  const named = (await db.query(`select system_name from public.invite_preview($1)`, [renewedCode])).rows[0]?.system_name;
+  ok("the preview names the custom system (unreadable before joining)", named === "Mesa Própria", named);
+  const old = await fails(() => db.query(`select public.join_campaign($1)`, [code]));
+  ok("outsider can't join with the old link", !!old, old?.slice(0, 60));
+  // Their own campaign naming someone else's system doesn't open it.
   await db.query(`insert into public.campaigns (name, system_id, visual_style_id, owner_id) values ('Espiã', 'custom_mesa', 'ember', $1)`, [out]);
   ok("a foreign campaign naming the system doesn't open it", (await db.query(`select id from public.custom_systems`)).rows.length === 0);
   const spy = (await db.query(`insert into public.characters (owner_id, system_id, name, portrait_color) values ($1, 'dnd5e', 'Spy', 'red') returning id`, [out])).rows[0].id;
@@ -188,12 +193,14 @@ await as(out, "fora@mesa.com", async () => {
   ok("a character can't move into a campaign its owner doesn't play", !!move, move?.slice(0, 60));
 });
 
-// Outsider.
-await as(out, "fora@mesa.com", async () => {
-  ok("outsider sees only their own profile", (await db.query(`select id from public.profiles`)).rows.length === 1);
-  ok("outsider sees no campaign but their own", (await db.query(`select name from public.campaigns`)).rows.every((r) => r.name === "Espiã"));
-  ok("outsider gets nothing from known_npcs", (await db.query(`select * from public.known_npcs($1)`, [cid])).rows.length === 0);
-});
+// Signed out: nothing.
+await db.exec(`reset role`);
+await db.query(`select set_config('request.jwt.claim.sub', '', false)`);
+await db.exec(`set role anon`);
+const anonPreview = await fails(() => db.query(`select * from public.invite_preview('x')`));
+ok("signed out: invite functions are closed", !!anonPreview, anonPreview?.slice(0, 60));
+await db.exec(`reset role`);
 
 console.log(results.join("\n"));
+console.log(`\n${results.filter((r) => r.startsWith("PASS")).length}/${results.length} passed`);
 process.exit(results.some((r) => r.startsWith("FAIL")) ? 1 : 0);

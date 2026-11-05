@@ -8,21 +8,21 @@ Legenda: ✅ entregue · 🟡 parcial · ⬜ pendente
 - ✅ Design system (tokens, tipografia, primitivos de UI)
 - ✅ Layout global (sidebar, topbar, navegação mobile)
 - ✅ Autenticação visual funcional em modo local: login, cadastro, recuperação de senha, configuração de perfil
-- ✅ Dashboard com campanhas, convites, sessões, personagens, sistemas e bibliotecas
+- ✅ Dashboard com campanhas, entrada por link de convite, sessões, personagens, sistemas e bibliotecas
 - ✅ Camada de dados: contratos de repositório, implementação mock persistida, services
 - ✅ Biblioteca dos 10 sistemas (modelos estruturais) + modelo "sistema próprio"
 
 ## Fase 2 — Campanhas e personagens ✅
 - ✅ Assistente de criação de campanha (7 etapas, prévia ao vivo) + opção "começar do zero"
 - ✅ Página da campanha (visão geral, membros, sessões)
-- ✅ Aceitar/recusar convites
+- ✅ Entrar numa campanha pelo link de convite do mestre (`/join/[code]`), com prévia da mesa e das vagas
 - ✅ Editor completo de "sistema próprio" (`/systems/[id]/edit`): identidade e cor, mecânica de teste, atributos, recursos, perícias, classes (bônus, perícias treinadas, habilidades iniciais), progressão com tabela de níveis, condições, campos da ficha, combate e inventário; criar do zero ou "duplicar como meu" a partir de qualquer sistema; classe escolhida na ficha
 - ✅ Criação, edição, duplicação e exclusão de personagens; fichas a partir do modelo de cada sistema com salvamento automático
 - ✅ Atributos, recursos, condições, perícias (atributo escolhível), habilidades, campos personalizados, história e anotações privadas
 - ✅ Testes pela mecânica de cada sistema (d20+mod, d100 com dados de bônus/penalidade, parada de d10, Xd20, 1d6+atributo, 1d10 explosivo, 3d6)
 - ✅ Inventário com equipado, slots, carga e moedas
 - ✅ Ficha aberta dentro da sala, com testes publicados no chat
-- ✅ Configurações da campanha (`/campaign/[id]/settings`): informações, mundo e narrador; regras da mesa (editar fichas, mover tokens, mensagens privadas, rolagens públicas, vagas); jogadores (tornar mestre/jogador, remover) e convites por e-mail (enviar, cancelar, respeitando as vagas)
+- ✅ Configurações da campanha (`/campaign/[id]/settings`): informações, mundo e narrador; regras da mesa (editar fichas, mover tokens, mensagens privadas, rolagens públicas, vagas); jogadores (tornar mestre/jogador, remover) e link de convite (copiar, gerar outro, desativar)
 - ✅ Fichas da campanha (`/campaign/[id]/characters`): o mestre abre todas, o jogador a sua
 
 ## Fase 3 — Virtual Tabletop ✅
@@ -60,7 +60,7 @@ Log de eventos, momentos épicos, diário automático, roteiro estruturado, edit
 
 ## Fase 7 — Supabase 🟡
 Antecipada para destravar a Fase 4. Guia de configuração em [SUPABASE.md](SUPABASE.md).
-- ✅ Etapa 1 — fundação: esquema Postgres com RLS espelhando `lib/permissions.ts`, gatilhos de proteção (dono da campanha, papéis, personagem vinculado) e funções (`accept_invite`, `campaign_characters`, `known_npcs`, `username_taken`); Supabase Auth com e-mail e senha; repositórios Supabase para todos os contratos; troca por `NEXT_PUBLIC_DATA_SOURCE`; `npm run db:check` valida o esquema e 42 cenários de acesso (incluindo tentativas de burlar as regras) num Postgres em memória; redefinição de senha pelo link do e-mail (`/reset-password`)
+- ✅ Etapa 1 — fundação: esquema Postgres com RLS espelhando `lib/permissions.ts`, gatilhos de proteção (dono da campanha, papéis, personagem vinculado) e funções (`join_campaign`, `invite_preview`, `new_invite_link`, `campaign_characters`, `known_npcs`, `username_taken`); Supabase Auth com e-mail e senha; repositórios Supabase para todos os contratos; troca por `NEXT_PUBLIC_DATA_SOURCE`; `npm run db:check` valida o esquema e 53 cenários de acesso (incluindo tentativas de burlar as regras) num Postgres em memória; redefinição de senha pelo link do e-mail (`/reset-password`); convites por link no lugar dos convites por e-mail (nenhum e-mail enviado)
 - ⬜ Etapa 2 — tempo real: sincronização da mesa (Realtime broadcast), presença, visão do jogador com névoa filtrada por jogador
 - ⬜ Etapa 3 — mídia e voz: imagens de mapa no Storage, voz LiveKit e central de áudio
 

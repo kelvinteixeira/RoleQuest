@@ -1,9 +1,12 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useState } from "react";
 import type { ReactNode } from "react";
-import { ArrowUpRight, CalendarClock, Check, Crown, DoorOpen, Mail, Map as MapIcon, Package, UsersRound, X } from "lucide-react";
+import { ArrowUpRight, CalendarClock, Crown, DoorOpen, Map as MapIcon, Package, UsersRound } from "lucide-react";
 import { Button, ButtonLink } from "@/components/ui/button";
+import { Input } from "@/components/ui/field";
 import { AvatarStack, Badge, Card, CardHeader } from "@/components/ui/primitives";
 import { EmptyState } from "@/components/feedback/states";
 import { formatDateTime, formatRelative } from "@/lib/format";
@@ -11,7 +14,7 @@ import { cn } from "@/lib/cn";
 import { CampaignCover } from "@/features/campaigns/components/campaign-card";
 import { SessionRow } from "@/features/campaigns/components/session-row";
 import { SystemEmblem, SystemTag } from "@/features/systems/components/system-identity";
-import type { InviteModel } from "@/services/campaign.service";
+import { parseInviteCode } from "@/services/campaign.service";
 import type { SessionWithCampaign } from "@/services/dashboard.service";
 import type { SystemSummary } from "@/services/system.service";
 
@@ -95,63 +98,38 @@ export function NextSessionHero({ item }: { item: SessionWithCampaign | undefine
   );
 }
 
-export function InvitesPanel({
-  invites,
-  respondingTo,
-  onRespond,
-}: {
-  invites: InviteModel[];
-  respondingTo: string | null;
-  onRespond: (inviteId: string, accept: boolean, campaignName: string) => void;
-}) {
+/** Paste an invite link (or its code) the GM shared to open it. */
+export function JoinByLinkPanel() {
+  const router = useRouter();
+  const [value, setValue] = useState("");
+  const [error, setError] = useState<string | null>(null);
+
   return (
     <Card>
-      <CardHeader
-        title="Convites recebidos"
-        icon={<Mail />}
-        action={invites.length > 0 ? <Badge tone="accent">{invites.length}</Badge> : undefined}
-      />
-      <div className="flex flex-col gap-3 p-5 pt-4">
-        {invites.length === 0 ? (
-          <p className="text-sm text-fg-subtle">Nenhum convite pendente.</p>
-        ) : (
-          invites.map(({ invite, system }) => (
-            <div key={invite.id} className="rounded-xl border border-line bg-surface-2/50 p-3.5">
-              <div className="flex items-start gap-3">
-                <SystemEmblem theme={system.theme} size="md" />
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-medium">{invite.campaignName}</p>
-                  <p className="truncate text-xs text-fg-subtle">
-                    {invite.invitedByName} · {system.shortName} · {formatRelative(invite.createdAt)}
-                  </p>
-                </div>
-              </div>
-              {invite.message && <p className="mt-2.5 text-xs leading-relaxed text-fg-muted">“{invite.message}”</p>}
-              <div className="mt-3 flex gap-2">
-                <Button
-                  size="sm"
-                  className="flex-1"
-                  loading={respondingTo === invite.id}
-                  disabled={respondingTo !== null}
-                  leadingIcon={<Check className="size-3.5" />}
-                  onClick={() => onRespond(invite.id, true, invite.campaignName)}
-                >
-                  Aceitar
-                </Button>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  disabled={respondingTo !== null}
-                  leadingIcon={<X className="size-3.5" />}
-                  onClick={() => onRespond(invite.id, false, invite.campaignName)}
-                >
-                  Recusar
-                </Button>
-              </div>
-            </div>
-          ))
-        )}
-      </div>
+      <CardHeader title="Entrar numa mesa" icon={<DoorOpen />} />
+      <form
+        className="flex flex-col gap-2 p-5 pt-3"
+        onSubmit={(e) => {
+          e.preventDefault();
+          const code = parseInviteCode(value);
+          if (!code) return setError("Cole o link de convite que o mestre mandou.");
+          router.push(`/join/${code}`);
+        }}
+      >
+        <Input
+          label="Link de convite"
+          placeholder="Cole aqui o link do mestre"
+          value={value}
+          onChange={(e) => {
+            setValue(e.target.value);
+            setError(null);
+          }}
+          error={error}
+        />
+        <Button type="submit" size="sm" variant="secondary" disabled={!value.trim()}>
+          Abrir convite
+        </Button>
+      </form>
     </Card>
   );
 }

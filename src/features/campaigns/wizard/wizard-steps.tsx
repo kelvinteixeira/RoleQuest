@@ -1,14 +1,13 @@
 "use client";
 
-import { useState, type KeyboardEvent, type ReactNode } from "react";
-import { Check, Minus, Plus, Wand2, X } from "lucide-react";
+import type { ReactNode } from "react";
+import { Check, Minus, Plus, Wand2 } from "lucide-react";
 import { Input, Select, Textarea } from "@/components/ui/field";
 import { Badge } from "@/components/ui/primitives";
 import { Switch } from "@/components/ui/switch";
 import { NARRATION_STYLES, VISUAL_STYLES, WORLD_TONES } from "@/constants/campaign";
 import { cn } from "@/lib/cn";
 import { formatDateTime, formatDuration } from "@/lib/format";
-import { rules } from "@/lib/validation";
 import { CAMPAIGN_LIMITS } from "@/services/campaign.service";
 import { systemService } from "@/services/system.service";
 import { coverGradient, SystemEmblem, SystemGlyphIcon, systemStyle } from "@/features/systems/components/system-identity";
@@ -266,23 +265,9 @@ export function PlayersStep({ draft, errors, update }: StepProps) {
         </div>
       </div>
 
-      <EmailChips
-        emails={draft.inviteEmails}
-        onChange={(emails) => update("inviteEmails", emails)}
-        error={errors.inviteEmails}
-        max={Math.min(policy.maxPlayers, CAMPAIGN_LIMITS.maxInvites)}
-      />
-
-      {draft.inviteEmails.length > 0 && (
-        <Textarea
-          label="Mensagem do convite"
-          optional
-          rows={2}
-          placeholder="Sessões quinzenais, sextas às 20h. Tragam lanche."
-          value={draft.inviteMessage}
-          onChange={(e) => update("inviteMessage", e.target.value)}
-        />
-      )}
+      <p className="rounded-xl border border-line bg-surface-2/50 px-4 py-3 text-sm text-fg-muted">
+        Ao criar a campanha você recebe um <strong className="text-fg">link de convite</strong> para mandar aos jogadores (WhatsApp, Discord…). Ele fica em Configurações → Jogadores.
+      </p>
 
       <div className="flex flex-col gap-4 rounded-xl border border-line p-4">
         <p className="text-xs font-medium uppercase tracking-wider text-fg-subtle">Permissões dos jogadores</p>
@@ -296,69 +281,6 @@ export function PlayersStep({ draft, errors, update }: StepProps) {
           description="O mestre sempre pode rolar em segredo."
         />
       </div>
-    </div>
-  );
-}
-
-function EmailChips({ emails, onChange, error, max }: { emails: string[]; onChange: (emails: string[]) => void; error?: string; max: number }) {
-  const [value, setValue] = useState("");
-  const [localError, setLocalError] = useState<string | null>(null);
-
-  function commit() {
-    const candidates = value.split(/[\s,;]+/).map((e) => e.trim().toLowerCase()).filter(Boolean);
-    if (candidates.length === 0) return;
-    const invalid = candidates.find((e) => rules.email()(e));
-    if (invalid) return setLocalError(`E-mail inválido: ${invalid}`);
-    const next = [...new Set([...emails, ...candidates])];
-    if (next.length > max) return setLocalError(`Limite de ${max} convites para as vagas atuais.`);
-    onChange(next);
-    setValue("");
-    setLocalError(null);
-  }
-
-  function onKeyDown(e: KeyboardEvent<HTMLInputElement>) {
-    if (e.key === "Enter" || e.key === ",") {
-      e.preventDefault();
-      commit();
-    } else if (e.key === "Backspace" && !value && emails.length > 0) {
-      onChange(emails.slice(0, -1));
-    }
-  }
-
-  return (
-    <div className="flex flex-col gap-2">
-      <Input
-        label="Convidar por e-mail"
-        optional
-        type="email"
-        placeholder="amigo@exemplo.com e Enter"
-        value={value}
-        onChange={(e) => {
-          setValue(e.target.value);
-          setLocalError(null);
-        }}
-        onKeyDown={onKeyDown}
-        onBlur={commit}
-        error={localError ?? error}
-        hint="Modo local: nenhum e-mail é enviado. O convite aparece no painel de quem entrar com esse e-mail."
-      />
-      {emails.length > 0 && (
-        <ul className="flex flex-wrap gap-1.5">
-          {emails.map((email) => (
-            <li key={email} className="inline-flex h-7 items-center gap-1 rounded-full border border-line bg-surface-2 pl-2.5 pr-1 text-xs">
-              {email}
-              <button
-                type="button"
-                onClick={() => onChange(emails.filter((e) => e !== email))}
-                className="rounded-full p-0.5 text-fg-subtle hover:bg-surface-3 hover:text-fg"
-                aria-label={`Remover ${email}`}
-              >
-                <X className="size-3" />
-              </button>
-            </li>
-          ))}
-        </ul>
-      )}
     </div>
   );
 }
@@ -466,7 +388,7 @@ export function SessionStep({ draft, errors, update, systemName }: StepProps & {
           <Review label="Sistema" value={systemName} />
           <Review label="Estilo visual" value={style?.name ?? "—"} />
           <Review label="Narrador" value={draft.gameMaster.narratorName || "—"} />
-          <Review label="Jogadores" value={`${draft.playerPolicy.maxPlayers} vagas · ${draft.inviteEmails.length} convites`} />
+          <Review label="Jogadores" value={`${draft.playerPolicy.maxPlayers} vagas · convite por link`} />
           <Review label="Mundo" value={[draft.world.name, draft.world.tone.join(", ")].filter(Boolean).join(" · ") || "—"} />
           <Review label="Primeira sessão" value={draft.scheduleFirstSession ? (scheduled ? formatDateTime(scheduled) : "Data incompleta") : "Não agendada"} />
         </dl>

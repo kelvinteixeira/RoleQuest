@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { ProfileForm } from "@/features/settings/components/profile-form";
 import { toast } from "@/stores/toast.store";
 import { useAuth, useCurrentUser } from "../hooks/use-auth";
+import { currentNext, safeNextPath } from "../model/next-path";
 
 export function Onboarding() {
   const user = useCurrentUser();
@@ -21,7 +22,7 @@ export function Onboarding() {
         onSaved={(profile) => {
           setProfile(profile);
           toast.success("Perfil pronto", "Bem-vindo ao Role Quest.");
-          router.replace("/dashboard");
+          router.replace(safeNextPath(currentNext()));
         }}
       />
     </div>

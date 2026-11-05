@@ -363,7 +363,7 @@ function LivePreview({ draft, system }: { draft: CampaignDraft; system: ReturnTy
               ))}
             </div>
             <p className="border-t border-line pt-3 text-xs text-fg-subtle">
-              {draft.playerPolicy.maxPlayers} vagas · {draft.inviteEmails.length} convites
+              {draft.playerPolicy.maxPlayers} vagas · convite por link
             </p>
           </div>
         </Card>

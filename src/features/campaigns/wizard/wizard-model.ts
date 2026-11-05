@@ -16,8 +16,6 @@ export interface CampaignDraft {
   visualStyleId: string;
   gameMaster: GameMasterPersona;
   playerPolicy: PlayerPolicy;
-  inviteEmails: string[];
-  inviteMessage: string;
   world: WorldSetup;
   scheduleFirstSession: boolean;
   /** Local date ("2026-11-10") and time ("20:00") as typed in the form. */
@@ -39,7 +37,7 @@ export const STEPS: readonly StepDefinition[] = [
   { id: "system", title: "Sistema", description: "As regras da mesa.", fields: ["system.name"] },
   { id: "style", title: "Estilo visual", description: "O clima das capas e destaques.", fields: [] },
   { id: "master", title: "Mestre", description: "Quem narra e como.", fields: ["gameMaster.narratorName"] },
-  { id: "players", title: "Jogadores", description: "Vagas, convites e permissões.", fields: ["playerPolicy.maxPlayers", "inviteEmails"] },
+  { id: "players", title: "Jogadores", description: "Vagas e permissões.", fields: ["playerPolicy.maxPlayers"] },
   { id: "world", title: "Mundo", description: "Premissa, tom e ponto de partida.", fields: ["world.name", "world.premise"] },
   { id: "session", title: "Primeira sessão", description: "Agendar e revisar.", fields: ["firstSession.title", "firstSession.scheduledAt"] },
 ];
@@ -65,8 +63,6 @@ export function createInitialDraft(user: Pick<UserProfile, "displayName">, now =
       allowPrivateMessages: true,
       rollsPublicByDefault: true,
     },
-    inviteEmails: [],
-    inviteMessage: "",
     world: { name: "", premise: "", tone: [], startingLocation: "" },
     scheduleFirstSession: true,
     firstSession: {
@@ -94,8 +90,6 @@ export function toCommand(draft: CampaignDraft): CreateCampaignCommand {
     visualStyleId: draft.visualStyleId,
     gameMaster: draft.gameMaster,
     playerPolicy: draft.playerPolicy,
-    inviteEmails: draft.inviteEmails,
-    inviteMessage: draft.inviteMessage,
     world: draft.world,
     firstSession: draft.scheduleFirstSession
       ? {

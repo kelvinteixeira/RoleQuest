@@ -3,7 +3,7 @@
  * Dates are generated relative to "now" so upcoming sessions stay in the future
  * when the database is first seeded (or reset from Settings).
  */
-import type { Campaign, CampaignInvite, CampaignMember, GameSession } from "@/types/campaign";
+import type { Campaign, CampaignMember, GameSession, InviteLink } from "@/types/campaign";
 import type { Character } from "@/types/character";
 import type { LibraryAsset } from "@/types/library";
 import type { UserProfile } from "@/types/user";
@@ -23,7 +23,7 @@ export interface MockSeed {
   users: MockUserRecord[];
   campaigns: Campaign[];
   sessions: GameSession[];
-  invites: CampaignInvite[];
+  inviteLinks: InviteLink[];
   characters: Character[];
   library: LibraryAsset[];
   customSystems: { ownerId: string; system: SystemTemplate }[];
@@ -248,7 +248,7 @@ export function createSeed(now: Date = new Date()): MockSeed {
       createdAt: at(-300),
       updatedAt: at(-120),
     },
-    // Campaigns the demo user is invited to (not yet a member).
+    // Campaigns the demo user doesn't play in.
     {
       id: "c_ambar",
       name: "Expedição Âmbar",
@@ -407,34 +407,6 @@ export function createSeed(now: Date = new Date()): MockSeed {
     ],
   );
 
-  const invites: CampaignInvite[] = [
-    {
-      id: "inv_ambar",
-      campaignId: "c_ambar",
-      campaignName: "Expedição Âmbar",
-      systemId: "pathfinder2e",
-      invitedById: "user_bruno",
-      invitedByName: "Bruno Kaz",
-      email: "mestre@rolequest.dev",
-      message: "Falta alguém que segure a linha de frente. Sessões quinzenais aos sábados.",
-      status: "pending",
-      createdAt: at(-1, 14),
-      updatedAt: at(-1, 14),
-    },
-    {
-      id: "inv_torneio",
-      campaignId: "c_torneio",
-      campaignName: "Torneio dos Cem Golpes",
-      systemId: "3dt-victory",
-      invitedById: "user_marina",
-      invitedByName: "Marina Lobo",
-      email: "mestre@rolequest.dev",
-      message: "One-shot leve, duas sessões. Traga seu golpe especial.",
-      status: "pending",
-      createdAt: at(0, 9),
-      updatedAt: at(0, 9),
-    },
-  ];
 
   const ch = (
     id: string,
@@ -581,5 +553,6 @@ export function createSeed(now: Date = new Date()): MockSeed {
     }),
   ];
 
-  return { users, campaigns, sessions, invites, characters: characters.map(withDemoSheet), library, customSystems: [], maps: [], ...seedGmTools(now) };
+  const inviteLinks: InviteLink[] = campaigns.map((c) => ({ campaignId: c.id, code: crypto.randomUUID().replace(/-/g, ""), createdAt: c.createdAt }));
+  return { users, campaigns, sessions, inviteLinks, characters: characters.map(withDemoSheet), library, customSystems: [], maps: [], ...seedGmTools(now) };
 }

@@ -3,8 +3,8 @@ import { withDemoSheet } from "@/mocks/fixtures/demo-sheets";
 import { createSeed, type MockSeed } from "@/mocks/fixtures/seed";
 import { seedGmTools } from "@/mocks/fixtures/gm-tools";
 
-/** v2: demo characters ship with filled-in sheets. v3: campaign map library. v4: GM tools (NPCs, encounters, journal). */
-const SCHEMA_VERSION = 4;
+/** v2: demo characters ship with filled-in sheets. v3: campaign map library. v4: GM tools (NPCs, encounters, journal). v5: invite links replace e-mail invites. */
+const SCHEMA_VERSION = 5;
 
 export type MockDatabase = MockSeed & { version: number };
 
@@ -22,6 +22,11 @@ export function upgradeDatabase(stored: MockDatabase): MockDatabase | null {
   if (db.version === 2) db = { ...db, version: 3, maps: db.maps ?? [] };
   // The demo GM tools are added for the seeded campaigns; local data is kept.
   if (db.version === 3) db = { ...db, version: 4, ...seedGmTools(new Date()) };
+  if (db.version === 4) {
+    const { invites: _emailInvites, ...rest } = db as MockDatabase & { invites?: unknown };
+    void _emailInvites;
+    db = { ...rest, version: 5, inviteLinks: rest.campaigns.map((c) => ({ campaignId: c.id, code: crypto.randomUUID().replace(/-/g, ""), createdAt: new Date().toISOString() })) };
+  }
   return db.version === SCHEMA_VERSION ? db : null;
 }
 

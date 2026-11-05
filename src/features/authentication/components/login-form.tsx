@@ -11,13 +11,9 @@ import { fieldErrorsOf, toUserMessage } from "@/lib/errors";
 import { hasErrors } from "@/lib/validation";
 import { validateSignIn } from "@/services/auth.service";
 import { useAuth } from "../hooks/use-auth";
+import { currentNext, safeNextPath, withNext } from "../model/next-path";
 import { FormAlert } from "./form-alert";
 
-/** Only same-origin relative paths are accepted as post-login redirects. */
-function safeNext(): string {
-  const next = new URLSearchParams(window.location.search).get("next");
-  return next && next.startsWith("/") && !next.startsWith("//") ? next : "/dashboard";
-}
 
 export function LoginForm() {
   const { signIn } = useAuth();
@@ -36,7 +32,7 @@ export function LoginForm() {
     setPending(source);
     try {
       const profile = await signIn(credentials.email, credentials.password);
-      router.replace(profile.onboardingCompleted ? safeNext() : "/onboarding");
+      router.replace(profile.onboardingCompleted ? safeNextPath(currentNext()) : withNext("/onboarding", currentNext()));
     } catch (error) {
       setErrors(fieldErrorsOf(error));
       setFormError(toUserMessage(error));
@@ -114,7 +110,16 @@ export function LoginForm() {
 
       <p className="mt-8 text-center text-sm text-fg-muted">
         Ainda não tem conta?{" "}
-        <Link href="/register" className="font-medium text-accent hover:underline">
+        <Link
+          href="/register"
+          onClick={(e) => {
+            // Keep ?next= (e.g. an invite link) through sign-up/sign-in; new-tab clicks behave as usual.
+            if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
+            e.preventDefault();
+            router.push(withNext("/register", currentNext()));
+          }}
+          className="font-medium text-accent hover:underline"
+        >
           Criar conta
         </Link>
       </p>

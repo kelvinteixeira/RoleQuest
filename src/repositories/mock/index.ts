@@ -7,7 +7,7 @@ import type {
   AuthRepository,
   CampaignRepository,
   CharacterRepository,
-  InviteRepository,
+  InviteLinkRepository,
   LibraryRepository,
   EncounterRepository,
   JournalRepository,
@@ -165,46 +165,57 @@ const sessions: SessionRepository = {
   },
 };
 
-const invites: InviteRepository = {
-  async listForEmail(email) {
-    return respond(getDb().invites.filter((i) => i.email === normalizeEmail(email)));
+/** A v4 UUID without dashes, like the database default. */
+export const newInviteCode = () => crypto.randomUUID().replace(/-/g, "");
+
+const inviteLinks: InviteLinkRepository = {
+  async getForCampaign(campaignId) {
+    return respond(getDb().inviteLinks.find((l) => l.campaignId === campaignId) ?? null);
   },
-  async listForCampaign(campaignId) {
-    return respond(getDb().invites.filter((i) => i.campaignId === campaignId));
-  },
-  async getById(id) {
-    return respond(getDb().invites.find((i) => i.id === id) ?? null);
-  },
-  async create(input) {
-    const now = nowIso();
-    const invite = { ...input, email: normalizeEmail(input.email), id: createId("inv"), status: "pending" as const, createdAt: now, updatedAt: now };
-    getDb().invites.push(invite);
-    commit();
-    return respond(invite);
-  },
-  async updateStatus(id, status) {
-    const invite = getDb().invites.find((i) => i.id === id);
-    if (!invite) throw new AppError("not_found");
-    invite.status = status;
-    invite.updatedAt = nowIso();
-    commit();
-    return respond(invite);
-  },
-  async accept(id, userId) {
+  async renew(campaignId) {
     const db = getDb();
-    const invite = db.invites.find((i) => i.id === id);
-    if (!invite) throw new AppError("not_found", "Convite não encontrado.");
-    if (invite.status !== "pending") throw new AppError("validation", "Este convite já foi respondido.");
-    const campaign = db.campaigns.find((c) => c.id === invite.campaignId);
-    if (!campaign) throw new AppError("not_found", "A campanha deste convite não existe mais.");
+    const link = { campaignId, code: newInviteCode(), createdAt: nowIso() };
+    db.inviteLinks = [...db.inviteLinks.filter((l) => l.campaignId !== campaignId), link];
+    commit();
+    return respond(link);
+  },
+  async revoke(campaignId) {
+    const db = getDb();
+    db.inviteLinks = db.inviteLinks.filter((l) => l.campaignId !== campaignId);
+    commit();
+    return respond(undefined);
+  },
+  async preview(code, userId) {
+    const db = getDb();
+    const link = db.inviteLinks.find((l) => l.code === code);
+    const campaign = link && db.campaigns.find((c) => c.id === link.campaignId);
+    if (!campaign) return respond(null);
+    const owner = db.users.find((u) => u.profile.id === campaign.ownerId)?.profile;
+    const players = campaign.members.filter((m) => m.role === "player").length;
+    return respond({
+      campaignId: campaign.id,
+      campaignName: campaign.name,
+      tagline: campaign.tagline,
+      systemId: campaign.systemId,
+      systemName: db.customSystems.find((s) => s.system.id === campaign.systemId && s.ownerId === campaign.ownerId)?.system.name ?? null,
+      gameMasterName: campaign.gameMaster.narratorName || owner?.displayName || "Mestre",
+      freeSeats: Math.max(0, campaign.playerPolicy.maxPlayers - players),
+      alreadyMember: campaign.members.some((m) => m.userId === userId),
+    });
+  },
+  async join(code, userId) {
+    const db = getDb();
+    const link = db.inviteLinks.find((l) => l.code === code);
+    const campaign = link && db.campaigns.find((c) => c.id === link.campaignId);
+    if (!campaign) throw new AppError("not_found", "Este link de convite não vale mais. Peça um novo ao mestre.");
+    if (campaign.members.some((m) => m.userId === userId)) return respond(campaign.id);
     if (campaign.members.filter((m) => m.role === "player").length >= campaign.playerPolicy.maxPlayers) {
       throw new AppError("validation", "A campanha já está com todas as vagas preenchidas.");
     }
-    if (!campaign.members.some((m) => m.userId === userId)) campaign.members.push({ userId, role: "player", characterId: null, joinedAt: nowIso() });
-    invite.status = "accepted";
-    invite.updatedAt = nowIso();
+    campaign.members.push({ userId, role: "player", characterId: null, joinedAt: nowIso() });
+    campaign.updatedAt = nowIso();
     commit();
-    return respond(invite);
+    return respond(campaign.id);
   },
 };
 
@@ -386,5 +397,5 @@ const journal: JournalRepository = {
   },
 };
 
-export const mockRepositories: Repositories = { auth, users, campaigns, sessions, invites, characters, library, systems, maps, images: mockImages, npcs, encounters, journal };
+export const mockRepositories: Repositories = { auth, users, campaigns, sessions, inviteLinks, characters, library, systems, maps, images: mockImages, npcs, encounters, journal };
 export { resetMockDatabase } from "./database";

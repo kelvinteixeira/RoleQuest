@@ -3,7 +3,8 @@
 import { useRef, useState } from "react";
 import { useUnsavedGuard } from "@/hooks/use-unsaved-guard";
 import Link from "next/link";
-import { ArrowLeft, Crown, MailPlus, Save, Scale, Settings2, UserMinus, Users, X } from "lucide-react";
+import { useSearchParams } from "next/navigation";
+import { ArrowLeft, Crown, Save, Scale, Settings2, UserMinus, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input, Select, Textarea } from "@/components/ui/field";
 import { Avatar, Badge, Card, CardHeader } from "@/components/ui/primitives";
@@ -15,22 +16,16 @@ import { CAMPAIGN_STATUS, NARRATION_STYLES, WORLD_TONES } from "@/constants/camp
 import { useAsync } from "@/hooks/use-async";
 import { cn } from "@/lib/cn";
 import { fieldErrorsOf, toUserMessage } from "@/lib/errors";
-import { formatRelative } from "@/lib/format";
+
 import { can, ROLE_LABEL } from "@/lib/permissions";
 import { campaignAdminService, validateSettings, type CampaignSettings } from "@/services/campaign-admin.service";
 import { campaignService, CAMPAIGN_LIMITS, type CampaignOverview } from "@/services/campaign.service";
+import { InviteLinkCard } from "../invite-link-card";
 import { toast } from "@/stores/toast.store";
 import { useCurrentUser } from "@/features/authentication/hooks/use-auth";
-import type { CampaignStatus, InviteStatus } from "@/types/campaign";
+import type { CampaignStatus } from "@/types/campaign";
 
 type Tab = "general" | "rules" | "players";
-
-const INVITE_STATUS: Record<InviteStatus, { label: string; tone: "info" | "success" | "neutral" | "warning" }> = {
-  pending: { label: "Pendente", tone: "info" },
-  accepted: { label: "Aceito", tone: "success" },
-  declined: { label: "Recusado", tone: "neutral" },
-  revoked: { label: "Cancelado", tone: "warning" },
-};
 
 /**
  * Campaign settings for the GM: information and narrator, table rules
@@ -70,7 +65,8 @@ const toSettings = (o: CampaignOverview): CampaignSettings => ({
 function Settings({ overview, reload }: { overview: CampaignOverview; reload: () => Promise<void> }) {
   const user = useCurrentUser();
   const campaignId = overview.campaign.id;
-  const [tab, setTab] = useState<Tab>("general");
+  const searchParams = useSearchParams();
+  const [tab, setTab] = useState<Tab>(searchParams.get("tab") === "players" ? "players" : "general");
   const [draft, setDraft] = useState<CampaignSettings>(() => toSettings(overview));
   const [dirty, setDirty] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -234,25 +230,19 @@ function Settings({ overview, reload }: { overview: CampaignOverview; reload: ()
 function Players({ overview, reload }: { overview: CampaignOverview; reload: () => Promise<void> }) {
   const user = useCurrentUser();
   const campaignId = overview.campaign.id;
-  const invites = useAsync(() => campaignAdminService.listInvites(campaignId, user), [campaignId, user.id]);
-  const [emails, setEmails] = useState("");
-  const [message, setMessage] = useState("");
-  const [sending, setSending] = useState(false);
-  const [inviteError, setInviteError] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [confirmRemove, setConfirmRemove] = useState<string | null>(null);
   const ownerId = overview.campaign.ownerId;
   const isOwner = user.id === ownerId;
   const players = overview.members.filter((m) => m.role === "player").length;
-  const pending = (invites.data ?? []).filter((i) => i.status === "pending").length;
-  const seats = overview.campaign.playerPolicy.maxPlayers - players - pending;
+  const seats = Math.max(0, overview.campaign.playerPolicy.maxPlayers - players);
 
   async function act(key: string, action: () => Promise<unknown>, done: string) {
     setBusy(key);
     try {
       await action();
       toast.success(done);
-      await Promise.all([reload(), invites.reload()]);
+      await reload();
     } catch (e) {
       toast.error("Não deu certo", toUserMessage(e));
     } finally {
@@ -319,59 +309,12 @@ function Players({ overview, reload }: { overview: CampaignOverview; reload: () 
             );
           })}
         </ul>
-        <p className="px-5 pb-4 text-xs text-fg-subtle">Ao remover alguém, o personagem continua com a pessoa, só sai da campanha.</p>
+        <p className="px-5 pb-4 text-xs text-fg-subtle">Ao remover alguém, o personagem continua com a pessoa, só sai da campanha. O link de convite é trocado na hora, para ela não voltar pelo link antigo.</p>
       </Card>
 
       <div className="flex flex-col gap-4">
-        <Card>
-          <CardHeader title="Convidar" icon={<MailPlus />} description={seats > 0 ? `${seats} vaga(s) livre(s)` : "Sem vagas livres: aumente o limite em Regras da mesa."} />
-          <form
-            className="flex flex-col gap-3 p-5 pt-3"
-            onSubmit={async (e) => {
-              e.preventDefault();
-              setSending(true);
-              setInviteError(null);
-              try {
-                const sent = await campaignAdminService.invite(campaignId, user, emails.split(/[\s,;]+/), message);
-                toast.success(sent.length ? `${sent.length} convite(s) enviado(s)` : "Esses e-mails já têm convite pendente");
-                setEmails("");
-                await invites.reload();
-              } catch (err) {
-                setInviteError(fieldErrorsOf(err).emails ?? toUserMessage(err));
-              } finally {
-                setSending(false);
-              }
-            }}
-          >
-            <Textarea label="E-mails" value={emails} onChange={(e) => setEmails(e.target.value)} rows={2} placeholder="ana@exemplo.com, bruno@exemplo.com" error={inviteError} />
-            <Input label="Mensagem" value={message} onChange={(e) => setMessage(e.target.value)} maxLength={400} optional />
-            <Button type="submit" loading={sending} disabled={!emails.trim() || seats <= 0}>
-              Enviar convites
-            </Button>
-            <p className="text-xs text-fg-subtle">No modo local o convite aparece no painel de quem tiver conta com esse e-mail neste navegador.</p>
-          </form>
-        </Card>
-
-        <Card>
-          <CardHeader title="Convites" description={invites.data ? `${pending} pendente(s)` : "Carregando…"} />
-          <ul className="flex flex-col gap-1 p-3 pt-2">
-            {(invites.data ?? []).length === 0 && <li className="px-2 py-3 text-sm text-fg-subtle">Nenhum convite ainda.</li>}
-            {(invites.data ?? []).map((i) => (
-              <li key={i.id} className="flex items-center gap-2 rounded-lg px-2 py-1.5">
-                <span className="min-w-0 flex-1">
-                  <span className="block truncate text-sm">{i.email}</span>
-                  <span className="block text-[11px] text-fg-subtle">{formatRelative(i.createdAt)}</span>
-                </span>
-                <Badge tone={INVITE_STATUS[i.status].tone}>{INVITE_STATUS[i.status].label}</Badge>
-                {i.status === "pending" && (
-                  <Button size="icon-sm" variant="ghost" loading={busy === `revoke:${i.id}`} onClick={() => void act(`revoke:${i.id}`, () => campaignAdminService.revokeInvite(campaignId, user, i.id), "Convite cancelado")} aria-label={`Cancelar convite de ${i.email}`} title="Cancelar convite">
-                    <X className="size-4" />
-                  </Button>
-                )}
-              </li>
-            ))}
-          </ul>
-        </Card>
+        {/* Remounts when someone leaves: removing a member gives the link a new code. */}
+        <InviteLinkCard key={overview.members.length} campaignId={campaignId} user={user} freeSeats={seats} />
       </div>
     </div>
   );

@@ -4,7 +4,7 @@ import { can } from "@/lib/permissions";
 import { rules } from "@/lib/validation";
 import { CAMPAIGN_LIMITS, roleOf } from "./campaign.service";
 import type { ID } from "@/types/common";
-import type { Campaign, CampaignInvite, CampaignRole, CampaignStatus, GameMasterPersona, PlayerPolicy, WorldSetup } from "@/types/campaign";
+import type { Campaign, CampaignRole, InviteLink, CampaignStatus, GameMasterPersona, PlayerPolicy, WorldSetup } from "@/types/campaign";
 import type { UserProfile } from "@/types/user";
 import { NARRATION_STYLES } from "@/constants/campaign";
 
@@ -108,45 +108,26 @@ export const campaignAdminService = {
       const character = await repositories().characters.getById(member.characterId);
       if (character?.campaignId === campaignId) await repositories().characters.update(character.id, { campaignId: null });
     }
-    return repositories().campaigns.update(campaignId, { members: campaign.members.filter((m) => m.userId !== memberId) });
+    const updated = await repositories().campaigns.update(campaignId, { members: campaign.members.filter((m) => m.userId !== memberId) });
+    // The removed person still has the link: a new code keeps them from walking back in.
+    if (await repositories().inviteLinks.getForCampaign(campaignId)) await repositories().inviteLinks.renew(campaignId);
+    return updated;
   },
 
-  async listInvites(campaignId: ID, user: Actor): Promise<CampaignInvite[]> {
+  /** The campaign's invite link, or null when it is turned off. */
+  async inviteLink(campaignId: ID, user: Actor): Promise<InviteLink | null> {
     await managed(campaignId, user, "campaign:invite");
-    return (await repositories().invites.listForCampaign(campaignId)).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+    return repositories().inviteLinks.getForCampaign(campaignId);
   },
 
-  /** Invites by e-mail. Skips addresses with a pending invite; refuses more pending invites than free seats. */
-  async invite(campaignId: ID, user: Actor, emails: string[], message: string): Promise<CampaignInvite[]> {
-    const campaign = await managed(campaignId, user, "campaign:invite");
-    const unique = [...new Set(emails.map((e) => e.trim().toLowerCase()).filter(Boolean))];
-    if (unique.length === 0) throw new AppError("validation", "Informe pelo menos um e-mail.", { emails: "Informe pelo menos um e-mail." });
-    const invalid = unique.find((e) => rules.email()(e));
-    if (invalid) throw new AppError("validation", `E-mail inválido: ${invalid}`, { emails: `E-mail inválido: ${invalid}` });
-    if (message.trim().length > 400) throw new AppError("validation", "Mensagem de até 400 caracteres.", { message: "Mensagem de até 400 caracteres." });
-
-    const existing = await repositories().invites.listForCampaign(campaignId);
-    const pending = new Set(existing.filter((i) => i.status === "pending").map((i) => i.email));
-    // People already at the table don't need (or take a seat with) an invite.
-    const memberEmails = new Set((await repositories().users.getMany(campaign.members.map((m) => m.userId))).map((p) => p.email.toLowerCase()));
-    const fresh = unique.filter((e) => !pending.has(e) && !memberEmails.has(e));
-    const seats = campaign.playerPolicy.maxPlayers - players(campaign) - pending.size;
-    if (fresh.length > seats) {
-      const msg = seats <= 0 ? "Não há vagas livres para novos convites." : `Só há ${seats} vaga(s) livre(s) contando os convites pendentes.`;
-      throw new AppError("validation", msg, { emails: msg });
-    }
-    return Promise.all(
-      fresh.map((email) =>
-        repositories().invites.create({ campaignId, campaignName: campaign.name, systemId: campaign.systemId, invitedById: user.id, invitedByName: user.displayName, email, message: message.trim() }),
-      ),
-    );
-  },
-
-  async revokeInvite(campaignId: ID, user: Actor, inviteId: ID): Promise<CampaignInvite> {
+  /** Creates the link, or a new code for it: links already shared stop working. */
+  async renewInviteLink(campaignId: ID, user: Actor): Promise<InviteLink> {
     await managed(campaignId, user, "campaign:invite");
-    const invite = await repositories().invites.getById(inviteId);
-    if (!invite || invite.campaignId !== campaignId) throw new AppError("not_found", "Convite não encontrado.");
-    if (invite.status !== "pending") throw new AppError("validation", "Só convites pendentes podem ser cancelados.");
-    return repositories().invites.updateStatus(inviteId, "revoked");
+    return repositories().inviteLinks.renew(campaignId);
+  },
+
+  async disableInviteLink(campaignId: ID, user: Actor): Promise<void> {
+    await managed(campaignId, user, "campaign:invite");
+    await repositories().inviteLinks.revoke(campaignId);
   },
 };

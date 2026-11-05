@@ -9,8 +9,17 @@ import type { JournalInput, JournalKind } from "@/types/gm";
 /** Prefix of the system message posted when the GM reveals an NPC fact. */
 export const REVEAL_PREFIX = "Sobre ";
 
-function classify(m: ChatMessage): { kind: JournalKind; text: string } | null {
-  if (m.visibility !== "public") return null;
+/** System lines the GM sees that still belong in the journal (they name everyone; the fight is over when players read it). */
+const GM_LINES = ["Combate! Iniciativa: ", "Entram no combate: "];
+
+function classify(m: ChatMessage): { kind: JournalKind; text: string; private?: boolean } | null {
+  const gmLine = m.kind === "system" && GM_LINES.some((p) => m.text.startsWith(p));
+  if (m.visibility !== "public" && !gmLine) return null;
+  // They name creatures the party may not have seen: GM-only entries.
+  if (gmLine) {
+    const entry = classifyText(m.text);
+    return entry && { ...entry, private: true };
+  }
   if (m.kind === "epic") return { kind: "epic", text: m.text };
   if (m.kind === "roll" && m.roll) {
     const what = m.text.replace(/\.$/, "");
@@ -19,7 +28,10 @@ function classify(m: ChatMessage): { kind: JournalKind; text: string } | null {
     return null;
   }
   if (m.kind !== "system") return null;
-  const t = m.text;
+  return classifyText(m.text);
+}
+
+function classifyText(t: string): { kind: JournalKind; text: string } | null {
   if (t.startsWith("Combate! Iniciativa: ")) {
     const who = t.replace("Combate! Iniciativa: ", "").split(" · ").map((x) => x.replace(/ -?[\d.]+$/, ""));
     return { kind: "combat", text: `Começou um combate: ${who.join(", ")}.` };
@@ -39,7 +51,7 @@ export function journalFromMessages(messages: ChatMessage[], campaignId: string,
   for (const m of messages) {
     if (recorded.has(m.id)) continue;
     const entry = classify(m);
-    if (entry) out.push({ campaignId, at: m.at, sessionLabel, kind: entry.kind, text: entry.text, private: false, sourceId: m.id });
+    if (entry) out.push({ campaignId, at: m.at, sessionLabel, kind: entry.kind, text: entry.text, private: entry.private ?? false, sourceId: m.id });
   }
   return out;
 }

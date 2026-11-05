@@ -81,6 +81,10 @@ Para conferir essas regras localmente (Postgres em memória, sem Docker, 88 cen�
 npm run db:check
 ```
 
+## Chronicles Studio
+
+Episódios e imagens geradas ficam no banco e no bucket privado `chronicles` (migração `20261107000000_chronicles.sql`). As chaves de IA e o resto da configuração estão em [CHRONICLES.md](CHRONICLES.md).
+
 ## O que ainda fica no navegador
 
 Esta é a primeira etapa. Limitação conhecida: as mudanças de membros (papel, remoção, vínculo do personagem) comparam com a lista carregada na tela; se alguém entrar pelo link no mesmo instante em que o mestre remove outra pessoa, recarregue e confira.

@@ -174,6 +174,12 @@ Regras:
 - **Presença:** `room_presence` com batimento a cada 10 s; só mestres podem marcar que conduzem.
 - Operações de mesa são eventos (`token.moved`, `message.posted`…) — o mesmo log alimenta o Chronicles Studio.
 
+### Chronicles Studio (Fase 6)
+- `features/chronicles/model`: momentos com nota de drama (`moments.ts`), esquema do roteiro em Zod e normalização (`script.ts`), prompts de imagem (`prompts.ts`), roteiro por regras sem chave (`demo-script.ts`).
+- Rotas de servidor `app/api/chronicles/{script,image,status}`: Claude (saída estruturada validada pelo mesmo esquema) e Gemini (imagens com referências de personagem); chaves só no servidor; só mestres da campanha (token do Supabase conferido no servidor).
+- `services/chronicles.service.ts` orquestra: momentos, roteiro, retratos, quadros e salvamento a cada imagem (`ChronicleRepository`: tabela `chronicle_episodes` e bucket privado `chronicles`).
+- `features/chronicles/video/episode-video.tsx`: composição Remotion usada no player e na exportação no navegador (`@remotion/web-renderer`), presa ao que a renderização no cliente suporta (sem z-index, gradientes lineares, fontes do sistema, SVG como imagem).
+
 ### Voz (Fase 4)
 - LiveKit (self-host ou cloud). Token de acesso emitido por uma Edge Function após checar a participação na campanha.
 - A UI de voz só mostrará estado "conectado" quando houver conexão real. Nada de chamada simulada.

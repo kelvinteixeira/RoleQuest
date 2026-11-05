@@ -1,5 +1,4 @@
 import { Clapperboard, Dices, LayoutDashboard, Library, ScrollText, Settings, UsersRound, type LucideIcon } from "lucide-react";
-import { FEATURE_PHASE } from "@/config/app";
 
 export interface NavItem {
   href: string;
@@ -17,7 +16,7 @@ export const PRIMARY_NAV: NavItem[] = [
   { href: "/characters", label: "Personagens", icon: UsersRound, mobile: true },
   { href: "/systems", label: "Sistemas", icon: Dices, mobile: true },
   { href: "/library", label: "Biblioteca", icon: Library },
-  { href: "/studio", label: "Chronicles Studio", icon: Clapperboard, plannedPhase: FEATURE_PHASE.chroniclesStudio },
+  { href: "/studio", label: "Chronicles Studio", icon: Clapperboard },
 ];
 
 export const SECONDARY_NAV: NavItem[] = [{ href: "/settings", label: "Configurações", icon: Settings }];

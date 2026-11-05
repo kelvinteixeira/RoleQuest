@@ -12,8 +12,12 @@
     "db:check": "node scripts/check-db.mjs"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "1.1.0",
+    "@google/genai": "2.30.0",
     "@react-three/drei": "^10.7.9",
     "@react-three/fiber": "^9.8.2",
+    "@remotion/player": "4.0.537",
+    "@remotion/web-renderer": "4.0.537",
     "@supabase/supabase-js": "2.118.0",
     "clsx": "^2.1.1",
     "framer-motion": "^14.9.0",
@@ -21,8 +25,10 @@
     "next": "16.4.4",
     "react": "19.3.0",
     "react-dom": "19.3.0",
+    "remotion": "4.0.537",
     "tailwind-merge": "^3.7.0",
     "three": "^0.187.0",
+    "zod": "4.6.7",
     "zustand": "^5.0.16"
   },
   "devDependencies": {

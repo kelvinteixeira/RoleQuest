@@ -55,8 +55,14 @@ Chat geral/privado/sistema/anotações, voz WebRTC (LiveKit), presença, sincron
 - ✅ Geradores por cenário (fantasia, horror, moderno/cyberpunk): NPC rápido por nível de ameaça, nomes, lugares, tesouro e ganchos
 - ✅ Combate e iniciativa (entregues na Fase 3)
 
-## Fase 6 — Chronicles Studio ⬜
-Log de eventos, momentos épicos, diário automático, roteiro estruturado, editor de episódios, composições Remotion.
+## Fase 6 — Chronicles Studio 🟡
+Os melhores momentos da campanha viram um episódio em vídeo que mistura cinema e HQ. Guia em [CHRONICLES.md](CHRONICLES.md).
+- ✅ Momentos com nota de drama a partir do diário (épicos, 20/1 naturais, quedas, vitórias, armadilhas, revelações) e seleção automática dos melhores, ao menos um por sessão
+- ✅ Roteiro escrito pelo Claude (saída estruturada: cenas com recordatório, balões, onomatopeia, câmera, clima, duração e rolagens decisivas; elenco com aparência fixa) e editável cena a cena
+- ✅ Quadros ilustrados pelo Gemini, com retrato de referência de cada personagem para mantê-los iguais em todos os quadros; redesenhar um quadro
+- ✅ Vídeo com Remotion: abertura com tarja de cinema, quadros com movimento de câmera e cor por clima, recordatório que aparece palavra por palavra, balões que surgem um a um, onomatopeia, d20 gigante nos dados decisivos (crítico dourado, falha vermelha) e encerramento "Continua…"; prévia no player e exportação MP4 no próprio navegador
+- ✅ Sem chaves, roteiro por regras e imagens de exemplo (tudo funciona para testar)
+- ⬜ Formato HQ para baixar (páginas em PNG/PDF), narração por voz e trilha sonora, compartilhar episódios com os jogadores
 
 ## Fase 7 — Supabase 🟡
 Antecipada para destravar a Fase 4. Guia de configuração em [SUPABASE.md](SUPABASE.md).

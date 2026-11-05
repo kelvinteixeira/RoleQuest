@@ -8,6 +8,7 @@ import type {
   CampaignRepository,
   CharacterRepository,
   InviteLinkRepository,
+  ChronicleRepository,
   LibraryRepository,
   EncounterRepository,
   JournalRepository,
@@ -90,6 +91,10 @@ const auth: AuthRepository = {
 
   async signOut() {
     return respond(undefined);
+  },
+
+  async accessToken() {
+    return null;
   },
 
   async requestPasswordReset() {
@@ -397,5 +402,43 @@ const journal: JournalRepository = {
   },
 };
 
-export const mockRepositories: Repositories = { auth, users, campaigns, sessions, inviteLinks, characters, library, systems, maps, images: mockImages, npcs, encounters, journal, roomSync: null };
+const chronicles: ChronicleRepository = {
+  async listEpisodes(campaignId) {
+    return respond(getDb().episodes.filter((e) => e.campaignId === campaignId).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)));
+  },
+  async getEpisode(id) {
+    return respond(getDb().episodes.find((e) => e.id === id) ?? null);
+  },
+  async createEpisode(input, userId) {
+    const now = nowIso();
+    const episode = { ...input, id: createId("ep"), createdBy: userId, createdAt: now, updatedAt: now };
+    getDb().episodes.push(episode);
+    commit();
+    return respond(episode);
+  },
+  async updateEpisode(id, patch) {
+    const db = getDb();
+    const index = db.episodes.findIndex((e) => e.id === id);
+    if (index < 0) throw new AppError("not_found", "Episódio não encontrado.");
+    db.episodes[index] = { ...db.episodes[index], ...patch, updatedAt: nowIso() };
+    commit();
+    return respond(db.episodes[index]);
+  },
+  async removeEpisode(id) {
+    const db = getDb();
+    const episode = db.episodes.find((e) => e.id === id);
+    db.episodes = db.episodes.filter((e) => e.id !== id);
+    commit();
+    await Promise.all(Object.values(episode?.images ?? {}).map((ref) => mockImages.remove?.(ref)));
+    return respond(undefined);
+  },
+  // Images stay in this browser (IndexedDB), like imported map images.
+  putImage: (_campaignId, _episodeId, _key, blob) => mockImages.put(blob),
+  getImage: (ref) => mockImages.get(ref),
+  removeImage: async (ref) => {
+    await mockImages.remove?.(ref);
+  },
+};
+
+export const mockRepositories: Repositories = { auth, users, campaigns, sessions, inviteLinks, characters, library, systems, maps, images: mockImages, npcs, encounters, journal, roomSync: null, chronicles };
 export { resetMockDatabase } from "./database";

@@ -17,6 +17,7 @@ import type { LibraryAsset } from "@/types/library";
 import type { SavedMap } from "@/types/map";
 import type { Encounter, EncounterInput, JournalEntry, JournalInput, Npc, NpcInput } from "@/types/gm";
 import type { SystemTemplate } from "@/types/system";
+import type { ChronicleEpisode, ChronicleEpisodeInput } from "@/types/chronicle";
 
 export interface AuthRepository {
   signIn(email: string, password: string): Promise<AuthSession>;
@@ -26,6 +27,8 @@ export interface AuthRepository {
   requestPasswordReset(email: string): Promise<void>;
   /** Sets a new password from the reset link's recovery session; returns the signed-in session. */
   updatePassword(password: string): Promise<AuthSession>;
+  /** The backend access token for calls to the app's own server routes (null in local mode). */
+  accessToken(): Promise<string | null>;
   /** On app load: the session that is still valid (the stored one, refreshed), or null. */
   resume(stored: AuthSession | null): Promise<AuthSession | null>;
 }
@@ -95,6 +98,7 @@ export interface MapRepository {
 export interface MapImageRepository {
   put(blob: Blob): Promise<ID>;
   get(id: ID): Promise<Blob | null>;
+  remove?(id: ID): Promise<void>;
 }
 
 /** GM tools: NPCs, encounters and the campaign journal. */
@@ -120,6 +124,20 @@ export interface JournalRepository {
   add(entries: JournalInput[]): Promise<JournalEntry[]>;
   update(id: ID, patch: Partial<Pick<JournalEntry, "text" | "private" | "kind" | "dismissed">>): Promise<JournalEntry>;
   remove(id: ID): Promise<void>;
+}
+
+/** Chronicles Studio: episodes and their generated images. GMs only. */
+export interface ChronicleRepository {
+  listEpisodes(campaignId: ID): Promise<ChronicleEpisode[]>;
+  getEpisode(id: ID): Promise<ChronicleEpisode | null>;
+  createEpisode(input: ChronicleEpisodeInput, userId: ID): Promise<ChronicleEpisode>;
+  updateEpisode(id: ID, patch: Partial<ChronicleEpisodeInput>): Promise<ChronicleEpisode>;
+  removeEpisode(id: ID): Promise<void>;
+  /** Stores a generated image; returns the reference kept in the episode. */
+  putImage(campaignId: ID, episodeId: ID, key: string, blob: Blob): Promise<string>;
+  /** null when the image no longer exists; throws when it can't be read right now. */
+  getImage(ref: string): Promise<Blob | null>;
+  removeImage(ref: string): Promise<void>;
 }
 
 /** An intent a member sent to the table's host (see features/virtual-tabletop/sync). */
@@ -193,4 +211,5 @@ export interface Repositories {
   journal: JournalRepository;
   /** null in local mode (no real-time backend). */
   roomSync: RoomSyncRepository | null;
+  chronicles: ChronicleRepository;
 }

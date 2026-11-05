@@ -357,7 +357,7 @@ function Room({ overview, reloadOverview }: { overview: CampaignOverview; reload
         open={epicOpen}
         onClose={() => setEpicOpen(false)}
         title="Marcar momento épico"
-        description="Fica registrado no log da sessão. O Chronicles Studio (Fase 6) usa esses momentos para montar o episódio."
+        description="Fica registrado no diário da campanha. O Chronicles Studio usa esses momentos para montar os episódios."
         size="sm"
         footer={
           <Button

@@ -224,19 +224,8 @@ export const campaignService = {
     if (!invite || invite.email !== user.email.toLowerCase()) throw new AppError("not_found", "Convite não encontrado.");
     if (invite.status !== "pending") throw new AppError("validation", "Este convite já foi respondido.");
 
-    if (accept) {
-      const campaign = await repo.campaigns.getById(invite.campaignId);
-      if (!campaign) throw new AppError("not_found", "A campanha deste convite não existe mais.");
-      const players = campaign.members.filter((m) => m.role === "player").length;
-      if (players >= campaign.playerPolicy.maxPlayers) throw new AppError("validation", "A campanha já está com todas as vagas preenchidas.");
-      await repo.campaigns.addMember(campaign.id, {
-        userId: user.id,
-        role: "player",
-        characterId: null,
-        joinedAt: new Date().toISOString(),
-      });
-    }
-    return repo.invites.updateStatus(inviteId, accept ? "accepted" : "declined");
+    // Accepting joins and checks the free seats in one step (a database function with Supabase).
+    return accept ? repo.invites.accept(inviteId, user.id) : repo.invites.updateStatus(inviteId, "declined");
   },
 
   async create(cmd: CreateCampaignCommand, owner: Pick<UserProfile, "id" | "displayName">): Promise<Campaign> {

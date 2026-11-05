@@ -45,7 +45,7 @@ Legenda: ✅ entregue · 🟡 parcial · ⬜ pendente
 - ✅ Dados 3D (rolam sobre a mesa a cada rolagem e mostram os valores) e efeitos sonoros sintetizados (dados, golpes, cura, portas, grades, armadilhas, fogo, passos, início de combate), com botão de silenciar
 
 ## Fase 4 — Comunicação ⬜
-Chat geral/privado/sistema/anotações, voz WebRTC (LiveKit), presença, sincronização em tempo real, central de áudio.
+Chat geral/privado/sistema/anotações, voz WebRTC (LiveKit), presença, sincronização em tempo real, central de áudio. Depende das etapas 2 e 3 da Fase 7.
 
 ## Fase 5 — Ferramentas avançadas do mestre ✅
 - ✅ NPCs por campanha (`/campaign/[id]/gm`): descrição pública, notas secretas, fatos a revelar, atitude, aparência e bloco de combate que se adapta ao sistema
@@ -58,8 +58,11 @@ Chat geral/privado/sistema/anotações, voz WebRTC (LiveKit), presença, sincron
 ## Fase 6 — Chronicles Studio ⬜
 Log de eventos, momentos épicos, diário automático, roteiro estruturado, editor de episódios, composições Remotion.
 
-## Fase 7 — Supabase ⬜
-Auth real, Postgres + RLS, Storage, Realtime, troca de `DATA_SOURCE` para `supabase`.
+## Fase 7 — Supabase 🟡
+Antecipada para destravar a Fase 4. Guia de configuração em [SUPABASE.md](SUPABASE.md).
+- ✅ Etapa 1 — fundação: esquema Postgres com RLS espelhando `lib/permissions.ts`, gatilhos de proteção (dono da campanha, papéis, personagem vinculado) e funções (`accept_invite`, `campaign_characters`, `known_npcs`, `username_taken`); Supabase Auth com e-mail e senha; repositórios Supabase para todos os contratos; troca por `NEXT_PUBLIC_DATA_SOURCE`; `npm run db:check` valida o esquema e 42 cenários de acesso (incluindo tentativas de burlar as regras) num Postgres em memória; redefinição de senha pelo link do e-mail (`/reset-password`)
+- ⬜ Etapa 2 — tempo real: sincronização da mesa (Realtime broadcast), presença, visão do jogador com névoa filtrada por jogador
+- ⬜ Etapa 3 — mídia e voz: imagens de mapa no Storage, voz LiveKit e central de áudio
 
 ## Como verificar cada entrega
 ```bash

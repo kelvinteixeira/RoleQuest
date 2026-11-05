@@ -139,7 +139,7 @@ export const characterService = {
       ownerId: user.id,
       campaignId: null,
       systemId: character.systemId,
-      name: `${character.name} (cópia)`,
+      name: `${character.name} (cópia)`.slice(0, 50),
       concept: character.concept,
       level: character.level,
       portraitColor: character.portraitColor,

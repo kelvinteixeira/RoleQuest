@@ -7,7 +7,6 @@ import type { AuthSession, ProfileUpdate, SignUpInput, UserProfile } from "@/typ
 import type {
   Campaign,
   CampaignInvite,
-  CampaignMember,
   GameSession,
   InviteStatus,
   NewCampaignInput,
@@ -26,6 +25,10 @@ export interface AuthRepository {
   signOut(): Promise<void>;
   /** Sends a reset link. Resolves even for unknown e-mails (no account enumeration). */
   requestPasswordReset(email: string): Promise<void>;
+  /** Sets a new password from the reset link's recovery session; returns the signed-in session. */
+  updatePassword(password: string): Promise<AuthSession>;
+  /** On app load: the session that is still valid (the stored one, refreshed), or null. */
+  resume(stored: AuthSession | null): Promise<AuthSession | null>;
 }
 
 export interface UserRepository {
@@ -40,7 +43,6 @@ export interface CampaignRepository {
   getById(id: ID): Promise<Campaign | null>;
   create(input: NewCampaignInput): Promise<Campaign>;
   update(id: ID, patch: Partial<NewCampaignInput>): Promise<Campaign>;
-  addMember(campaignId: ID, member: CampaignMember): Promise<Campaign>;
 }
 
 export interface SessionRepository {
@@ -54,6 +56,8 @@ export interface InviteRepository {
   getById(id: ID): Promise<CampaignInvite | null>;
   create(input: NewInviteInput): Promise<CampaignInvite>;
   updateStatus(id: ID, status: InviteStatus): Promise<CampaignInvite>;
+  /** Joins the invited user as a player and marks the invite accepted, atomically (checks the free seats). */
+  accept(id: ID, userId: ID): Promise<CampaignInvite>;
 }
 
 export interface CharacterRepository {
@@ -94,6 +98,8 @@ export interface MapImageRepository {
 /** GM tools: NPCs, encounters and the campaign journal. */
 export interface NpcRepository {
   listForCampaign(campaignId: ID): Promise<Npc[]>;
+  /** For any member: known NPCs with secrets removed and only revealed facts (filtered by the backend). */
+  listKnownForCampaign(campaignId: ID): Promise<Npc[]>;
   getById(id: ID): Promise<Npc | null>;
   create(input: NpcInput): Promise<Npc>;
   update(id: ID, patch: Partial<NpcInput>): Promise<Npc>;

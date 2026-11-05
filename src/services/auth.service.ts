@@ -58,8 +58,29 @@ export const authService = {
     await repositories().auth.requestPasswordReset(email);
   },
 
+  /** From the reset link: validates and saves the new password, then signs in. */
+  async completePasswordReset(values: { password: string; confirmPassword: string }): Promise<AuthResult> {
+    const errors = validate(values, {
+      password: [rules.required("Crie uma senha."), rules.minLength(PASSWORD_MIN_LENGTH)],
+      confirmPassword: [rules.required("Confirme sua senha.")],
+    });
+    if (!errors.confirmPassword && values.password !== values.confirmPassword) errors.confirmPassword = "As senhas não coincidem.";
+    if (hasErrors(errors)) throw new AppError("validation", undefined, errors as Record<string, string>);
+    const session = await repositories().auth.updatePassword(values.password);
+    return loadProfile(session);
+  },
+
   async signOut(): Promise<void> {
     await repositories().auth.signOut();
+  },
+
+  /** On app load: keeps the session only if the backend still accepts it (Supabase refreshes it). */
+  async resume(stored: AuthSession | null): Promise<AuthSession | null> {
+    try {
+      return await repositories().auth.resume(stored);
+    } catch {
+      return null;
+    }
   },
 
   isSessionValid(session: AuthSession | null): session is AuthSession {

@@ -48,7 +48,8 @@ export const gmService = {
   /** For any member: the NPCs the party knows, with only revealed facts. */
   async knownNpcs(campaignId: ID, user: Actor): Promise<KnownNpc[]> {
     await membership(campaignId, user);
-    const npcs = await repositories().npcs.listForCampaign(campaignId);
+    // The backend already strips secrets; playerView is a second, local filter.
+    const npcs = await repositories().npcs.listKnownForCampaign(campaignId);
     return npcs.map(playerView).filter((n): n is KnownNpc => n !== null);
   },
 

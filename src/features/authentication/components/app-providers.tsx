@@ -16,9 +16,11 @@ export function AppProviders({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     void usePreferencesStore.persist.rehydrate();
-    void Promise.resolve(useSessionStore.persist.rehydrate()).then(() => {
+    void Promise.resolve(useSessionStore.persist.rehydrate()).then(async () => {
       const { session, clear } = useSessionStore.getState();
-      if (session && !authService.isSessionValid(session)) clear();
+      const resumed = await authService.resume(session);
+      if (!resumed) clear();
+      else if (resumed !== session) useSessionStore.setState({ session: resumed });
       useSessionStore.setState({ hydrated: true });
     });
   }, []);

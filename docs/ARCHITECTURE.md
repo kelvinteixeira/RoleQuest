@@ -10,7 +10,7 @@ Role Quest é uma plataforma web de RPG de mesa online com três pilares:
 2. **Ferramentas do mestre** — controle de sessão, NPCs, encontros, áudio, narrativa.
 3. **Chronicles Studio** — transforma os acontecimentos registrados numa sessão em roteiro e, futuramente, em episódio de vídeo.
 
-O frontend é construído primeiro, sobre uma **camada de dados substituível**: hoje os repositórios usam dados locais (mock persistido no navegador); na Fase 7 serão trocados por implementações Supabase sem alterar componentes.
+O frontend é construído primeiro, sobre uma **camada de dados substituível**: os repositórios têm duas implementações, escolhidas por `NEXT_PUBLIC_DATA_SOURCE`: `mock` (dados locais persistidos no navegador) e `supabase` (Auth + Postgres com RLS). Os componentes não mudam entre elas.
 
 ## 2. Stack
 
@@ -77,7 +77,7 @@ Service (src/services) ── regras: validação, permissões, ordenação, agr
    │ chama
 Repository (contrato em repositories/contracts.ts)
    │ implementado por
-MockRepository (hoje)  →  SupabaseRepository (Fase 7)
+MockRepository (mock)  |  SupabaseRepository (supabase)
 ```
 
 Regras:
@@ -94,10 +94,18 @@ Regras:
 - `resetMockDatabase()` restaura o estado inicial (disponível em Configurações).
 - Senhas no mock são armazenadas como hash SHA‑256 (Web Crypto). **Isso não é segurança real** — é só para não manter texto puro no navegador. A autenticação real será Supabase Auth.
 
+### Repositórios Supabase
+
+- `lib/supabase/client.ts`: cliente único do navegador com a chave anon/publishable (nunca a `service_role`).
+- `repositories/supabase/mappers.ts`: conversão linha (snake_case) ↔ domínio, sem I/O e testada; objetos aninhados (mundo, política de jogadores, ficha, sistema) ficam em colunas `jsonb`.
+- `repositories/supabase/errors.ts`: erros do PostgREST/Auth viram `AppError` (`42501` → `forbidden`, vagas esgotadas → `validation`…).
+- O que o RLS sozinho não expressa vira função `security definer`: aceitar convite, ver o grupo sem as fichas alheias, NPCs conhecidos sem segredos.
+- Esquema em `supabase/migrations/`; `npm run db:check` aplica as migrações num Postgres em memória (PGlite) e roda os cenários de acesso. Configuração passo a passo em [SUPABASE.md](SUPABASE.md).
+
 ## 5. Autenticação e permissões
 
 - `stores/session.store.ts` guarda a sessão atual (persistida). `AuthGuard` protege o grupo `(dashboard)` e `campaign/*` no cliente.
-- Na Fase 7: Supabase Auth + cookies SSR + `proxy.ts` (antigo middleware) para proteção no servidor, e **Row Level Security** como fonte de verdade das permissões.
+- Com `DATA_SOURCE=supabase`: Supabase Auth (sessão no navegador, renovada por `authService.resume` ao abrir o app) e **Row Level Security** como fonte de verdade das permissões. Proteção de rotas no servidor (cookies SSR + `proxy.ts`) fica para quando houver rotas renderizadas com dados no servidor.
 - Papéis são **por campanha** (`CampaignMember.role = 'game_master' | 'player'`). O mesmo usuário pode ser mestre numa campanha e jogador em outra.
 - `lib/permissions.ts` define a matriz de capacidades (`campaign:manage`, `map:edit`, `sheet:edit-own`, `chat:private-gm`…). A UI usa `can(role, capability)`; o backend replicará a mesma matriz em políticas RLS.
 

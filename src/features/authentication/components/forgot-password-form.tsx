@@ -5,6 +5,7 @@ import Link from "next/link";
 import { ArrowLeft, Mail } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/field";
+import { appConfig } from "@/config/app";
 import { toUserMessage } from "@/lib/errors";
 import { authService } from "@/services/auth.service";
 import { FormAlert } from "./form-alert";
@@ -39,9 +40,11 @@ export function ForgotPasswordForm() {
           <FormAlert tone="success">
             Se existir uma conta para <strong>{sentTo}</strong>, o link de redefinição será enviado.
           </FormAlert>
-          <p className="rounded-lg border border-line bg-surface px-3 py-2.5 text-xs text-fg-subtle">
-            Modo local: nenhum e-mail é enviado de verdade. O envio será feito pelo Supabase Auth na Fase 7.
-          </p>
+          {appConfig.dataSource === "mock" && (
+            <p className="rounded-lg border border-line bg-surface px-3 py-2.5 text-xs text-fg-subtle">
+              Modo local: nenhum e-mail é enviado de verdade. Com o Supabase ligado, o link chega por e-mail.
+            </p>
+          )}
           <Button variant="secondary" onClick={() => setSentTo(null)}>
             Usar outro e-mail
           </Button>

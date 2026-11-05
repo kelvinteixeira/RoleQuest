@@ -93,8 +93,17 @@ const auth: AuthRepository = {
   },
 
   async requestPasswordReset() {
-    // Local mode sends no e-mail. Supabase Auth will deliver the reset link.
+    // Local mode sends no e-mail. Supabase Auth delivers the reset link.
     return respond(undefined);
+  },
+
+  async updatePassword() {
+    throw new AppError("validation", "No modo local não há link de redefinição de senha.");
+  },
+
+  async resume(stored) {
+    // Local sessions live in the session store; only an expired one is dropped.
+    return stored && new Date(stored.expiresAt).getTime() > Date.now() ? stored : null;
   },
 };
 
@@ -140,16 +149,6 @@ const campaigns: CampaignRepository = {
     commit();
     return respond(db.campaigns[index]);
   },
-  async addMember(campaignId, member) {
-    const campaign = getDb().campaigns.find((c) => c.id === campaignId);
-    if (!campaign) throw new AppError("not_found");
-    if (!campaign.members.some((m) => m.userId === member.userId)) {
-      campaign.members.push(member);
-      campaign.updatedAt = nowIso();
-      commit();
-    }
-    return respond(campaign);
-  },
 };
 
 const sessions: SessionRepository = {
@@ -187,6 +186,22 @@ const invites: InviteRepository = {
     const invite = getDb().invites.find((i) => i.id === id);
     if (!invite) throw new AppError("not_found");
     invite.status = status;
+    invite.updatedAt = nowIso();
+    commit();
+    return respond(invite);
+  },
+  async accept(id, userId) {
+    const db = getDb();
+    const invite = db.invites.find((i) => i.id === id);
+    if (!invite) throw new AppError("not_found", "Convite não encontrado.");
+    if (invite.status !== "pending") throw new AppError("validation", "Este convite já foi respondido.");
+    const campaign = db.campaigns.find((c) => c.id === invite.campaignId);
+    if (!campaign) throw new AppError("not_found", "A campanha deste convite não existe mais.");
+    if (campaign.members.filter((m) => m.role === "player").length >= campaign.playerPolicy.maxPlayers) {
+      throw new AppError("validation", "A campanha já está com todas as vagas preenchidas.");
+    }
+    if (!campaign.members.some((m) => m.userId === userId)) campaign.members.push({ userId, role: "player", characterId: null, joinedAt: nowIso() });
+    invite.status = "accepted";
     invite.updatedAt = nowIso();
     commit();
     return respond(invite);
@@ -279,6 +294,15 @@ const maps: MapRepository = {
 const npcs: NpcRepository = {
   async listForCampaign(campaignId) {
     return respond(getDb().npcs.filter((n) => n.campaignId === campaignId).sort((a, b) => a.name.localeCompare(b.name, "pt-BR")));
+  },
+  async listKnownForCampaign(campaignId) {
+    // Same filtering as the database function known_npcs().
+    return respond(
+      getDb()
+        .npcs.filter((n) => n.campaignId === campaignId && n.known)
+        .map((n) => ({ ...n, attitude: "neutral" as const, modelId: undefined, secretNotes: "", stats: { ...n.stats, hp: 0 }, facts: n.facts.filter((f) => f.revealed) }))
+        .sort((a, b) => a.name.localeCompare(b.name, "pt-BR")),
+    );
   },
   async getById(id) {
     return respond(getDb().npcs.find((n) => n.id === id) ?? null);

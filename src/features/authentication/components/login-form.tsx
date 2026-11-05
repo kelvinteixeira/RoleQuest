@@ -91,21 +91,26 @@ export function LoginForm() {
         </Button>
       </form>
 
-      <div className="my-6 flex items-center gap-3 text-[11px] uppercase tracking-wider text-fg-subtle">
-        <span className="h-px flex-1 bg-line" /> ou <span className="h-px flex-1 bg-line" />
-      </div>
+      {/* The demo account only exists in the local (mock) data. */}
+      {appConfig.dataSource === "mock" && (
+        <>
+          <div className="my-6 flex items-center gap-3 text-[11px] uppercase tracking-wider text-fg-subtle">
+            <span className="h-px flex-1 bg-line" /> ou <span className="h-px flex-1 bg-line" />
+          </div>
 
-      <Button
-        variant="secondary"
-        size="lg"
-        className="w-full"
-        onClick={signInWithDemo}
-        loading={pending === "demo"}
-        disabled={pending !== null}
-        leadingIcon={<Sparkles className="size-4 text-accent" />}
-      >
-        Explorar com a conta de demonstração
-      </Button>
+          <Button
+            variant="secondary"
+            size="lg"
+            className="w-full"
+            onClick={signInWithDemo}
+            loading={pending === "demo"}
+            disabled={pending !== null}
+            leadingIcon={<Sparkles className="size-4 text-accent" />}
+          >
+            Explorar com a conta de demonstração
+          </Button>
+        </>
+      )}
 
       <p className="mt-8 text-center text-sm text-fg-muted">
         Ainda não tem conta?{" "}

@@ -99,9 +99,10 @@ Com o Supabase ligado, a mesa é compartilhada em tempo real:
 
 Para isso funcionar, as tabelas da mesa precisam estar no **Realtime**: a migração `20261106000000_realtime_table.sql` já as adiciona à publicação `supabase_realtime`. Se o seu projeto não tiver essa publicação, ative o Realtime em **Database → Publications** para `room_views`, `room_view_maps`, `room_intents` e `room_presence`.
 
+## Mapas e áudio
+
+A migração `20261108000000_map_images_and_audio.sql` cria dois buckets privados, com uma pasta por campanha: `map-images` (imagens importadas como mapa) e `table-audio` (faixas da central de áudio, até 25 MB). Só mestres enviam e apagam. Membros ouvem todas as faixas, mas só baixam a imagem do mapa que já está na mesa dos jogadores (o mestre pode preparar mapas sem que ninguém espie).
+
 ## O que ainda fica no navegador
 
-Por enquanto continuam locais (por navegador):
-
-- as imagens importadas como mapa (IndexedDB) — vão para o Supabase Storage na próxima etapa (até lá, quem não tem a imagem vê o mapa sem o desenho);
-- a voz e a central de áudio (LiveKit).
+- A voz (LiveKit) é a próxima etapa.

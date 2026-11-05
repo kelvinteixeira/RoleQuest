@@ -58,7 +58,8 @@ describe("local database upgrade", () => {
     void _links;
     const stored = { ...withoutLinks, invites: [{ id: "inv" }], version: 1, characters: [edited, untouched] } as unknown as MockDatabase;
     const upgraded = upgradeDatabase(stored)!;
-    expect(upgraded.version).toBe(6);
+    expect(upgraded.version).toBe(7);
+    expect(upgraded.audioTracks).toEqual([]);
     expect(upgraded.episodes).toEqual([]);
     expect(upgraded.maps).toEqual([]);
     // Every campaign gets an invite link, like the database migration backfill.
@@ -69,7 +70,7 @@ describe("local database upgrade", () => {
   });
 
   it("leaves the current version alone and gives up on unknown ones", () => {
-    const current = { ...seed, version: 6 } as MockDatabase;
+    const current = { ...seed, version: 7 } as MockDatabase;
     expect(upgradeDatabase(current)).toBe(current);
     expect(upgradeDatabase({ ...seed, version: 0 } as MockDatabase)).toBeNull();
   });

@@ -24,7 +24,8 @@ import {
   whisper,
 } from "../model/room-engine";
 import { doorOf, PROP_BY_ID, type Ambient, type MapDocument, type TrapState } from "@/features/map/model/map-document";
-import type { Author, MessageVisibility, RoomEvent, RoomToken } from "../model/types";
+import type { AmbienceLayer, Author, MessageVisibility, MusicCue, RoomEvent, RoomToken } from "../model/types";
+import { createId } from "@/lib/id";
 import { useRoomStore } from "../store/room.store";
 
 const SHEET_SYNC_MS = 400;
@@ -304,12 +305,40 @@ export function useRoomActions(campaignId: string, gm: Author, forward?: (events
       send([{ type: "token.appearance", tokenId: token.id, modelId }]);
     }
 
+    /** Puts music on for everyone (a theme or an uploaded track), from the start. */
+    function playMusic(source: MusicCue["source"], ref: string, title: string, options: { loop?: boolean; volume?: number } = {}) {
+      const volume = options.volume ?? room()?.audio?.music?.volume ?? 0.8;
+      send([{ type: "audio.music", music: { id: createId("cue"), source, ref, title, startedAt: new Date().toISOString(), volume, loop: options.loop ?? true } }]);
+    }
+
+    function stopMusic() {
+      send([{ type: "audio.music", music: null }]);
+    }
+
+    /** Same cue (no restart), new level or loop setting. */
+    function tuneMusic(patch: Partial<Pick<MusicCue, "volume" | "loop">>) {
+      const music = room()?.audio?.music;
+      if (music) send([{ type: "audio.music", music: { ...music, ...patch } }]);
+    }
+
+    function setAmbience(ambience: AmbienceLayer[]) {
+      send([{ type: "audio.ambience", ambience }]);
+    }
+
+    function setLayer(id: string, volume: number | null) {
+      send([{ type: "audio.layer", id, volume }]);
+    }
+
+    function silence() {
+      send([{ type: "audio.music", music: null }, { type: "audio.ambience", ambience: [] }]);
+    }
+
     function replaceMap(map: MapDocument) {
       send([{ type: "map.replaced", map }, announce(`O mestre atualizou o mapa: ${map.name}.`)]);
       toast.success("Mapa aplicado", map.name);
     }
 
-    return { addTokens, post, setAmbient, setTokenLight, toggleLight, toggleDoor, setDoorLocked, updateTrap, configureFog, revealCells, hideCells, revealAll: () => revealCells(allCells()), hideAll: () => hideCells(allCells()), setRules, applySheetSoon, refreshFromSheet, forgetSheet, syncSheets, postCheck, setAppearance, replaceMap, rollDice, sendChat, moveToken, adjustHp, toggleCondition, attackWith, startCombat, nextTurn, endCombat, addBots, removeBots, markEpic };
+    return { addTokens, post, setAmbient, setTokenLight, toggleLight, toggleDoor, setDoorLocked, updateTrap, configureFog, revealCells, hideCells, revealAll: () => revealCells(allCells()), hideAll: () => hideCells(allCells()), setRules, applySheetSoon, refreshFromSheet, forgetSheet, syncSheets, postCheck, setAppearance, replaceMap, playMusic, stopMusic, tuneMusic, setAmbience, setLayer, silence, rollDice, sendChat, moveToken, adjustHp, toggleCondition, attackWith, startCombat, nextTurn, endCombat, addBots, removeBots, markEpic };
   }, [campaignId, gm, dispatch, forward]);
 }
 

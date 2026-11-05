@@ -28,7 +28,7 @@ function token(partial: Partial<RoomToken> & Pick<RoomToken, "id" | "kind">): Ro
 }
 
 function room(map: MapDocument, tokens: RoomToken[], fog = createFog()): RoomState {
-  return { campaignId: "c1", rules: DEFAULT_RULES, map, tokens, messages: [], combat: { active: false, round: 0, turn: 0, order: [] }, fog, log: [], createdAt: "2026-01-01" };
+  return { campaignId: "c1", rules: DEFAULT_RULES, map, tokens, messages: [], combat: { active: false, round: 0, turn: 0, order: [] }, fog, audio: { music: null, ambience: [] }, log: [], createdAt: "2026-01-01" };
 }
 
 /** 9×3 corridor between two walls of rock, with a door in the middle (x = 4). */

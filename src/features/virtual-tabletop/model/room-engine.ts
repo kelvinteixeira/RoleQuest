@@ -30,6 +30,9 @@ export function currentTurnToken(state: RoomState): RoomToken | null {
 
 export const createFog = (): FogState => ({ enabled: false, vision: DEFAULT_VISION, explored: [] });
 
+/** A room with nothing playing. */
+export const silentAudio = (): RoomState["audio"] => ({ music: null, ambience: [] });
+
 /** The party's eyes: player characters (people and bots) still standing. */
 export const partyViewers = (tokens: RoomToken[]) => tokens.filter((t) => t.kind === "pc" && !isDown(t));
 
@@ -189,6 +192,20 @@ function reduce(state: RoomState, event: RoomEvent): RoomState {
       // Explored areas survive edits (and resizes) of the same map, not a different one.
       const explored = event.map.id !== state.map.id ? [] : event.map.cols === state.map.cols && event.map.rows === state.map.rows ? state.fog.explored : remapExplored(state.fog.explored, state.map, event.map);
       return { ...state, map: event.map, tokens, fog: { ...state.fog, explored } };
+    }
+    case "map.image":
+      return state.map.background ? { ...state, map: { ...state.map, background: { ...state.map.background, imageId: event.imageId } } } : state;
+    // Rooms from before the audio centre may lack `audio`: complete it on the way.
+    case "audio.music":
+      return { ...state, audio: { ...silentAudio(), ...state.audio, music: event.music } };
+    case "audio.ambience":
+      return { ...state, audio: { ...silentAudio(), ...state.audio, ambience: event.ambience } };
+    case "audio.layer": {
+      const ambience = (state.audio?.ambience ?? []).filter((l) => l.id !== event.id);
+      const at = (state.audio?.ambience ?? []).findIndex((l) => l.id === event.id);
+      // A layer keeps its place in the list when only its level changes.
+      if (event.volume !== null) ambience.splice(at < 0 ? ambience.length : at, 0, { id: event.id, volume: event.volume });
+      return { ...state, audio: { ...silentAudio(), ...state.audio, ambience } };
     }
     case "prop.updated":
       return {

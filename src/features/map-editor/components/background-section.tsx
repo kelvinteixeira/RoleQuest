@@ -15,7 +15,7 @@ import { useMapEditorStore } from "../store/map-editor.store";
  * Imported battle-map picture: import, line it up with the grid (squares
  * across + fine offset), fade it, swap it, remove it.
  */
-export function BackgroundSection({ onResize }: { onResize: (doc: MapDocument) => void }) {
+export function BackgroundSection({ campaignId, onResize }: { campaignId?: string; onResize: (doc: MapDocument) => void }) {
   const draft = useMapEditorStore((s) => s.draft);
   const dirty = useMapEditorStore((s) => s.dirty);
   const replace = useMapEditorStore((s) => s.replace);
@@ -52,7 +52,7 @@ export function BackgroundSection({ onResize }: { onResize: (doc: MapDocument) =
     setBusy(true);
     try {
       const { blob, width, height } = await prepareMapImage(file);
-      const imageId = await mapImageService.save(blob);
+      const imageId = await mapImageService.save(blob, campaignId);
       if (swapping.current && draft.background) {
         // Same map, new picture (e.g. a sharper version): keep walls, props, notes and alignment.
         update({ imageId, width, height, cols: clampColumns(draft.background.cols, width, height) });

@@ -79,6 +79,12 @@ export function useTableActions(campaignId: string, author: Author, sync: RoomSy
       addBots: gmOnly,
       removeBots: gmOnly,
       markEpic: gmOnly,
+      playMusic: gmOnly,
+      stopMusic: gmOnly,
+      tuneMusic: gmOnly,
+      setAmbience: gmOnly,
+      setLayer: gmOnly,
+      silence: gmOnly,
       forgetSheet: () => undefined,
 
       moveToken: (token, cell) => void send({ kind: "move", tokenId: token.id, x: cell.x, y: cell.y }),

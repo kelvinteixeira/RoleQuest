@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { AnimatePresence } from "framer-motion";
-import { ArrowLeft, Bot, CloudFog, Crown, Dices, MapPinned, MessageSquare, Mic, Pause, Play, Radio, RotateCcw, Star, Swords, UserMinus, UserPlus, Volume2, VolumeX } from "lucide-react";
+import { ArrowLeft, Bot, CloudFog, Crown, Dices, MapPinned, MessageSquare, Mic, Music2, Pause, Play, Radio, RotateCcw, Star, Swords, UserMinus, UserPlus, Volume2, VolumeX } from "lucide-react";
 import { toHexColor } from "@/lib/color";
 import { usePreferencesStore } from "@/stores/preferences.store";
 import { DiceTray, type TrayRoll } from "@/features/dice/components/dice-tray";
@@ -32,6 +32,9 @@ import { RoomMap3D } from "./room-map-3d";
 import { ChatPanel, CombatPanel, DicePanel, TokenInspector } from "./room-panels";
 import { FeatureInspector, ScenePanel } from "./scene-panels";
 import { PresenceBar, SyncBadge, TableNotice, TurnBanner, WaitingForTable } from "./table-presence";
+import { AudioPanel, Equalizer, useAudibleCue } from "./audio-panel";
+import { useTableAudio } from "../hooks/use-table-audio";
+import { useLegacyMapImage } from "../hooks/use-legacy-map-image";
 import { RoomGmPanel } from "@/features/gm/components/room-gm-panel";
 import { partyOf, sessionLabelOf } from "@/features/gm/model/party";
 
@@ -55,7 +58,7 @@ export function SessionRoom({ campaignId }: { campaignId: string }) {
   return <Room overview={data} reloadOverview={reload} />;
 }
 
-type PanelTab = "combat" | "chat" | "dice" | "scene" | "gm";
+type PanelTab = "combat" | "chat" | "dice" | "audio" | "scene" | "gm";
 
 function Room({ overview, reloadOverview }: { overview: CampaignOverview; reloadOverview: () => Promise<void> }) {
   const user = useCurrentUser();
@@ -108,6 +111,12 @@ function Room({ overview, reloadOverview }: { overview: CampaignOverview; reload
   }, [sync.mode, campaignId, createRoom]);
 
   useBotDirector(campaignId, author, runsTable);
+  // Everyone hears the table (each at their own levels); old map pictures get shared.
+  // While connecting (or before the first view) the room is this browser's old copy: no sound from it.
+  const settled = sync.mode !== "connecting" && !(sync.mode === "guest" && !sync.hasView);
+  const tableSound = useTableAudio(settled ? room?.audio : undefined);
+  const nowPlaying = useAudibleCue(room?.audio?.music);
+  useLegacyMapImage(campaignId, room?.map.background?.imageId, runsTable);
   useSheetHpWriteback(campaignId, user.id, runsTable);
   useRoomSounds();
   const soundOn = usePreferencesStore((s) => s.diceSounds);
@@ -186,6 +195,12 @@ function Room({ overview, reloadOverview }: { overview: CampaignOverview; reload
           </Badge>
         )}
         <SyncBadge sync={sync} />
+        {nowPlaying && (
+          <button onClick={() => setTab("audio")} className="inline-flex h-7 max-w-48 items-center gap-1.5 rounded-full border border-accent/40 bg-accent/10 px-2.5 text-[11px] text-fg hover:bg-accent/15" title="Tocando para a mesa">
+            <Equalizer playing />
+            <span className="truncate">{nowPlaying.title}</span>
+          </button>
+        )}
         <PresenceBar present={sync.present} />
 
         <div className="ml-auto flex flex-wrap items-center gap-1.5">
@@ -273,6 +288,18 @@ function Room({ overview, reloadOverview }: { overview: CampaignOverview; reload
             {holder && holder.profile.id !== user.id ? `${holder.profile.displayName} conduz a mesa.` : "A mesa é conduzida em outra aba."} Você vê tudo, e o que fizer vai para quem conduz.
           </TableNotice>
         )}
+        {tableSound.locked && (
+          <TableNotice
+            key="sound-locked"
+            action={
+              <Button size="sm" onClick={tableSound.unlock} leadingIcon={<Volume2 className="size-3.5" />}>
+                Ouvir
+              </Button>
+            }
+          >
+            A mesa tem música e ambiente tocando. O navegador espera um clique para liberar o som.
+          </TableNotice>
+        )}
         {sync.mode === "guest" && !isGM && !sync.hostOnline && (
           <TableNotice key="host-away" tone="warning">
             O mestre saiu da mesa. Você ainda vê tudo; ações voltam a valer quando ele voltar.
@@ -333,6 +360,7 @@ function Room({ overview, reloadOverview }: { overview: CampaignOverview; reload
                   { value: "combat", label: <TabLabel icon={<Swords className="size-3.5" />} text="Combate" /> },
                   { value: "chat", label: <TabLabel icon={<MessageSquare className="size-3.5" />} text="Chat" />, count: room.messages.length },
                   { value: "dice", label: <TabLabel icon={<Dices className="size-3.5" />} text="Dados" /> },
+                  { value: "audio", label: <TabLabel icon={<Music2 className="size-3.5" />} text="Áudio" /> },
                   ...(isGM
                     ? [
                         { value: "scene" as const, label: <TabLabel icon={<CloudFog className="size-3.5" />} text="Cena" /> },
@@ -345,6 +373,7 @@ function Room({ overview, reloadOverview }: { overview: CampaignOverview; reload
                 {tab === "combat" && <CombatPanel room={room} actions={actions} canRun={!restricted} ownTokenIds={ownTokenIds} />}
                 {tab === "chat" && <ChatPanel room={room} actions={actions} mineIds={[user.id, ...ownTokenIds]} isGM={!restricted} allowPrivate={policy.allowPrivateMessages} />}
                 {tab === "dice" && <DicePanel actions={actions} />}
+                {tab === "audio" && <AudioPanel room={room} actions={actions} campaignId={campaignId} isGM={!restricted} userId={user.id} />}
                 {tab === "scene" && isGM && <ScenePanel room={room} actions={actions} />}
                 {tab === "gm" && isGM && <RoomGmPanel room={room} actions={actions} party={partyOf(overview)} sessionLabel={sessionLabelOf(overview)} />}
               </div>

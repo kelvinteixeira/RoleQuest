@@ -4,8 +4,14 @@ const urls = new Map<string, Promise<string | null>>();
 
 /** Stores and serves the pictures behind imported maps. */
 export const mapImageService = {
-  async save(blob: Blob): Promise<string> {
-    return repositories().images.put(blob);
+  /** Stores a picture; with a campaign, its members can see it too (Supabase Storage). */
+  async save(blob: Blob, campaignId?: string): Promise<string> {
+    return repositories().images.put(blob, campaignId);
+  },
+
+  /** The stored picture itself (for re-uploading one kept in this browser only). */
+  blob(imageId: string): Promise<Blob | null> {
+    return repositories().images.get(imageId);
   },
 
   /**

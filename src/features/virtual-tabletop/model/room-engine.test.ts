@@ -29,7 +29,7 @@ function token(partial: Partial<RoomToken> & Pick<RoomToken, "id" | "kind">): Ro
 }
 
 function room(tokens: RoomToken[], rules: CombatRules = DEFAULT_RULES): RoomState {
-  return { campaignId: "c1", rules, map: riverGladeMap(), tokens, messages: [], combat: { active: false, round: 0, turn: 0, order: [] }, fog: createFog(), log: [], createdAt: "2026-01-01" };
+  return { campaignId: "c1", rules, map: riverGladeMap(), tokens, messages: [], combat: { active: false, round: 0, turn: 0, order: [] }, fog: createFog(), audio: { music: null, ambience: [] }, log: [], createdAt: "2026-01-01" };
 }
 
 describe("attack", () => {

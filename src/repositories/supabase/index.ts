@@ -24,6 +24,7 @@ import { supabase } from "@/lib/supabase/client";
 import type { AuthSession } from "@/types/user";
 import { toAppError, unwrap, unwrapMaybe } from "./errors";
 import { supabaseRoomSync } from "./room-sync";
+import { supabaseVoiceSignal } from "./voice-signal";
 import { supabaseChronicles } from "./chronicles";
 import { supabaseMapImages } from "./map-images";
 import { supabaseAudioTracks } from "./audio-tracks";
@@ -331,4 +332,4 @@ const journal: JournalRepository = {
 };
 
 /** Map pictures stay in this browser (IndexedDB) until the Storage step. */
-export const supabaseRepositories: Repositories = { auth, users, campaigns, sessions, inviteLinks, characters, library, systems, maps, images: supabaseMapImages, npcs, encounters, journal, roomSync: supabaseRoomSync, chronicles: supabaseChronicles, audioTracks: supabaseAudioTracks };
+export const supabaseRepositories: Repositories = { auth, users, campaigns, sessions, inviteLinks, characters, library, systems, maps, images: supabaseMapImages, npcs, encounters, journal, roomSync: supabaseRoomSync, voice: supabaseVoiceSignal, chronicles: supabaseChronicles, audioTracks: supabaseAudioTracks };

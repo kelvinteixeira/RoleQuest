@@ -3,14 +3,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { AnimatePresence } from "framer-motion";
-import { ArrowLeft, Bot, CloudFog, Crown, Dices, MapPinned, MessageSquare, Mic, Music2, Pause, Play, Radio, RotateCcw, Star, Swords, UserMinus, UserPlus, Volume2, VolumeX } from "lucide-react";
+import { ArrowLeft, Bot, CloudFog, Crown, Dices, MapPinned, MessageSquare, Music2, Pause, Play, Radio, RotateCcw, Star, Swords, UserMinus, UserPlus, Volume2, VolumeX } from "lucide-react";
 import { toHexColor } from "@/lib/color";
 import { usePreferencesStore } from "@/stores/preferences.store";
 import { DiceTray, type TrayRoll } from "@/features/dice/components/dice-tray";
 import { useRoomSounds } from "../hooks/use-room-sounds";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/field";
-import { Badge, PhaseBadge } from "@/components/ui/primitives";
+import { Badge } from "@/components/ui/primitives";
 import { Modal } from "@/components/ui/modal";
 import { Tabs } from "@/components/ui/tabs";
 import { ErrorState, LoadingState } from "@/components/feedback/states";
@@ -31,7 +31,9 @@ import { useMapEditorStore } from "@/features/map-editor/store/map-editor.store"
 import { RoomMap3D } from "./room-map-3d";
 import { ChatPanel, CombatPanel, DicePanel, TokenInspector } from "./room-panels";
 import { FeatureInspector, ScenePanel } from "./scene-panels";
-import { PresenceBar, SyncBadge, TableNotice, TurnBanner, WaitingForTable } from "./table-presence";
+import { PresenceBar, SyncBadge, TableNotice, TurnBanner, WaitingForTable, type VoiceBadge } from "./table-presence";
+import { useVoiceChat } from "@/features/voice-chat/hooks/use-voice-chat";
+import { VoiceControls } from "@/features/voice-chat/components/voice-controls";
 import { AudioPanel, Equalizer, useAudibleCue } from "./audio-panel";
 import { useTableAudio } from "../hooks/use-table-audio";
 import { useLegacyMapImage } from "../hooks/use-legacy-map-image";
@@ -119,6 +121,13 @@ function Room({ overview, reloadOverview }: { overview: CampaignOverview; reload
   useLegacyMapImage(campaignId, room?.map.background?.imageId, runsTable);
   useSheetHpWriteback(campaignId, user.id, runsTable);
   useRoomSounds();
+  const voice = useVoiceChat(campaignId, user.id);
+  const voiceBadges = useMemo(() => {
+    if (voice.status !== "live") return undefined;
+    const badges: Record<string, VoiceBadge> = { [user.id]: { muted: voice.muted, speaking: voice.selfSpeaking } };
+    for (const p of voice.participants) badges[p.userId] = { muted: p.muted, speaking: p.speaking };
+    return badges;
+  }, [voice.status, voice.muted, voice.selfSpeaking, voice.participants, user.id]);
   const soundOn = usePreferencesStore((s) => s.diceSounds);
   const reduceMotion = usePreferencesStore((s) => s.reduceMotion);
 
@@ -201,7 +210,7 @@ function Room({ overview, reloadOverview }: { overview: CampaignOverview; reload
             <span className="truncate">{nowPlaying.title}</span>
           </button>
         )}
-        <PresenceBar present={sync.present} />
+        <PresenceBar present={sync.present} voice={voiceBadges} />
 
         <div className="ml-auto flex flex-wrap items-center gap-1.5">
           {runsTable && (
@@ -251,12 +260,7 @@ function Room({ overview, reloadOverview }: { overview: CampaignOverview; reload
               Momento épico
             </Button>
           )}
-          <span className="hidden items-center gap-1 lg:flex" title="Voz em tempo real — próxima etapa">
-            <Button size="icon-sm" variant="ghost" disabled aria-label="Voz (em breve)">
-              <Mic className="size-3.5" />
-            </Button>
-            <PhaseBadge phase={4} />
-          </span>
+          <VoiceControls voice={voice} />
           <Button
             size="icon-sm"
             variant="ghost"

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { Crown, Radio, Swords, WifiOff } from "lucide-react";
+import { Crown, Mic, MicOff, Radio, Swords, WifiOff } from "lucide-react";
 import { Avatar } from "@/components/ui/primitives";
 import { Button } from "@/components/ui/button";
 import { LogoMark } from "@/components/brand/logo";
@@ -11,32 +11,47 @@ import { currentTurnToken } from "../model/room-engine";
 import type { RoomState } from "../model/types";
 import type { PresentMember, RoomSync } from "../sync/use-room-sync";
 
-/** Who is at the table right now: avatars that pop in and out, a crown on whoever runs it. */
-export function PresenceBar({ present }: { present: PresentMember[] }) {
+/** Someone's place in the voice chat, for their avatar. */
+export interface VoiceBadge {
+  muted: boolean;
+  speaking: boolean;
+}
+
+/** Who is at the table right now: avatars that pop in and out, a crown on whoever runs it, a ring on whoever speaks. */
+export function PresenceBar({ present, voice = {} }: { present: PresentMember[]; voice?: Record<string, VoiceBadge> }) {
   if (present.length === 0) return null;
   return (
     <div className="flex items-center -space-x-1.5" aria-label={`Na mesa: ${present.map((p) => p.name).join(", ")}`}>
       <AnimatePresence initial={false}>
-        {present.map((p) => (
-          <motion.span
-            key={p.userId}
-            layout
-            initial={{ opacity: 0, scale: 0.4, y: -6 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.4 }}
-            transition={{ type: "spring", stiffness: 420, damping: 24 }}
-            className="relative rounded-full ring-2 ring-surface"
-            title={`${p.name}${p.hosting ? " · conduz a mesa" : p.role === "game_master" ? " · mestre" : ""}`}
-          >
-            <Avatar name={p.name} color={p.color} src={p.avatarUrl} size="sm" />
-            {p.hosting && (
-              <span className="absolute -top-1.5 left-1/2 -translate-x-1/2 text-accent">
-                <Crown className="size-3 fill-current" />
-              </span>
-            )}
-            <span className="absolute -bottom-0.5 -right-0.5 size-2.5 rounded-full bg-success ring-2 ring-surface" />
-          </motion.span>
-        ))}
+        {present.map((p) => {
+          const v = voice[p.userId];
+          return (
+            <motion.span
+              key={p.userId}
+              layout
+              initial={{ opacity: 0, scale: 0.4, y: -6 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.4 }}
+              transition={{ type: "spring", stiffness: 420, damping: 24 }}
+              className={cn("relative rounded-full ring-2 transition-shadow", v?.speaking ? "z-10 ring-success shadow-[0_0_0_4px_color-mix(in_oklch,var(--color-success)_30%,transparent)]" : "ring-surface")}
+              title={`${p.name}${p.hosting ? " · conduz a mesa" : p.role === "game_master" ? " · mestre" : ""}${v ? (v.muted ? " · na voz (mudo)" : v.speaking ? " · falando" : " · na voz") : ""}`}
+            >
+              <Avatar name={p.name} color={p.color} src={p.avatarUrl} size="sm" />
+              {p.hosting && (
+                <span className="absolute -top-1.5 left-1/2 -translate-x-1/2 text-accent">
+                  <Crown className="size-3 fill-current" />
+                </span>
+              )}
+              {v ? (
+                <span className={cn("absolute -bottom-1 -right-1 flex size-3.5 items-center justify-center rounded-full ring-2 ring-surface", v.muted ? "bg-danger text-white" : "bg-success text-white")}>
+                  {v.muted ? <MicOff className="size-2" /> : <Mic className="size-2" />}
+                </span>
+              ) : (
+                <span className="absolute -bottom-0.5 -right-0.5 size-2.5 rounded-full bg-success ring-2 ring-surface" />
+              )}
+            </motion.span>
+          );
+        })}
       </AnimatePresence>
     </div>
   );

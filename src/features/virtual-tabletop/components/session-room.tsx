@@ -121,7 +121,7 @@ function Room({ overview, reloadOverview }: { overview: CampaignOverview; reload
   useLegacyMapImage(campaignId, room?.map.background?.imageId, runsTable);
   useSheetHpWriteback(campaignId, user.id, runsTable);
   useRoomSounds();
-  const voice = useVoiceChat(campaignId, user.id);
+  const voice = useVoiceChat(campaignId, user.id, { voiceEffects: isGM });
   const voiceBadges = useMemo(() => {
     if (voice.status !== "live") return undefined;
     const badges: Record<string, VoiceBadge> = { [user.id]: { muted: voice.muted, speaking: voice.selfSpeaking } };
@@ -260,7 +260,7 @@ function Room({ overview, reloadOverview }: { overview: CampaignOverview; reload
               Momento épico
             </Button>
           )}
-          <VoiceControls voice={voice} />
+          <VoiceControls voice={voice} canChangeVoice={isGM} />
           <Button
             size="icon-sm"
             variant="ghost"

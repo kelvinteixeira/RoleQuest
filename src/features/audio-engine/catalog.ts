@@ -4,26 +4,62 @@
  * uploaded tracks. Pure data, shared by the engine and the UI.
  */
 
-export const AMBIENCES = [
-  { id: "rain", label: "Chuva", emoji: "🌧️" },
-  { id: "storm", label: "Tempestade", emoji: "⛈️" },
-  { id: "wind", label: "Vento", emoji: "🌬️" },
-  { id: "fire", label: "Fogueira", emoji: "🔥" },
-  { id: "forest", label: "Floresta à noite", emoji: "🌲" },
-  { id: "dungeon", label: "Masmorra", emoji: "🕯️" },
-  { id: "tavern", label: "Taverna", emoji: "🍺" },
-  { id: "ocean", label: "Mar", emoji: "🌊" },
+export const AMBIENCE_GROUPS = [
+  { id: "weather", label: "Clima" },
+  { id: "nature", label: "Natureza" },
+  { id: "places", label: "Lugares" },
+  { id: "drama", label: "Ação e mistério" },
 ] as const;
+export type AmbienceGroup = (typeof AMBIENCE_GROUPS)[number]["id"];
+
+export const AMBIENCES = [
+  { id: "rain", label: "Chuva", emoji: "🌧️", group: "weather" },
+  { id: "storm", label: "Tempestade", emoji: "⛈️", group: "weather" },
+  { id: "wind", label: "Vento", emoji: "🌬️", group: "weather" },
+  { id: "blizzard", label: "Nevasca", emoji: "❄️", group: "weather" },
+  { id: "day", label: "Campo de dia", emoji: "🐦", group: "nature" },
+  { id: "forest", label: "Floresta à noite", emoji: "🌲", group: "nature" },
+  { id: "stream", label: "Riacho", emoji: "💧", group: "nature" },
+  { id: "swamp", label: "Pântano", emoji: "🐸", group: "nature" },
+  { id: "ocean", label: "Mar", emoji: "🌊", group: "nature" },
+  { id: "fire", label: "Fogueira", emoji: "🔥", group: "places" },
+  { id: "tavern", label: "Taverna", emoji: "🍺", group: "places" },
+  { id: "market", label: "Feira na cidade", emoji: "🏘️", group: "places" },
+  { id: "forge", label: "Ferraria", emoji: "⚒️", group: "places" },
+  { id: "ship", label: "Navio", emoji: "⛵", group: "places" },
+  { id: "dungeon", label: "Masmorra", emoji: "🕯️", group: "drama" },
+  { id: "battle", label: "Batalha ao longe", emoji: "⚔️", group: "drama" },
+  { id: "volcano", label: "Vulcão", emoji: "🌋", group: "drama" },
+  { id: "ritual", label: "Ritual sombrio", emoji: "🔮", group: "drama" },
+] as const satisfies readonly { id: string; label: string; emoji: string; group: AmbienceGroup }[];
 export type AmbienceId = (typeof AMBIENCES)[number]["id"];
 
-export const THEMES = [
-  { id: "explore", label: "Exploração", hint: "Calma, harpa e cordas" },
-  { id: "tension", label: "Tensão", hint: "Batida grave e drone" },
-  { id: "combat", label: "Combate", hint: "Tambores e metais" },
-  { id: "mystery", label: "Mistério", hint: "Sinos e menor" },
-  { id: "tavern", label: "Taverna", hint: "Alaúde animado" },
-  { id: "victory", label: "Vitória", hint: "Fanfarra" },
+export const THEME_GROUPS = [
+  { id: "calm", label: "Calma" },
+  { id: "adventure", label: "Aventura" },
+  { id: "dark", label: "Tensão e sombra" },
+  { id: "fight", label: "Batalha" },
 ] as const;
+export type ThemeGroup = (typeof THEME_GROUPS)[number]["id"];
+
+export const THEMES = [
+  { id: "explore", label: "Exploração", hint: "Calma, harpa e cordas", group: "calm" },
+  { id: "camp", label: "Acampamento", hint: "Violão ao pé do fogo", group: "calm" },
+  { id: "fey", label: "Floresta encantada", hint: "Flauta, sinos e magia", group: "calm" },
+  { id: "sacred", label: "Templo sagrado", hint: "Coral e órgão", group: "calm" },
+  { id: "sorrow", label: "Lamento", hint: "Cordas lentas em menor", group: "calm" },
+  { id: "journey", label: "Jornada", hint: "Marcha heroica na estrada", group: "adventure" },
+  { id: "tavern", label: "Taverna", hint: "Alaúde animado", group: "adventure" },
+  { id: "sea", label: "Mar aberto", hint: "Canção de marujo", group: "adventure" },
+  { id: "desert", label: "Deserto", hint: "Escala exótica e tambor", group: "adventure" },
+  { id: "mystery", label: "Mistério", hint: "Sinos e menor", group: "dark" },
+  { id: "tension", label: "Tensão", hint: "Batida grave e drone", group: "dark" },
+  { id: "dungeon", label: "Masmorra", hint: "Drone, coral distante", group: "dark" },
+  { id: "horror", label: "Horror", hint: "Dissonância e silêncio", group: "dark" },
+  { id: "combat", label: "Combate", hint: "Tambores e metais", group: "fight" },
+  { id: "boss", label: "Chefe", hint: "Coral, tímpanos, épico", group: "fight" },
+  { id: "victory", label: "Vitória", hint: "Fanfarra", group: "fight" },
+] as const satisfies readonly { id: string; label: string; hint: string; group: ThemeGroup }[];
 export type ThemeId = (typeof THEMES)[number]["id"];
 
 export const isAmbienceId = (id: string): id is AmbienceId => AMBIENCES.some((a) => a.id === id);

@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { useAsync } from "@/hooks/use-async";
 import { cn } from "@/lib/cn";
 import { toUserMessage } from "@/lib/errors";
-import { AMBIENCES, THEMES, isThemeId, type AudioTrack } from "@/features/audio-engine/catalog";
+import { AMBIENCE_GROUPS, AMBIENCES, THEME_GROUPS, THEMES, isThemeId, type AudioTrack } from "@/features/audio-engine/catalog";
 import { themeSeconds } from "@/features/audio-engine/music";
 import { audioService } from "@/services/audio.service";
 import { usePreferencesStore } from "@/stores/preferences.store";
@@ -178,8 +178,11 @@ export function AudioPanel({ room, actions, campaignId, isGM, userId }: { room: 
         <>
           <section>
             <h3 className="mb-2 text-[11px] font-medium uppercase tracking-wider text-fg-subtle">Trilhas</h3>
+            {THEME_GROUPS.map((g) => (
+            <div key={g.id} className="mb-2.5 last:mb-0">
+            <h4 className="mb-1 text-[10px] font-medium text-fg-subtle">{g.label}</h4>
             <div className="grid grid-cols-2 gap-1.5">
-              {THEMES.map((t) => {
+              {THEMES.filter((t) => t.group === g.id).map((t) => {
                 const on = music?.source === "theme" && music.ref === t.id;
                 return (
                   <button
@@ -197,6 +200,8 @@ export function AudioPanel({ room, actions, campaignId, isGM, userId }: { room: 
                 );
               })}
             </div>
+            </div>
+            ))}
           </section>
 
           <section>
@@ -239,8 +244,12 @@ export function AudioPanel({ room, actions, campaignId, isGM, userId }: { room: 
                 </Button>
               )}
             </div>
+            <p className="mb-2 text-[11px] text-fg-subtle">Ligue várias camadas juntas (ex.: Chuva + Taverna) e ajuste cada uma.</p>
+            {AMBIENCE_GROUPS.map((g) => (
+            <div key={g.id} className="mb-2.5 last:mb-0">
+            <h4 className="mb-1 text-[10px] font-medium text-fg-subtle">{g.label}</h4>
             <div className="grid grid-cols-2 gap-1.5">
-              {AMBIENCES.map((a) => {
+              {AMBIENCES.filter((a) => a.group === g.id).map((a) => {
                 const layer = layerOf(a.id);
                 return (
                   <div key={a.id} className={cn("rounded-lg border p-2 transition-colors", layer ? "border-accent/60 bg-accent/10" : "border-line")}>
@@ -256,6 +265,8 @@ export function AudioPanel({ room, actions, campaignId, isGM, userId }: { room: 
                 );
               })}
             </div>
+            </div>
+            ))}
           </section>
         </>
       )}

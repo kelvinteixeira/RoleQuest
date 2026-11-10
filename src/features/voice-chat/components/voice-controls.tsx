@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { Check, Headphones, Mic, MicOff, PhoneOff, Theater, WifiOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/cn";
@@ -70,19 +71,42 @@ export function VoiceControls({ voice, canChangeVoice = false }: { voice: VoiceC
 function VoicePicker({ voice }: { voice: VoiceChat }) {
   const [open, setOpen] = useState(false);
   const box = useRef<HTMLDivElement>(null);
+  const menu = useRef<HTMLDivElement>(null);
+  // The room's header blurs what is behind it, which traps anything inside it under the
+  // panels below. The menu is drawn on the page itself, placed under the button.
+  const [place, setPlace] = useState<{ top: number; left: number; maxHeight: number } | null>(null);
   const current = VOICE_EFFECTS.find((e) => e.id === voice.voiceEffect) ?? VOICE_EFFECTS[0];
   const filtered = voice.voiceEffect !== "none";
 
   useEffect(() => {
     if (!open) return;
     const close = (e: PointerEvent | KeyboardEvent) => {
-      if (e instanceof KeyboardEvent ? e.key === "Escape" : !box.current?.contains(e.target as Node)) setOpen(false);
+      const inside = (n: Node) => !!box.current?.contains(n) || !!menu.current?.contains(n);
+      if (e instanceof KeyboardEvent ? e.key === "Escape" : !inside(e.target as Node)) setOpen(false);
     };
     window.addEventListener("pointerdown", close);
     window.addEventListener("keydown", close);
     return () => {
       window.removeEventListener("pointerdown", close);
       window.removeEventListener("keydown", close);
+    };
+  }, [open]);
+
+  useLayoutEffect(() => {
+    if (!open) return;
+    const WIDTH = 256;
+    const update = () => {
+      const r = box.current?.getBoundingClientRect();
+      if (!r) return;
+      const top = r.bottom + 6;
+      setPlace({ top, left: Math.max(8, Math.min(window.innerWidth - WIDTH - 8, r.right - WIDTH)), maxHeight: Math.max(160, window.innerHeight - top - 12) });
+    };
+    update();
+    window.addEventListener("resize", update);
+    window.addEventListener("scroll", update, true);
+    return () => {
+      window.removeEventListener("resize", update);
+      window.removeEventListener("scroll", update, true);
     };
   }, [open]);
 
@@ -100,10 +124,10 @@ function VoicePicker({ voice }: { voice: VoiceChat }) {
       >
         <span className="hidden sm:inline">{filtered ? current.label : "Voz"}</span>
       </Button>
-      {open && (
-        <div role="menu" className="absolute right-0 top-full z-50 mt-1.5 w-64 rounded-xl border border-line bg-surface p-1.5 shadow-xl">
+      {open && place && createPortal(
+        <div ref={menu} role="menu" style={{ top: place.top, left: place.left, maxHeight: place.maxHeight }} className="fixed z-[100] flex w-64 flex-col rounded-xl border border-line bg-surface p-1.5 shadow-2xl">
           <p className="px-2 pb-1.5 pt-1 text-[11px] text-fg-subtle">A mesa ouve a voz escolhida na hora. Volte para Natural para falar como mestre.</p>
-          <ul className="flex max-h-80 flex-col gap-0.5 overflow-y-auto">
+          <ul className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto">
             {VOICE_EFFECTS.map((e) => {
               const on = e.id === voice.voiceEffect;
               return (
@@ -135,7 +159,8 @@ function VoicePicker({ voice }: { voice: VoiceChat }) {
               <span className="block text-[10px] text-fg-subtle">Use fones, senão a caixa de som volta para o microfone.</span>
             </span>
           </button>
-        </div>
+        </div>,
+        document.body,
       )}
     </div>
   );

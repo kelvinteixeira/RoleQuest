@@ -5,6 +5,7 @@ import {
   ArrowDownToLine,
   ArrowUpToLine,
   Brush,
+  Castle,
   Circle,
   Copy,
   Eraser,
@@ -24,6 +25,8 @@ import {
   Trash2,
   Trees,
   Undo2,
+  Users,
+  X,
   type LucideIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -31,15 +34,21 @@ import { cn } from "@/lib/cn";
 import {
   MAP_LIMITS,
   NOTE_MAX,
+  PROP_BY_ID,
   PROP_CATEGORY_LABEL,
   PROPS,
   resizeMap,
+  SCATTER_CATEGORIES,
   TERRAIN_ORDER,
   TERRAINS,
   type MapDocument,
   type PropCategory,
 } from "@/features/map/model/map-document";
 import { MAP_TEMPLATES } from "@/features/map/model/templates";
+import { BLUEPRINT_BY_ID, BLUEPRINTS } from "@/features/map/model/buildings";
+import { useGmTools } from "@/features/gm/hooks/use-gm-tools";
+import { ATTITUDE_LABEL } from "@/features/gm/model/npc";
+import { ATTITUDE_COLOR, npcSpawnTemplate, SPAWN_GROUP_LABEL, SPAWN_PRESETS } from "../model/spawn-presets";
 import { MapThumbnail } from "@/features/map/components/map-thumbnail";
 import { formatRelative } from "@/lib/format";
 import { useCampaignMaps } from "../hooks/use-campaign-maps";
@@ -49,6 +58,8 @@ import { toolLocked, useMapEditorStore, type EditorShape, type EditorTool, type 
 const TOOLS: { id: EditorTool; label: string; icon: LucideIcon }[] = [
   { id: "terrain", label: "Terreno", icon: Brush },
   { id: "props", label: "Objetos", icon: Trees },
+  { id: "build", label: "Construir", icon: Castle },
+  { id: "spawn", label: "Personagens", icon: Users },
   { id: "raise", label: "Elevar", icon: ArrowUpToLine },
   { id: "lower", label: "Rebaixar", icon: ArrowDownToLine },
   { id: "erase", label: "Borracha", icon: Eraser },
@@ -59,7 +70,8 @@ const TOOLS: { id: EditorTool; label: string; icon: LucideIcon }[] = [
 const LAYERS: { id: LayerId; label: string; hint: string; canHide: boolean }[] = [
   { id: "background", label: "Imagem de fundo", hint: "o desenho importado", canHide: true },
   { id: "terrain", label: "Terreno", hint: "chão, água, paredes, elevação", canHide: false },
-  { id: "props", label: "Objetos", hint: "árvores, portas, armadilhas, luzes", canHide: true },
+  { id: "props", label: "Objetos", hint: "árvores, mobília, portas, armadilhas, luzes", canHide: true },
+  { id: "spawns", label: "Personagens", hint: "NPCs e criaturas; viram tokens ao aplicar", canHide: true },
   { id: "notes", label: "Anotações do mestre", hint: "só o mestre vê", canHide: true },
 ];
 
@@ -72,7 +84,7 @@ const SHAPES: { id: EditorShape; label: string; icon: LucideIcon }[] = [
   { id: "fill", label: "Balde", icon: PaintBucket },
 ];
 
-const CATEGORIES: PropCategory[] = ["tree", "rock", "plant", "structure", "feature"];
+const CATEGORIES: PropCategory[] = ["tree", "rock", "plant", "structure", "furniture", "feature"];
 
 /** GM map editor controls. The 3D view reads the same store to preview and apply strokes. */
 export function MapEditorPanel({ campaignId, onApply, onCancel }: { campaignId: string; onApply: () => void; onCancel: () => void }) {
@@ -147,7 +159,36 @@ export function MapEditorPanel({ campaignId, onApply, onCancel }: { campaignId: 
         </Section>
       )}
 
-      {s.tool !== "rotate" && s.tool !== "note" && (
+      {s.tool === "build" && (
+        <Section title="Construção">
+          <div className="grid grid-cols-2 gap-1.5">
+            {BLUEPRINTS.map((b) => (
+              <button
+                key={b.id}
+                onClick={() => s.set({ blueprint: b.id })}
+                aria-pressed={s.blueprint === b.id}
+                title={b.description}
+                className={cn(
+                  "rounded-lg border p-2 text-left transition-colors",
+                  s.blueprint === b.id ? "border-accent/60 bg-accent/10 text-fg" : "border-line text-fg-muted hover:text-fg",
+                )}
+              >
+                <span className="block text-xs font-medium">{b.label}</span>
+                <span className="block font-mono text-[10px] text-fg-subtle">
+                  mín. {b.min.w}×{b.min.h}
+                </span>
+              </button>
+            ))}
+          </div>
+          <p className="mt-2 text-[11px] leading-relaxed text-fg-subtle">
+            {BLUEPRINT_BY_ID.get(s.blueprint)?.description} Arraste um retângulo no mapa; a porta fica no lado de baixo (sul). Tudo o que estava no lote é substituído, e depois você ajusta casa a casa com as outras ferramentas.
+          </p>
+        </Section>
+      )}
+
+      {s.tool === "spawn" && <SpawnSection campaignId={campaignId} />}
+
+      {s.tool !== "rotate" && s.tool !== "note" && s.tool !== "build" && s.tool !== "spawn" && (
         <Section title="Forma (encaixa na grade)">
           <div className="grid grid-cols-6 gap-1">
             {SHAPES.map(({ id, label, icon: Icon }) => (
@@ -228,11 +269,15 @@ export function MapEditorPanel({ campaignId, onApply, onCancel }: { campaignId: 
               </label>
             ))}
           </div>
-          {category === "feature" ? (
+          {category === "feature" && (
             <p className="mt-2 text-[11px] leading-relaxed text-fg-subtle">
               Portas começam fechadas e se alinham às paredes vizinhas (Girar objeto ajusta). Armadilhas começam ocultas e armadas; dano e estado se controlam na mesa, na aba Cena.
             </p>
-          ) : (
+          )}
+          {(category === "furniture" || category === "structure") && (
+            <p className="mt-2 text-[11px] leading-relaxed text-fg-subtle">Vão exatamente onde você desenha (uma por casa). A frente aponta para o sul; use Girar objeto para virar.</p>
+          )}
+          {s.propIds.some((id) => SCATTER_CATEGORIES.includes(PROP_BY_ID.get(id)?.category ?? "feature")) && (
           <>
           <label className="mt-2 flex items-center gap-3 text-xs text-fg-muted">
             Densidade
@@ -240,10 +285,11 @@ export function MapEditorPanel({ campaignId, onApply, onCancel }: { campaignId: 
             <span className="w-9 text-right font-mono">{Math.round(s.density * 100)}%</span>
           </label>
           <p className="mt-1 text-[11px] text-fg-subtle">
-            {s.propIds.length === 0 ? "Marque ao menos um objeto." : `Sorteia entre ${s.propIds.length} objeto(s). Use Retângulo ou Elipse para espalhar uma floresta.`}
+            {`Árvores, rochas e plantas são sorteadas entre os ${s.propIds.length} objeto(s) marcados. Use Retângulo ou Elipse para espalhar uma floresta.`}
           </p>
           </>
           )}
+          {s.propIds.length === 0 && <p className="mt-2 text-[11px] text-fg-subtle">Marque ao menos um objeto.</p>}
         </Section>
       )}
 
@@ -398,6 +444,96 @@ function Library({ campaignId, onLoad }: { campaignId: string; onLoad: (doc: Map
             </li>
           ))}
         </ul>
+      )}
+    </Section>
+  );
+}
+
+type SpawnSource = "campaign" | "people" | "creatures";
+
+/** Pick a campaign NPC or a quick character, then click squares to place it; lists what is already on the map. */
+function SpawnSection({ campaignId }: { campaignId: string }) {
+  const draft = useMapEditorStore((s) => s.draft);
+  const spawn = useMapEditorStore((s) => s.spawn);
+  const set = useMapEditorStore((s) => s.set);
+  const replace = useMapEditorStore((s) => s.replace);
+  const tools = useGmTools(campaignId);
+  const [source, setSource] = useState<SpawnSource>("campaign");
+  if (!draft) return null;
+  const placed = draft.spawns ?? [];
+  const isPicked = (key: { npcId?: string; name: string; modelId: string }) =>
+    !!spawn && (key.npcId ? spawn.npcId === key.npcId : !spawn.npcId && spawn.name === key.name && spawn.modelId === key.modelId);
+
+  const options =
+    source === "campaign"
+      ? tools.npcs.map((npc) => ({ id: npc.id, template: npcSpawnTemplate(npc) }))
+      : SPAWN_PRESETS.filter((p) => p.group === source).map(({ key, group, ...template }) => {
+          void group;
+          return { id: key, template };
+        });
+
+  return (
+    <Section title="Personagens">
+      <div className="mb-2 flex gap-1">
+        {(["campaign", "people", "creatures"] as const).map((id) => (
+          <button
+            key={id}
+            onClick={() => setSource(id)}
+            className={cn("h-7 shrink-0 rounded-full border px-2.5 text-xs", source === id ? "border-accent/50 bg-accent/12 text-accent" : "border-line text-fg-muted")}
+          >
+            {id === "campaign" ? "NPCs da campanha" : SPAWN_GROUP_LABEL[id]}
+          </button>
+        ))}
+      </div>
+      {source === "campaign" && tools.loading ? (
+        <p className="text-[11px] text-fg-subtle">Carregando NPCs…</p>
+      ) : options.length === 0 ? (
+        <p className="text-[11px] leading-relaxed text-fg-subtle">Nenhum NPC na campanha ainda. Crie em Ferramentas do mestre, ou use Pessoas e Criaturas.</p>
+      ) : (
+        <ul className="flex max-h-56 flex-col gap-1 overflow-y-auto pr-1">
+          {options.map(({ id, template }) => (
+            <li key={id}>
+              <button
+                onClick={() => set({ spawn: isPicked(template) ? null : template })}
+                aria-pressed={isPicked(template)}
+                className={cn(
+                  "flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs",
+                  isPicked(template) ? "bg-accent/12 text-fg ring-1 ring-accent/50" : "text-fg-muted hover:bg-surface-2",
+                )}
+              >
+                <span className="size-2.5 shrink-0 rounded-full" style={{ background: ATTITUDE_COLOR[template.attitude] }} title={ATTITUDE_LABEL[template.attitude]} />
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate font-medium">{template.name}</span>
+                  <span className="block truncate text-[10px] text-fg-subtle">{template.concept || ATTITUDE_LABEL[template.attitude]}</span>
+                </span>
+                <span className="shrink-0 font-mono text-[10px] text-fg-subtle">{template.stats.hp} PV</span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+      <p className="mt-2 text-[11px] leading-relaxed text-fg-subtle">
+        {spawn ? `Clique numa casa para pôr ${spawn.name}. ` : "Escolha alguém e clique nas casas do mapa. "}
+        Ficam escondidos dos jogadores aqui e viram tokens na mesa quando você aplica o mapa. Hostis entram como inimigos.
+      </p>
+      {placed.length > 0 && (
+        <>
+          <h4 className="mb-1 mt-3 text-[11px] font-medium text-fg-subtle">No mapa ({placed.length})</h4>
+          <ul className="flex max-h-40 flex-col gap-0.5 overflow-y-auto pr-1">
+            {placed.map((p) => (
+              <li key={p.id} className="flex items-center gap-2 rounded-md px-2 py-1 text-xs text-fg-muted">
+                <span className="size-2 shrink-0 rounded-full" style={{ background: ATTITUDE_COLOR[p.attitude] }} />
+                <span className="min-w-0 flex-1 truncate">{p.name}</span>
+                <span className="font-mono text-[10px] text-fg-subtle">
+                  {p.x},{p.y}
+                </span>
+                <button onClick={() => replace({ ...draft, spawns: placed.filter((o) => o.id !== p.id) })} aria-label={`Tirar ${p.name} do mapa`} title="Tirar do mapa" className="text-fg-subtle hover:text-danger">
+                  <X className="size-3.5" />
+                </button>
+              </li>
+            ))}
+          </ul>
+        </>
       )}
     </Section>
   );

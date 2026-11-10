@@ -14,6 +14,7 @@ import { MapThumbnail } from "@/features/map/components/map-thumbnail";
 import { AMBIENT_LABEL, doorOf, isInteractive, PROP_BY_ID, trapOf, type Ambient, type PlacedProp } from "@/features/map/model/map-document";
 import { useCampaignMaps } from "@/features/map-editor/hooks/use-campaign-maps";
 import type { SavedMap } from "@/types/map";
+import { useApplyMap } from "@/features/gm/hooks/use-apply-map";
 import type { RoomActions } from "../hooks/use-room-actions";
 import type { RoomState } from "../model/types";
 import { useRoomStore, type FogBrush } from "../store/room.store";
@@ -138,6 +139,7 @@ export function ScenePanel({ room, actions }: { room: RoomState; actions: RoomAc
 function CampaignMaps({ room, actions }: { room: RoomState; actions: RoomActions }) {
   const { maps, loading, save } = useCampaignMaps(room.campaignId);
   const [pending, setPending] = useState<SavedMap | null>(null);
+  const applyMap = useApplyMap(room.campaignId, actions);
 
   return (
     <Section title="Mapas da campanha" icon={<MapIcon className="size-3.5" />}>
@@ -167,7 +169,7 @@ function CampaignMaps({ room, actions }: { room: RoomState; actions: RoomActions
         open={!!pending}
         onClose={() => setPending(null)}
         title={`Usar “${pending?.name ?? ""}” na mesa?`}
-        description="O mapa atual sai da mesa (salve antes se quiser guardá-lo). Tokens em lugares bloqueados vão para o espaço livre mais próximo."
+        description="O mapa atual sai da mesa (salve antes se quiser guardá-lo). Tokens em lugares bloqueados vão para o espaço livre mais próximo. Personagens postos no mapa entram na mesa."
         size="sm"
         footer={
           <>
@@ -176,7 +178,7 @@ function CampaignMaps({ room, actions }: { room: RoomState; actions: RoomActions
             </Button>
             <Button
               onClick={() => {
-                if (pending) actions.replaceMap(structuredClone(pending.document));
+                if (pending) void applyMap(structuredClone(pending.document));
                 setPending(null);
               }}
             >

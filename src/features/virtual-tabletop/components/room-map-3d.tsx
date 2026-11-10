@@ -11,10 +11,11 @@ import { toHexColor } from "@/lib/color";
 import { initials } from "@/lib/format";
 import { CellHighlights, cellStandY, cellToWorld, MapCanvas, preloadMapProps, type CameraView, type FeatureView, type FogView, type LightSpot } from "@/features/map/components/map-scene";
 import { usePreferencesStore } from "@/stores/preferences.store";
-import { cellIndex, featureAt, inBounds, trapOf, type MapDocument, type PlacedProp } from "@/features/map/model/map-document";
+import { cellIndex, featureAt, inBounds, trapOf, type MapDocument, type MapSpawn, type PlacedProp } from "@/features/map/model/map-document";
+import { ATTITUDE_HEX } from "@/features/map-editor/model/spawn-presets";
 import { brushCells, type Cell } from "@/features/map/model/shapes";
 import { useMapEditorStore } from "@/features/map-editor/store/map-editor.store";
-import { modelFor } from "../model/character-models";
+import { CHARACTER_MODEL_BY_ID, modelFor } from "../model/character-models";
 import { canStand, gridDistance, isWall } from "../model/map";
 import { CharacterFigure, preloadCharacterModel } from "./character-figure";
 import { currentTurnToken, isDown, partyVision } from "../model/room-engine";
@@ -59,6 +60,7 @@ export function RoomMap3D({
   const stroke = useMapEditorStore((s) => s.stroke);
   const brushSize = useMapEditorStore((s) => s.brushSize);
   const shape = useMapEditorStore((s) => s.shape);
+  const editTool = useMapEditorStore((s) => s.tool);
   const selectedId = useRoomStore((s) => s.selectedTokenId);
   const select = useRoomStore((s) => s.select);
   const selectFeature = useRoomStore((s) => s.selectFeature);
@@ -216,9 +218,10 @@ export function RoomMap3D({
     if (!editing) return [];
     const preview = useMapEditorStore.getState().previewCells();
     if (preview.length) return preview;
-    return hover && !stroke && shape !== "fill" ? brushCells(hover, shape === "brush" ? brushSize : 1) : [];
+    const single = editTool === "spawn" || editTool === "build" || editTool === "note" || shape !== "brush";
+    return hover && !stroke && (shape !== "fill" || editTool === "build" || editTool === "spawn") ? brushCells(hover, single ? 1 : brushSize) : [];
     // eslint-disable-next-line react-hooks/exhaustive-deps -- stroke/draft drive the preview
-  }, [editing, stroke, hover, brushSize, shape, draft]);
+  }, [editing, stroke, hover, brushSize, shape, editTool, draft]);
 
   const fogPreview = useMemo(() => {
     if (!painting) return [];
@@ -256,7 +259,10 @@ export function RoomMap3D({
         onFeatureDown={editing ? undefined : onFeatureDown}
       >
         {editing ? (
-          <CellHighlights doc={doc} cells={editPreview} color="#c084fc" opacity={0.45} />
+          <>
+            <CellHighlights doc={doc} cells={editPreview} color="#c084fc" opacity={0.45} />
+            {layers.spawns.visible && doc.spawns?.map((sp) => <SpawnMarker key={sp.id} doc={doc} spawn={sp} />)}
+          </>
         ) : (
           <>
             {painting && <CellHighlights doc={doc} cells={fogPreview} color={fogBrush === "reveal" ? "#fde68a" : "#1e1b2e"} opacity={0.5} />}
@@ -292,6 +298,31 @@ export function RoomMap3D({
         {doc.name} · 1 □ = {doc.cellDistance.toLocaleString("pt-BR")} {doc.cellUnit} · direito move · rolagem zoom · meio gira
       </p>
     </div>
+  );
+}
+
+/** A character placed in the editor: its figure standing still, a ring in the attitude's colour and its name. */
+function SpawnMarker({ doc, spawn }: { doc: MapDocument; spawn: MapSpawn }) {
+  const still = useRef(false);
+  if (spawn.x >= doc.cols || spawn.y >= doc.rows) return null;
+  const model = CHARACTER_MODEL_BY_ID.get(spawn.modelId) ?? CHARACTER_MODEL_BY_ID.get("warrior")!;
+  const [wx, wz] = cellToWorld(doc, spawn.x, spawn.y);
+  const color = ATTITUDE_HEX[spawn.attitude];
+  return (
+    <group position={[wx, cellStandY(doc, spawn.x, spawn.y), wz]}>
+      <mesh rotation-x={-Math.PI / 2} position-y={0.03} raycast={() => null}>
+        <ringGeometry args={[0.38, 0.47, 32]} />
+        <meshBasicMaterial color={color} transparent opacity={0.85} />
+      </mesh>
+      <Suspense fallback={null}>
+        <CharacterFigure model={model} movingRef={still} down={false} cue={undefined} />
+      </Suspense>
+      <Html position={[0, model.height + (model.hover ?? 0) + 0.25, 0]} center zIndexRange={[14, 0]} style={{ pointerEvents: "none" }}>
+        <span className="whitespace-nowrap rounded bg-canvas/85 px-1.5 py-0.5 text-[10px] font-medium text-fg shadow" style={{ borderBottom: `2px solid ${color}` }}>
+          {spawn.name}
+        </span>
+      </Html>
+    </group>
   );
 }
 

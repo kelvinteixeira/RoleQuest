@@ -16,6 +16,7 @@ import {
   TERRAINS,
   type MapDocument,
   type PlacedProp,
+  type SpawnTemplate,
   type TerrainId,
 } from "./map-document";
 
@@ -190,6 +191,7 @@ export interface EraseKeep {
   terrain?: boolean;
   props?: boolean;
   notes?: boolean;
+  spawns?: boolean;
 }
 
 /** Eraser: back to base ground, level 0, no props, no notes — except on kept layers. */
@@ -211,6 +213,7 @@ export function eraseCells(doc: MapDocument, cells: Cell[], base: TerrainId = "g
     elevation,
     props: keep.props ? doc.props : doc.props.filter((p) => !set.has(key(p))),
     notes: keep.notes ? doc.notes : doc.notes?.filter((n) => !set.has(key(n))),
+    spawns: keep.spawns ? doc.spawns : doc.spawns?.filter((n) => !set.has(key(n))),
   };
 }
 
@@ -225,4 +228,11 @@ export function placeNote(doc: MapDocument, cell: Cell, text: string): MapDocume
 export function removeProps(doc: MapDocument, cells: Cell[]): MapDocument {
   const set = new Set(cells.map(key));
   return { ...doc, props: doc.props.filter((p) => !set.has(key(p))) };
+}
+
+/** Places a character on a square (replacing the one there). */
+export function placeSpawn(doc: MapDocument, cell: Cell, template: SpawnTemplate): MapDocument {
+  if (!inBounds(doc, cell.x, cell.y)) return doc;
+  const others = (doc.spawns ?? []).filter((n) => n.x !== cell.x || n.y !== cell.y);
+  return { ...doc, spawns: [...others, { ...template, stats: { ...template.stats }, id: createId("spawn"), x: cell.x, y: cell.y }] };
 }

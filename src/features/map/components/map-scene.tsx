@@ -24,6 +24,7 @@ import { LIGHT_POOL, pickLights, type LightSpot } from "../model/lights";
 export type { LightSpot } from "../model/lights";
 import { backgroundPlane } from "../model/background";
 import { useMapImage } from "../hooks/use-map-image";
+import { DecorModel } from "./decor-models";
 
 /* ---------- World geometry ---------- */
 
@@ -43,7 +44,7 @@ export function cellTop(doc: MapDocument, x: number, y: number): number {
   const def = TERRAINS[doc.terrain[i]];
   const level = doc.elevation[i] * LEVEL;
   if (def.kind === "water") return WATER_LINE - (def.depth ?? 0.2);
-  if (def.kind === "raised") return level + RAISED_HEIGHT + cellNoise(x, y, 5) * 0.3;
+  if (def.kind === "raised") return level + RAISED_HEIGHT + (def.flat ? 0 : cellNoise(x, y, 5) * 0.3);
   return level;
 }
 
@@ -619,6 +620,14 @@ function Props({ doc, hiddenCells, view, onFeatureDown }: { doc: MapDocument; hi
         const def = PROP_BY_ID.get(p.propId);
         if (!def || hiddenCells?.has(cellIndex(doc, p.x, p.y))) return null;
         if (def.feature) return <FeatureModel key={p.id} prop={p} doc={doc} view={view} onDown={onFeatureDown} />;
+        if (def.decor) {
+          const [wx, wz] = cellToWorld(doc, p.x, p.y);
+          return (
+            <group key={p.id} position={[wx, cellStandY(doc, p.x, p.y), wz]} rotation-y={(p.rotation * Math.PI) / 180}>
+              <DecorModel kind={def.decor} />
+            </group>
+          );
+        }
         return def.file ? (
           <Suspense key={p.id} fallback={null}>
             <PropModel prop={p} doc={doc} file={def.file} />

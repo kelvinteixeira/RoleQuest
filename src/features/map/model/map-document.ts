@@ -4,6 +4,8 @@
  * 3D renderer, the editor and the room's movement rules all read from it.
  */
 import { createId } from "@/lib/id";
+import type { NpcStatBlock } from "@/features/combat/model/types";
+import type { NpcAttitude } from "@/types/gm";
 import type { MapBackground } from "./background";
 
 export type TerrainId =
@@ -15,8 +17,14 @@ export type TerrainId =
   | "cave-floor"
   | "shallow-water"
   | "deep-water"
+  | "wood-floor"
+  | "cobblestone"
+  | "carpet"
+  | "snow"
   | "rock"
-  | "cave-wall";
+  | "cave-wall"
+  | "wood-wall"
+  | "stone-wall";
 
 export type TerrainKind = "ground" | "water" | "raised";
 
@@ -31,6 +39,8 @@ export interface TerrainDef {
   blocks: boolean;
   /** Water depth below the water line, in world units. */
   depth?: number;
+  /** Built walls: level tops instead of the rough, uneven tops of natural rock. */
+  flat?: boolean;
 }
 
 export const TERRAINS: Record<TerrainId, TerrainDef> = {
@@ -40,17 +50,63 @@ export const TERRAINS: Record<TerrainId, TerrainDef> = {
   sand: { id: "sand", label: "Areia", kind: "ground", color: "#dcc58c", side: "#a8925e", blocks: false },
   stone: { id: "stone", label: "Pedra", kind: "ground", color: "#9a9ca3", side: "#6d6f76", blocks: false },
   "cave-floor": { id: "cave-floor", label: "Chão de caverna", kind: "ground", color: "#57525e", side: "#3d3943", blocks: false },
+  "wood-floor": { id: "wood-floor", label: "Assoalho", kind: "ground", color: "#a8794a", side: "#6e4a2a", blocks: false },
+  cobblestone: { id: "cobblestone", label: "Calçamento", kind: "ground", color: "#8b857b", side: "#5f5a52", blocks: false },
+  carpet: { id: "carpet", label: "Tapete", kind: "ground", color: "#8e2f3a", side: "#5a1f26", blocks: false },
+  snow: { id: "snow", label: "Neve", kind: "ground", color: "#e6edf2", side: "#b5c0ca", blocks: false },
   "shallow-water": { id: "shallow-water", label: "Água rasa", kind: "water", color: "#c9b88a", side: "#8f7f5a", blocks: false, depth: 0.18 },
   "deep-water": { id: "deep-water", label: "Água funda", kind: "water", color: "#2f5d6b", side: "#23434e", blocks: true, depth: 0.55 },
   rock: { id: "rock", label: "Rocha (penhasco)", kind: "raised", color: "#8d8778", side: "#6f6a5e", blocks: true },
   "cave-wall": { id: "cave-wall", label: "Parede de caverna", kind: "raised", color: "#4a4552", side: "#35313b", blocks: true },
+  "wood-wall": { id: "wood-wall", label: "Parede de madeira", kind: "raised", color: "#5e4129", side: "#7a5432", blocks: true, flat: true },
+  "stone-wall": { id: "stone-wall", label: "Muralha de pedra", kind: "raised", color: "#9a958c", side: "#7b766d", blocks: true, flat: true },
 };
 
-export const TERRAIN_ORDER: TerrainId[] = ["grass", "forest-floor", "dirt", "sand", "stone", "cave-floor", "shallow-water", "deep-water", "rock", "cave-wall"];
+export const TERRAIN_ORDER: TerrainId[] = [
+  "grass",
+  "forest-floor",
+  "dirt",
+  "sand",
+  "snow",
+  "stone",
+  "cobblestone",
+  "wood-floor",
+  "carpet",
+  "cave-floor",
+  "shallow-water",
+  "deep-water",
+  "rock",
+  "cave-wall",
+  "wood-wall",
+  "stone-wall",
+];
 
 /* ---------- Props ---------- */
 
-export type PropCategory = "tree" | "rock" | "plant" | "structure" | "feature";
+export type PropCategory = "tree" | "rock" | "plant" | "structure" | "furniture" | "feature";
+
+/** Scenery that is scattered by density (forests); everything else goes exactly where it is drawn. */
+export const SCATTER_CATEGORIES: readonly PropCategory[] = ["tree", "rock", "plant"];
+
+/** Furniture and village dressing, drawn from primitives (no model file). */
+export type DecorKind =
+  | "barrel"
+  | "crate"
+  | "chest"
+  | "table"
+  | "chair"
+  | "bench"
+  | "bed"
+  | "bookshelf"
+  | "counter"
+  | "throne"
+  | "altar"
+  | "well"
+  | "stall"
+  | "banner"
+  | "anvil"
+  | "haystack"
+  | "cart";
 
 /** Interactive map pieces, drawn procedurally and with state that changes during play. */
 export type FeatureKind = "door" | "gate" | "trap-spikes" | "trap-darts" | "torch" | "brazier";
@@ -74,9 +130,10 @@ export interface PropDef {
   id: string;
   label: string;
   category: PropCategory;
-  /** GLB model; features have none (they are drawn from primitives). */
+  /** GLB model; features and decor have none (they are drawn from primitives). */
   file?: string;
   feature?: FeatureKind;
+  decor?: DecorKind;
   /** Scale the model so its height (or footprint) matches this many cells. */
   fit: { by: "height" | "width"; size: number };
   blocks: boolean;
@@ -110,6 +167,16 @@ const F = (id: string, label: string, feature: FeatureKind, extra: Partial<PropD
   feature,
   fit: { by: "width", size: 1 },
   blocks: false,
+  ...extra,
+});
+
+const D = (id: string, label: string, decor: DecorKind, blocks: boolean, extra: Partial<PropDef> = {}): PropDef => ({
+  id,
+  label,
+  category: "furniture",
+  decor,
+  fit: { by: "width", size: 1 },
+  blocks,
   ...extra,
 });
 
@@ -149,6 +216,23 @@ export const PROPS: readonly PropDef[] = [
   P("column", "Coluna", "structure", "statue_column", { by: "height", size: 1.6 }, true),
   P("fence", "Cerca", "structure", "fence_simple", { by: "width", size: 1 }, true),
   P("sign", "Placa", "structure", "sign", { by: "height", size: 0.8 }, false),
+  D("barrel", "Barril", "barrel", true),
+  D("crate", "Caixote", "crate", true),
+  D("chest", "Baú", "chest", false),
+  D("table", "Mesa", "table", true),
+  D("chair", "Cadeira", "chair", false),
+  D("bench", "Banco", "bench", false),
+  D("bed", "Cama", "bed", true),
+  D("bookshelf", "Estante de livros", "bookshelf", true, { opaque: true }),
+  D("counter", "Balcão", "counter", true),
+  D("throne", "Trono", "throne", true),
+  D("altar", "Altar", "altar", true),
+  D("well", "Poço", "well", true),
+  D("stall", "Barraca de feira", "stall", true),
+  D("banner", "Estandarte", "banner", false),
+  D("anvil", "Bigorna", "anvil", true),
+  D("haystack", "Fardo de feno", "haystack", true),
+  D("cart", "Carroça", "cart", true),
   F("door", "Porta de madeira", "door"),
   F("gate", "Grade de ferro", "gate"),
   F("trap-spikes", "Armadilha de espinhos", "trap-spikes", { damage: "2d6" }),
@@ -164,6 +248,7 @@ export const PROP_CATEGORY_LABEL: Record<PropCategory, string> = {
   rock: "Rochas",
   plant: "Plantas",
   structure: "Estruturas",
+  furniture: "Mobília e vila",
   feature: "Portas e armadilhas",
 };
 
@@ -238,6 +323,27 @@ export interface MapNote {
 
 export const NOTE_MAX = 80;
 
+/**
+ * A character the GM placed while building the map (a campaign NPC or a quick
+ * creature). GM-only: it becomes a token at the table when the map is applied.
+ * Carries a snapshot of what the token needs, so it works without the NPC library.
+ */
+export interface MapSpawn {
+  id: string;
+  x: number;
+  y: number;
+  name: string;
+  concept: string;
+  modelId: string;
+  color: string;
+  attitude: NpcAttitude;
+  /** Campaign NPC it came from; its current sheet wins when the token is created. */
+  npcId?: string;
+  stats: NpcStatBlock;
+}
+
+export type SpawnTemplate = Omit<MapSpawn, "id" | "x" | "y">;
+
 /* ---------- Document ---------- */
 
 export const MAX_ELEVATION = 4;
@@ -261,6 +367,8 @@ export interface MapDocument {
   background?: MapBackground;
   /** GM notes layer. */
   notes?: MapNote[];
+  /** Characters placed in the editor (GM-only), spawned as tokens when the map is applied. */
+  spawns?: MapSpawn[];
 }
 
 export const cellIndex = (doc: Pick<MapDocument, "cols">, x: number, y: number) => y * doc.cols + x;
@@ -337,7 +445,7 @@ export function resizeMap(doc: MapDocument, cols: number, rows: number, fill: Te
       elevation.push(inside ? doc.elevation[cellIndex(doc, x, y)] : 0);
     }
   }
-  return { ...doc, cols, rows, terrain, elevation, props: doc.props.filter((p) => p.x < cols && p.y < rows), notes: doc.notes?.filter((n) => n.x < cols && n.y < rows) };
+  return { ...doc, cols, rows, terrain, elevation, props: doc.props.filter((p) => p.x < cols && p.y < rows), notes: doc.notes?.filter((n) => n.x < cols && n.y < rows), spawns: doc.spawns?.filter((n) => n.x < cols && n.y < rows) };
 }
 
 /** Deterministic 0..1 noise per cell, used for colour/height jitter and scatter. */

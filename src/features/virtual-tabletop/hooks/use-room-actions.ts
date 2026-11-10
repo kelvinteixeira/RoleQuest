@@ -26,6 +26,8 @@ import {
 import { doorOf, PROP_BY_ID, type Ambient, type MapDocument, type TrapState } from "@/features/map/model/map-document";
 import type { AmbienceLayer, Author, MessageVisibility, MusicCue, RoomEvent, RoomToken } from "../model/types";
 import { createId } from "@/lib/id";
+import { spawnTokens } from "@/features/gm/model/map-spawns";
+import type { Npc } from "@/types/gm";
 import { useRoomStore } from "../store/room.store";
 
 const SHEET_SYNC_MS = 400;
@@ -333,9 +335,12 @@ export function useRoomActions(campaignId: string, gm: Author, forward?: (events
       send([{ type: "audio.music", music: null }, { type: "audio.ambience", ambience: [] }]);
     }
 
-    function replaceMap(map: MapDocument) {
-      send([{ type: "map.replaced", map }, announce(`O mestre atualizou o mapa: ${map.name}.`)]);
-      toast.success("Mapa aplicado", map.name);
+    /** Puts a map on the table; characters placed on it in the editor (and new to the table) join as tokens. */
+    function replaceMap(map: MapDocument, npcs: Npc[] = []) {
+      const state = room();
+      const joining = state ? spawnTokens(map, state.map, state.rules, state.tokens, npcs) : [];
+      send([{ type: "map.replaced", map }, ...joining.map((token): RoomEvent => ({ type: "token.added", token })), announce(`O mestre atualizou o mapa: ${map.name}.`)]);
+      toast.success("Mapa aplicado", joining.length ? `${map.name} · ${joining.length} personagem(ns) na mesa` : map.name);
     }
 
     return { addTokens, post, setAmbient, setTokenLight, toggleLight, toggleDoor, setDoorLocked, updateTrap, configureFog, revealCells, hideCells, revealAll: () => revealCells(allCells()), hideAll: () => hideCells(allCells()), setRules, applySheetSoon, refreshFromSheet, forgetSheet, syncSheets, postCheck, setAppearance, replaceMap, playMusic, stopMusic, tuneMusic, setAmbience, setLayer, silence, rollDice, sendChat, moveToken, adjustHp, toggleCondition, attackWith, startCombat, nextTurn, endCombat, addBots, removeBots, markEpic };

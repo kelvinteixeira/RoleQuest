@@ -1,11 +1,15 @@
 import { create } from "zustand";
-import { PROP_BY_ID, type MapDocument, type TerrainId } from "@/features/map/model/map-document";
+import { PROP_BY_ID, SCATTER_CATEGORIES, type MapDocument, type SpawnTemplate, type TerrainId } from "@/features/map/model/map-document";
+import { BLUEPRINT_BY_ID, buildStructure, type BlueprintId } from "@/features/map/model/buildings";
 import {
   eraseCells,
   floodCells,
   paintTerrain,
+  ellipseCells,
   placeNote,
   placeProps,
+  placeSpawn,
+  rectCells,
   rotatePropsAt,
   shapeCells,
   shiftElevation,
@@ -13,22 +17,24 @@ import {
   type ShapeKind,
 } from "@/features/map/model/shapes";
 
-export type EditorTool = "terrain" | "props" | "raise" | "lower" | "erase" | "rotate" | "note";
+export type EditorTool = "terrain" | "props" | "build" | "spawn" | "raise" | "lower" | "erase" | "rotate" | "note";
 
 /** Editor layers: what is shown while editing and what tools may change. */
-export type LayerId = "background" | "terrain" | "props" | "notes";
+export type LayerId = "background" | "terrain" | "props" | "spawns" | "notes";
 export type LayerState = Record<LayerId, { visible: boolean; locked: boolean }>;
 
 const DEFAULT_LAYERS: LayerState = {
   background: { visible: true, locked: false },
   terrain: { visible: true, locked: false },
   props: { visible: true, locked: false },
+  spawns: { visible: true, locked: false },
   notes: { visible: true, locked: false },
 };
 
-/** The layer a tool changes (the eraser changes every unlocked one). */
-export const TOOL_LAYER: Record<Exclude<EditorTool, "erase">, LayerId> = {
+/** The layer a tool changes (the eraser changes every unlocked one; buildings change terrain and objects). */
+export const TOOL_LAYER: Record<Exclude<EditorTool, "erase" | "build">, LayerId> = {
   terrain: "terrain",
+  spawn: "spawns",
   raise: "terrain",
   lower: "terrain",
   props: "props",
@@ -38,7 +44,8 @@ export const TOOL_LAYER: Record<Exclude<EditorTool, "erase">, LayerId> = {
 
 /** True when the current tool has nothing it may change. */
 export function toolLocked(tool: EditorTool, layers: LayerState): boolean {
-  if (tool === "erase") return layers.terrain.locked && layers.props.locked && layers.notes.locked;
+  if (tool === "erase") return layers.terrain.locked && layers.props.locked && layers.spawns.locked && layers.notes.locked;
+  if (tool === "build") return layers.terrain.locked || layers.props.locked;
   return layers[TOOL_LAYER[tool]].locked;
 }
 export type EditorShape = ShapeKind | "fill";
@@ -60,6 +67,9 @@ type MapEditorState = {
   brushSize: number;
   density: number;
   noteText: string;
+  blueprint: BlueprintId;
+  /** The character the "spawn" tool places. */
+  spawn: SpawnTemplate | null;
   layers: LayerState;
   stroke: Stroke | null;
   /** Key of the last coalesced change (slider drags make one undo step, not one per tick). */
@@ -69,7 +79,7 @@ type MapEditorState = {
   close: () => void;
   /** `coalesce`: consecutive changes with the same key share one undo step. */
   replace: (doc: MapDocument, coalesce?: string) => void;
-  set: (patch: Partial<Pick<MapEditorState, "tool" | "shape" | "terrain" | "propIds" | "brushSize" | "density" | "noteText">>) => void;
+  set: (patch: Partial<Pick<MapEditorState, "tool" | "shape" | "terrain" | "propIds" | "brushSize" | "density" | "noteText" | "blueprint" | "spawn">>) => void;
   toggleLayer: (id: LayerId, key: "visible" | "locked") => void;
   undo: () => void;
   redo: () => void;
@@ -79,17 +89,27 @@ type MapEditorState = {
   previewCells: () => Cell[];
 };
 
-/** Tools that paint continuously while dragging (instead of a shape released on pointer up). */
-const isContinuous = (s: Pick<MapEditorState, "shape" | "tool">) => s.shape === "brush" || s.tool === "rotate";
+/** Tools that paint continuously while dragging (instead of a shape released on pointer up). Buildings are always dragged as a lot. */
+const isContinuous = (s: Pick<MapEditorState, "shape" | "tool">) => (s.shape === "brush" && s.tool !== "build") || s.tool === "rotate";
 
-function apply(doc: MapDocument, s: Pick<MapEditorState, "tool" | "terrain" | "propIds" | "density" | "noteText" | "layers">, cells: Cell[], seed: number): MapDocument {
+/** Single-click tools: one square, one change. */
+const isClick = (tool: EditorTool) => tool === "note" || tool === "spawn";
+
+/** The squares a building will cover (an ellipse for round blueprints). */
+export function blueprintCells(id: BlueprintId, a: Cell, b: Cell): Cell[] {
+  return BLUEPRINT_BY_ID.get(id)?.round ? ellipseCells(a, b) : rectCells(a, b);
+}
+
+type ApplyState = Pick<MapEditorState, "tool" | "terrain" | "propIds" | "density" | "noteText" | "layers" | "spawn">;
+
+function apply(doc: MapDocument, s: ApplyState, cells: Cell[], seed: number): MapDocument {
   switch (s.tool) {
     case "terrain":
       return paintTerrain(doc, cells, s.terrain);
     case "props": {
-      // Doors and traps go exactly where they are drawn; only scenery is scattered.
-      const featuresOnly = s.propIds.every((id) => PROP_BY_ID.get(id)?.feature);
-      return placeProps(doc, cells, s.propIds, featuresOnly ? 1 : s.density, seed);
+      // Trees, rocks and plants are scattered; furniture, structures and doors go exactly where they are drawn.
+      const scatter = s.propIds.some((id) => SCATTER_CATEGORIES.includes(PROP_BY_ID.get(id)?.category ?? "feature"));
+      return placeProps(doc, cells, s.propIds, scatter ? s.density : 1, seed);
     }
     case "raise":
       return shiftElevation(doc, cells, 1);
@@ -100,12 +120,18 @@ function apply(doc: MapDocument, s: Pick<MapEditorState, "tool" | "terrain" | "p
       return eraseCells(doc, cells, "grass", {
         terrain: s.layers.terrain.locked,
         props: s.layers.props.locked || !s.layers.props.visible,
+        spawns: s.layers.spawns.locked || !s.layers.spawns.visible,
         notes: s.layers.notes.locked || !s.layers.notes.visible,
       });
     case "rotate":
       return cells.reduce((d, c) => rotatePropsAt(d, c), doc);
     case "note":
       return cells[0] ? placeNote(doc, cells[0], s.noteText) : doc;
+    case "spawn":
+      return cells[0] && s.spawn ? placeSpawn(doc, cells[0], s.spawn) : doc;
+    case "build":
+      // Built on pointer up from the dragged lot (see endStroke).
+      return doc;
   }
 }
 
@@ -128,6 +154,8 @@ export const useMapEditorStore = create<MapEditorState>((set, get) => {
     brushSize: 1,
     density: 0.5,
     noteText: "",
+    blueprint: "house",
+    spawn: null,
     layers: DEFAULT_LAYERS,
     stroke: null,
     coalesce: null,
@@ -159,17 +187,17 @@ export const useMapEditorStore = create<MapEditorState>((set, get) => {
     beginStroke: (cell) => {
       const s = get();
       if (!s.draft || toolLocked(s.tool, s.layers)) return;
-      if (s.tool === "note") {
+      if (isClick(s.tool)) {
         const next = apply(s.draft, s, [cell], 0);
-        // Empty text on an empty square changes nothing: no undo step, not dirty.
-        if (JSON.stringify(next.notes ?? []) === JSON.stringify(s.draft.notes ?? [])) return;
+        // Empty text on an empty square (or nothing picked) changes nothing: no undo step, not dirty.
+        if (next === s.draft || (s.tool === "note" && JSON.stringify(next.notes ?? []) === JSON.stringify(s.draft.notes ?? []))) return;
         checkpoint();
         set({ draft: next, dirty: true, coalesce: null });
         return;
       }
       checkpoint();
       set({ coalesce: null });
-      if (s.shape === "fill") {
+      if (s.shape === "fill" && s.tool !== "build") {
         const cells = s.tool === "rotate" ? [cell] : floodCells(s.draft, cell);
         set({ draft: apply(s.draft, s, cells, Date.now() % 997), dirty: true });
         return;
@@ -196,7 +224,12 @@ export const useMapEditorStore = create<MapEditorState>((set, get) => {
     endStroke: () => {
       const s = get();
       if (!s.stroke || !s.draft) return set({ stroke: null });
-      if (!isContinuous(s) && s.shape !== "fill") {
+      if (s.tool === "build") {
+        const built = buildStructure(s.draft, s.blueprint, s.stroke.anchor, s.stroke.current, Date.now() % 997);
+        // Too small a lot builds nothing: drop the undo step taken on pointer down.
+        if (built === s.draft) set({ past: s.past.slice(0, -1) });
+        else set({ draft: built, dirty: true });
+      } else if (!isContinuous(s) && s.shape !== "fill") {
         const cells = shapeCells(s.shape as ShapeKind, s.stroke.anchor, s.stroke.current, s.brushSize);
         set({ draft: apply(s.draft, s, cells, Date.now() % 997), dirty: true });
       }
@@ -205,6 +238,7 @@ export const useMapEditorStore = create<MapEditorState>((set, get) => {
 
     previewCells: () => {
       const s = get();
+      if (s.stroke && s.tool === "build") return blueprintCells(s.blueprint, s.stroke.anchor, s.stroke.current);
       if (!s.stroke || isContinuous(s) || s.shape === "fill") return [];
       return shapeCells(s.shape as ShapeKind, s.stroke.anchor, s.stroke.current, s.brushSize);
     },

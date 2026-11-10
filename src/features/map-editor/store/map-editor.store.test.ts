@@ -89,6 +89,9 @@ describe("editor layers", () => {
   it("the eraser is locked only when every layer is", () => {
     const layers = editor().layers;
     expect(toolLocked("erase", { ...layers, terrain: { visible: true, locked: true }, props: { visible: true, locked: true } })).toBe(false);
-    expect(toolLocked("erase", { ...layers, terrain: { visible: true, locked: true }, props: { visible: true, locked: true }, notes: { visible: true, locked: true } })).toBe(true);
+    expect(toolLocked("erase", { ...layers, terrain: { visible: true, locked: true }, props: { visible: true, locked: true }, notes: { visible: true, locked: true } })).toBe(false);
+    expect(
+      toolLocked("erase", { ...layers, terrain: { visible: true, locked: true }, props: { visible: true, locked: true }, spawns: { visible: true, locked: true }, notes: { visible: true, locked: true } }),
+    ).toBe(true);
   });
 });

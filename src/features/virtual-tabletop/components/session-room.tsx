@@ -38,6 +38,7 @@ import { AudioPanel, Equalizer, useAudibleCue } from "./audio-panel";
 import { useTableAudio } from "../hooks/use-table-audio";
 import { useLegacyMapImage } from "../hooks/use-legacy-map-image";
 import { RoomGmPanel } from "@/features/gm/components/room-gm-panel";
+import { useApplyMap } from "@/features/gm/hooks/use-apply-map";
 import { partyOf, sessionLabelOf } from "@/features/gm/model/party";
 
 export function SessionRoom({ campaignId }: { campaignId: string }) {
@@ -104,6 +105,7 @@ function Room({ overview, reloadOverview }: { overview: CampaignOverview; reload
   // A player at a shared table only acts through their character (local mode keeps full controls, as before).
   const restricted = !isGM && sync.mode !== "local";
   const actions = useTableActions(campaignId, author, sync, isGM);
+  const applyMap = useApplyMap(campaignId, actions);
   useEffect(() => {
     sheetChanged.current = (tokenId, data) => actions.refreshFromSheet(tokenId, data);
   }, [actions]);
@@ -181,7 +183,7 @@ function Room({ overview, reloadOverview }: { overview: CampaignOverview; reload
   }
   function stopEditing(apply: boolean) {
     const draft = useMapEditorStore.getState().draft;
-    if (apply && draft) actions.replaceMap(draft);
+    if (apply && draft) void applyMap(draft);
     useMapEditorStore.getState().close();
     setEditing(false);
   }

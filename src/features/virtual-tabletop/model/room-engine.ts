@@ -245,7 +245,7 @@ function reduce(state: RoomState, event: RoomEvent): RoomState {
 /** Large payloads stay out of the event log; it only needs to know what happened. */
 function forLog(event: RoomEvent): RoomEvent {
   // GM notes never go into the log (it will be broadcast and feed Chronicles Studio).
-  if (event.type === "map.replaced") return { ...event, map: { ...event.map, terrain: [], elevation: [], props: [], notes: undefined } };
+  if (event.type === "map.replaced") return { ...event, map: { ...event.map, terrain: [], elevation: [], props: [], notes: undefined, spawns: undefined } };
   if (event.type === "fog.revealed" || event.type === "fog.hidden") return { ...event, cells: event.cells.length > 32 ? [] : event.cells };
   return event;
 }

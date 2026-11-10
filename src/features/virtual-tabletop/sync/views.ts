@@ -42,8 +42,9 @@ const HIDDEN_STATS = { defense: 0, armor: 0, speed: 0, initiative: 0, attacks: [
 
 /** The map players get: no GM notes, no hidden traps. Terrain stays (sight lines need it); the fog covers it. */
 export function playerMapOf(map: MapDocument): MapDocument {
-  const { notes: _notes, ...rest } = map;
+  const { notes: _notes, spawns: _spawns, ...rest } = map;
   void _notes;
+  void _spawns;
   return { ...rest, props: map.props.filter((p) => !trapOf(p)?.hidden) };
 }
 

@@ -15,8 +15,8 @@ import { cellIndex, featureAt, inBounds, trapOf, type MapDocument, type MapSpawn
 import { ATTITUDE_HEX } from "@/features/map-editor/model/spawn-presets";
 import { brushCells, type Cell } from "@/features/map/model/shapes";
 import { placesOneProp, useMapEditorStore } from "@/features/map-editor/store/map-editor.store";
-import { CHARACTER_MODEL_BY_ID, modelFor } from "../model/character-models";
-import { canStand, gridDistance, isWall } from "../model/map";
+import { CHARACTER_MODEL_BY_ID, modelFor, sizeOf } from "../model/character-models";
+import { anchorFor, canStand, footprint, gridDistance, isWall } from "../model/map";
 import { CharacterFigure, preloadCharacterModel } from "./character-figure";
 import { currentTurnToken, isDown, partyVision } from "../model/room-engine";
 import type { RoomState, RoomToken } from "../model/types";
@@ -100,7 +100,8 @@ export function RoomMap3D({
     return { hidden, dim, mode: viewer };
   }, [editing, visible, room.fog.explored, room.map.cols, room.map.rows, viewer]);
   const seen = (cell: Cell) => !visible || viewer === "gm" || visible.has(cellIndex(room.map, cell.x, cell.y));
-  const shownTokens = room.tokens.filter((t) => t.kind !== "enemy" || seen(t));
+  // A large enemy shows as soon as any square of it is in sight.
+  const shownTokens = room.tokens.filter((t) => t.kind !== "enemy" || footprint(t, sizeOf(t)).some(seen));
   const reduceMotion = usePreferencesStore((s) => s.reduceMotion);
 
   // Carried lights of tokens the viewer may know about (not glowing out of unexplored darkness).
@@ -191,8 +192,11 @@ export function RoomMap3D({
     }
     if (editing) {
       if (useMapEditorStore.getState().stroke) useMapEditorStore.getState().moveStroke(cell);
-    } else if (drag && (drag.hover.x !== cell.x || drag.hover.y !== cell.y)) {
-      setDrag({ ...drag, hover: cell });
+    } else if (drag) {
+      // Large creatures are dragged by their middle: the pointer's square becomes the centre of the block.
+      const dragged = room.tokens.find((t) => t.id === drag.tokenId);
+      const anchor = anchorFor(cell, dragged ? sizeOf(dragged) : 1);
+      if (drag.hover.x !== anchor.x || drag.hover.y !== anchor.y) setDrag({ ...drag, hover: anchor });
     }
   }
 
@@ -270,7 +274,7 @@ export function RoomMap3D({
             {painting && <CellHighlights doc={doc} cells={fogPreview} color={fogBrush === "reveal" ? "#fde68a" : "#1e1b2e"} opacity={0.5} />}
             {selectedFeature && <CellHighlights doc={doc} cells={[selectedFeature]} color="#f59e0b" opacity={0.45} />}
             {drag && <CellHighlights doc={doc} cells={rangeCells} color="#a855f7" opacity={0.14} />}
-            {drag && <CellHighlights doc={doc} cells={[drag.hover]} color={dragValid ? "#a855f7" : "#ef4444"} opacity={0.55} />}
+            {drag && <CellHighlights doc={doc} cells={footprint(drag.hover, dragging ? sizeOf(dragging) : 1)} color={dragValid ? "#a855f7" : "#ef4444"} opacity={0.55} />}
             {drag && dragging && distance > 0 && <MoveLine doc={doc} from={drag.origin} to={drag.hover} valid={dragValid} label={`${distance} □ · ${(distance * doc.cellDistance).toLocaleString("pt-BR")} ${doc.cellUnit}`} overSpeed={distance > dragging.stats.speed} />}
             {shownTokens.map((t) => (
               <Token3D key={t.id} doc={doc} token={t} tokens={room.tokens} selected={t.id === selectedId} active={t.id === turnToken?.id} onPointerDown={(e) => onTokenDown(t, e)} />
@@ -308,10 +312,11 @@ function SpawnMarker({ doc, spawn }: { doc: MapDocument; spawn: MapSpawn }) {
   const still = useRef(false);
   if (spawn.x >= doc.cols || spawn.y >= doc.rows) return null;
   const model = CHARACTER_MODEL_BY_ID.get(spawn.modelId) ?? CHARACTER_MODEL_BY_ID.get("warrior")!;
-  const [wx, wz] = cellToWorld(doc, spawn.x, spawn.y);
+  const size = sizeOf(spawn);
+  const [wx, wz] = cellToWorld(doc, spawn.x + (size - 1) / 2, spawn.y + (size - 1) / 2);
   const color = ATTITUDE_HEX[spawn.attitude];
   return (
-    <group position={[wx, cellStandY(doc, spawn.x, spawn.y), wz]}>
+    <group position={[wx, cellStandY(doc, spawn.x, spawn.y), wz]} scale={size}>
       <mesh rotation-x={-Math.PI / 2} position-y={0.03} raycast={() => null}>
         <ringGeometry args={[0.38, 0.47, 32]} />
         <meshBasicMaterial color={color} transparent opacity={0.85} />
@@ -364,16 +369,19 @@ function Token3D({
   const route = useRoomStore((s) => s.routes[token.id]);
   const waypoints = useRef<[number, number, number][]>([]);
   const routeId = useRef<string | null>(null);
+  // Large creatures stand on the middle of their block and are drawn that many times bigger.
+  const size = sizeOf(token);
+  const centre = (size - 1) / 2;
   useEffect(() => {
     if (!route || route.id === routeId.current) return;
     routeId.current = route.id;
     waypoints.current = route.cells.map((c) => {
-      const [x, z] = cellToWorld(doc, c.x, c.y);
+      const [x, z] = cellToWorld(doc, c.x + centre, c.y + centre);
       return [x, z, cellStandY(doc, c.x, c.y)];
     });
-  }, [route, doc]);
+  }, [route, doc, centre]);
   const model = modelFor(token);
-  const [wx, wz] = cellToWorld(doc, token.x, token.y);
+  const [wx, wz] = cellToWorld(doc, token.x + centre, token.y + centre);
   const y = cellStandY(doc, token.x, token.y);
   const down = isDown(token);
   const pct = Math.max(0, token.hp.current / token.hp.max);
@@ -406,7 +414,8 @@ function Token3D({
       let yaw: number | null = null;
       if (moving.current) yaw = Math.atan2(dx, dz);
       else if (target) {
-        const [tx, tz] = cellToWorld(doc, target.x, target.y);
+        const targetCentre = (sizeOf(target) - 1) / 2;
+        const [tx, tz] = cellToWorld(doc, target.x + targetCentre, target.y + targetCentre);
         yaw = Math.atan2(tx - g.position.x, tz - g.position.z);
       }
       if (yaw !== null && figure.current) {
@@ -419,7 +428,7 @@ function Token3D({
   });
 
   return (
-    <group ref={group} position={[wx, y, wz]}>
+    <group ref={group} position={[wx, y, wz]} scale={size}>
       {active && (
         <mesh ref={ring} rotation-x={-Math.PI / 2} position-y={0.03} raycast={() => null}>
           <ringGeometry args={[0.42, 0.49, 40]} />
@@ -510,9 +519,10 @@ function MoveLine({ doc, from, to, valid, label, overSpeed }: { doc: MapDocument
 
 function FloatingNumber({ doc, fx, token }: { doc: MapDocument; fx: TokenFx; token?: RoomToken }) {
   if (!token) return null;
-  const [wx, wz] = cellToWorld(doc, token.x, token.y);
+  const size = sizeOf(token);
+  const [wx, wz] = cellToWorld(doc, token.x + (size - 1) / 2, token.y + (size - 1) / 2);
   return (
-    <Html position={[wx, cellStandY(doc, token.x, token.y) + 1.5, wz]} center zIndexRange={[30, 0]} style={{ pointerEvents: "none" }}>
+    <Html position={[wx, cellStandY(doc, token.x, token.y) + 1.5 * size, wz]} center zIndexRange={[30, 0]} style={{ pointerEvents: "none" }}>
       <AnimatePresence>
         <motion.span
           initial={{ y: 12, opacity: 0, scale: 0.6 }}

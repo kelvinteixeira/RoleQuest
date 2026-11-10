@@ -48,7 +48,8 @@ import { MAP_TEMPLATES } from "@/features/map/model/templates";
 import { BLUEPRINT_BY_ID, BLUEPRINTS } from "@/features/map/model/buildings";
 import { useGmTools } from "@/features/gm/hooks/use-gm-tools";
 import { ATTITUDE_LABEL } from "@/features/gm/model/npc";
-import { ATTITUDE_COLOR, npcSpawnTemplate, SPAWN_GROUP_LABEL, SPAWN_PRESETS } from "../model/spawn-presets";
+import { ATTITUDE_COLOR, MONSTER_PRESETS, npcSpawnTemplate, SPAWN_GROUP_LABEL, SPAWN_PRESETS, TIER_LABEL, TIER_ORDER, type SpawnPreset } from "../model/spawn-presets";
+import type { SpawnTemplate } from "@/features/map/model/map-document";
 import { MapThumbnail } from "@/features/map/components/map-thumbnail";
 import { formatRelative } from "@/lib/format";
 import { useCampaignMaps } from "../hooks/use-campaign-maps";
@@ -506,7 +507,14 @@ function Library({ campaignId, onLoad }: { campaignId: string; onLoad: (doc: Map
   );
 }
 
-type SpawnSource = "campaign" | "people" | "creatures";
+type SpawnSource = "campaign" | "people" | "creatures" | "monsters";
+
+/** A preset without its catalogue fields: what the spawn tool places. */
+function templateOf({ key, group, tier, ...template }: SpawnPreset): { id: string; template: SpawnTemplate } {
+  void group;
+  void tier;
+  return { id: key, template };
+}
 
 /** Pick a campaign NPC or a quick character, then click squares to place it; lists what is already on the map. */
 function SpawnSection({ campaignId }: { campaignId: string }) {
@@ -521,18 +529,19 @@ function SpawnSection({ campaignId }: { campaignId: string }) {
   const isPicked = (key: { npcId?: string; name: string; modelId: string }) =>
     !!spawn && (key.npcId ? spawn.npcId === key.npcId : !spawn.npcId && spawn.name === key.name && spawn.modelId === key.modelId);
 
-  const options =
+  // Lists with a heading per block: the bestiary is split by size.
+  const sections: { heading?: string; options: { id: string; template: SpawnTemplate }[] }[] =
     source === "campaign"
-      ? tools.npcs.map((npc) => ({ id: npc.id, template: npcSpawnTemplate(npc) }))
-      : SPAWN_PRESETS.filter((p) => p.group === source).map(({ key, group, ...template }) => {
-          void group;
-          return { id: key, template };
-        });
+      ? [{ options: tools.npcs.map((npc) => ({ id: npc.id, template: npcSpawnTemplate(npc) })) }]
+      : source === "monsters"
+        ? TIER_ORDER.map((tier) => ({ heading: TIER_LABEL[tier], options: MONSTER_PRESETS.filter((p) => p.tier === tier).map(templateOf) }))
+        : [{ options: SPAWN_PRESETS.filter((p) => p.group === source).map(templateOf) }];
+  const empty = sections.every((sec) => sec.options.length === 0);
 
   return (
     <Section title="Personagens">
-      <div className="mb-2 flex gap-1">
-        {(["campaign", "people", "creatures"] as const).map((id) => (
+      <div className="mb-2 flex gap-1 overflow-x-auto">
+        {(["campaign", "people", "creatures", "monsters"] as const).map((id) => (
           <button
             key={id}
             onClick={() => setSource(id)}
@@ -544,11 +553,13 @@ function SpawnSection({ campaignId }: { campaignId: string }) {
       </div>
       {source === "campaign" && tools.loading ? (
         <p className="text-[11px] text-fg-subtle">Carregando NPCs…</p>
-      ) : options.length === 0 ? (
-        <p className="text-[11px] leading-relaxed text-fg-subtle">Nenhum NPC na campanha ainda. Crie em Ferramentas do mestre, ou use Pessoas e Criaturas.</p>
+      ) : empty ? (
+        <p className="text-[11px] leading-relaxed text-fg-subtle">Nenhum NPC na campanha ainda. Crie em Ferramentas do mestre, ou use Pessoas, Criaturas e Monstros.</p>
       ) : (
-        <ul className="flex max-h-56 flex-col gap-1 overflow-y-auto pr-1">
-          {options.map(({ id, template }) => (
+        <ul className="flex max-h-72 flex-col gap-1 overflow-y-auto pr-1">
+          {sections.flatMap((sec) => [
+            ...(sec.heading ? [<li key={sec.heading} className="sticky top-0 z-10 bg-surface px-1 pb-0.5 pt-1.5 text-[10px] font-medium uppercase tracking-wider text-fg-subtle">{sec.heading}</li>] : []),
+            ...sec.options.map(({ id, template }) => (
             <li key={id}>
               <button
                 onClick={() => set({ spawn: isPicked(template) ? null : template })}
@@ -566,12 +577,13 @@ function SpawnSection({ campaignId }: { campaignId: string }) {
                 <span className="shrink-0 font-mono text-[10px] text-fg-subtle">{template.stats.hp} PV</span>
               </button>
             </li>
-          ))}
+            )),
+          ])}
         </ul>
       )}
       <p className="mt-2 text-[11px] leading-relaxed text-fg-subtle">
         {spawn ? `Clique numa casa para pôr ${spawn.name}. ` : "Escolha alguém e clique nas casas do mapa. "}
-        Ficam escondidos dos jogadores aqui e viram tokens na mesa quando você aplica o mapa. Hostis entram como inimigos.
+        Ficam escondidos dos jogadores aqui e viram tokens na mesa quando você aplica o mapa. Hostis entram como inimigos. Monstros grandes ocupam várias casas: a casa clicada é o canto de cima à esquerda.
       </p>
       {placed.length > 0 && (
         <>

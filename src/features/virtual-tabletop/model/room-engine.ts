@@ -8,7 +8,8 @@ import { adaptNpcStats, resolveAttack, rollDamage, rollInitiativeFor } from "@/f
 import type { TokenAttack } from "@/features/combat/model/types";
 import { PROP_BY_ID, trapOf, type MapDocument, type PlacedProp } from "@/features/map/model/map-document";
 import { DEFAULT_VISION, visibleInLight, type LightSource } from "@/features/map/model/vision";
-import { canStand, freeCellNear, gridDistance, type Cell } from "./map";
+import { canStand, freeCellNear, gridDistance, type Cell, type Spot } from "./map";
+import { sizeOf } from "./character-models";
 import type { Author, ChatMessage, CombatState, FogState, LoggedEvent, MessageVisibility, RoomEvent, RoomState, RoomToken } from "./types";
 
 const LOG_LIMIT = 400;
@@ -186,8 +187,9 @@ function reduce(state: RoomState, event: RoomEvent): RoomState {
       // Tokens left on a now-blocked or off-map square move to the nearest free one.
       const tokens: RoomToken[] = [];
       for (const t of state.tokens) {
-        const ok = canStand(event.map, tokens, t, t.id);
-        tokens.push(ok ? t : { ...t, ...freeCellNear(event.map, tokens, { x: Math.min(t.x, event.map.cols - 1), y: Math.min(t.y, event.map.rows - 1) }) });
+        const size = sizeOf(t);
+        const ok = canStand(event.map, tokens, t, t.id, size);
+        tokens.push(ok ? t : { ...t, ...freeCellNear(event.map, tokens, { x: Math.min(t.x, event.map.cols - 1), y: Math.min(t.y, event.map.rows - 1) }, size) });
       }
       // Explored areas survive edits (and resizes) of the same map, not a different one.
       const explored = event.map.id !== state.map.id ? [] : event.map.cols === state.map.cols && event.map.rows === state.map.rows ? state.fog.explored : remapExplored(state.fog.explored, state.map, event.map);
@@ -327,7 +329,7 @@ export function rollInitiative(state: RoomState, rng?: Rng): RoomEvent[] {
 }
 
 /** Attacks of `attacker` that reach `target` from where it stands. */
-export function attacksInReach(attacker: RoomToken, target: { x: number; y: number }): TokenAttack[] {
+export function attacksInReach(attacker: RoomToken, target: Spot): TokenAttack[] {
   const distance = gridDistance(attacker, target);
   return attacker.stats.attacks.filter((a) => a.range >= distance);
 }

@@ -12,7 +12,7 @@ import { formatTime } from "@/lib/format";
 import { DIE_TYPES } from "@/types/system";
 import { supportsAdvantage, type RollMode } from "@/features/dice/dice-engine";
 import { formatAttackValue, formatDefense, formatInitiative } from "@/features/combat/model/rules";
-import { CHARACTER_GROUP_LABEL, CHARACTER_MODELS, modelFor, type CharacterModel } from "../model/character-models";
+import { ALL_CHARACTER_MODELS as CHARACTER_MODELS, CHARACTER_GROUP_LABEL, modelFor, type CharacterModel } from "../model/character-models";
 import { gridDistance } from "../model/map";
 import { currentTurnToken, isDown } from "../model/room-engine";
 import type { ChatMessage, MessageVisibility, RoomState, RoomToken } from "../model/types";

@@ -2,7 +2,7 @@
 
 import { useRef, useState } from "react";
 import Link from "next/link";
-import { BookOpen, ChevronDown, Eye, MapPinPlus, Play, Swords, Users } from "lucide-react";
+import { BookOpen, ChevronDown, Eye, MapPinPlus, Play, Skull, Swords, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/primitives";
 import { useAsync } from "@/hooks/use-async";
@@ -19,6 +19,8 @@ import { useGmTools } from "../hooks/use-gm-tools";
 import { DIFFICULTY_LABEL, encounterDifficulty, encounterTokens } from "../model/encounter";
 import { journalFromMessages, REVEAL_PREFIX } from "../model/journal";
 import { ATTITUDE_LABEL, npcToken } from "../model/npc";
+import { templateToken } from "../model/map-spawns";
+import { MONSTER_PRESETS, TIER_LABEL, TIER_ORDER, type MonsterTier, type SpawnPreset } from "@/features/map-editor/model/spawn-presets";
 import { DIFFICULTY_TONE } from "./encounter-editor";
 
 /**
@@ -32,6 +34,7 @@ export function RoomGmPanel({ room, actions, party, sessionLabel }: { room: Room
   const tools = useGmTools(campaignId);
   const journal = useAsync(() => gmService.listJournal(campaignId, user), [campaignId, user.id]);
   const [open, setOpen] = useState<string | null>(null);
+  const [tier, setTier] = useState<MonsterTier | null>(null);
   const [rollInitiative, setRollInitiative] = useState(true);
   const [recording, setRecording] = useState(false);
   // Facts being revealed right now: a second click must not post them twice. The ref is
@@ -62,6 +65,12 @@ export function RoomGmPanel({ room, actions, party, sessionLabel }: { room: Room
         // The token is on the table either way; the GM can mark it known in the NPC sheet.
       }
     }
+  }
+
+  function placeMonster(preset: SpawnPreset) {
+    const token = templateToken(preset, room.map, room.rules, room.tokens, spotNearParty());
+    actions.addTokens([token]);
+    toast.success(`${token.name} está na mesa`);
   }
 
   async function reveal(npc: Npc, factId: string) {
@@ -126,6 +135,43 @@ export function RoomGmPanel({ room, actions, party, sessionLabel }: { room: Room
             Abrir o diário
           </Link>
         </p>
+      </section>
+
+      <section>
+        <h3 className="mb-2 flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wider text-fg-subtle">
+          <Skull className="size-3.5" /> Bestiário ({MONSTER_PRESETS.length})
+        </h3>
+        <div className="mb-2 flex gap-1 overflow-x-auto">
+          {TIER_ORDER.map((t) => (
+            <button
+              key={t}
+              onClick={() => setTier(tier === t ? null : t)}
+              aria-pressed={tier === t}
+              className={cn("h-7 shrink-0 rounded-full border px-2.5 text-xs", tier === t ? "border-accent/50 bg-accent/12 text-accent" : "border-line text-fg-muted")}
+            >
+              {TIER_LABEL[t]}
+            </button>
+          ))}
+        </div>
+        {tier ? (
+          <ul className="flex max-h-64 flex-col gap-1 overflow-y-auto pr-1">
+            {MONSTER_PRESETS.filter((m) => m.tier === tier).map((m) => (
+              <li key={m.key} className="flex items-center gap-2 rounded-lg border border-line px-2 py-1.5">
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-sm">{m.name}</span>
+                  <span className="block truncate text-[11px] text-fg-subtle">
+                    {m.stats.hp} PV · Def {m.stats.defense} · {m.stats.damage} · {m.concept}
+                  </span>
+                </span>
+                <Button size="icon-sm" variant="ghost" onClick={() => placeMonster(m)} aria-label={`Pôr ${m.name} na mesa`} title="Pôr na mesa, perto do grupo">
+                  <MapPinPlus className="size-4" />
+                </Button>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="text-xs text-fg-subtle">Escolha um tamanho para ver os monstros. Entram perto do grupo, já com ficha de combate; os grandes ocupam várias casas.</p>
+        )}
       </section>
 
       <section>

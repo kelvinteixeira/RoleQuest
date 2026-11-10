@@ -343,7 +343,40 @@ function Cart() {
   );
 }
 
+/** One side of a square: posts on the corners and the middle of the line, two rails between them. */
+function FenceSide() {
+  return (
+    <group position={[0, 0, 0.5]}>
+      {[-0.5, 0, 0.5].map((x) => (
+        <Box key={x} size={[0.07, 0.6, 0.07]} at={[x, 0.3, 0]} color={WOOD_DARK} />
+      ))}
+      {[0.22, 0.46].map((y) => (
+        <Box key={y} size={[1, 0.06, 0.035]} at={[0, y, 0]} color={WOOD_LIGHT} />
+      ))}
+    </group>
+  );
+}
+
+/** Fence on the south line of its square. */
+function Fence() {
+  return <FenceSide />;
+}
+
+/** Fence on the south and east lines, meeting at the corner. */
+function FenceCorner() {
+  return (
+    <group>
+      <FenceSide />
+      <group rotation-y={Math.PI / 2}>
+        <FenceSide />
+      </group>
+    </group>
+  );
+}
+
 const MODELS: Record<DecorKind, () => React.JSX.Element> = {
+  fence: Fence,
+  "fence-corner": FenceCorner,
   barrel: Barrel,
   crate: Crate,
   chest: Chest,

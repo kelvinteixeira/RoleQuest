@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { BLUEPRINTS, buildStructure } from "./buildings";
-import { createBlankMap, isBlocked, propsAt, terrainAt, type MapDocument } from "./map-document";
+import { canCross, closedSides, createBlankMap, isBlocked, propsAt, terrainAt, type MapDocument } from "./map-document";
 import { castleMap, villageMap } from "./templates";
 
 const propIds = (m: MapDocument) => m.props.map((p) => p.propId);
@@ -65,5 +65,53 @@ describe("starter maps with buildings", () => {
     const m = castleMap();
     expect(propIds(m)).toContain("throne");
     expect(m.spawns?.map((s) => s.name)).toEqual(["Guarda", "Guarda"]);
+  });
+});
+
+describe("fences on the lines of the grid", () => {
+  const fence = (x: number, y: number, rotation: number, propId = "fence") => ({ id: `${propId}${x}${y}${rotation}`, propId, x, y, rotation });
+
+  it("leave their square free and close only the side they stand on", () => {
+    const m = { ...createBlankMap(6, 6), props: [fence(2, 2, 0)] };
+    expect(isBlocked(m, 2, 2)).toBe(false);
+    // South side of (2,2): the line shared with (2,3), from either square.
+    expect(canCross(m, { x: 2, y: 2 }, { x: 2, y: 3 })).toBe(false);
+    expect(canCross(m, { x: 2, y: 3 }, { x: 2, y: 2 })).toBe(false);
+    expect(canCross(m, { x: 2, y: 2 }, { x: 2, y: 1 })).toBe(true);
+    expect(canCross(m, { x: 2, y: 2 }, { x: 3, y: 2 })).toBe(true);
+  });
+
+  it("turn with the prop, and a corner piece closes two sides", () => {
+    const east = { ...createBlankMap(6, 6), props: [fence(2, 2, 90)] };
+    expect(canCross(east, { x: 2, y: 2 }, { x: 3, y: 2 })).toBe(false);
+    expect(canCross(east, { x: 2, y: 2 }, { x: 2, y: 3 })).toBe(true);
+    const corner = { ...createBlankMap(6, 6), props: [fence(2, 2, 180, "fence-corner")] };
+    expect(closedSides(corner.props[0]).sort()).toEqual([180, 270]);
+    expect(canCross(corner, { x: 2, y: 2 }, { x: 2, y: 1 })).toBe(false);
+    expect(canCross(corner, { x: 2, y: 2 }, { x: 1, y: 2 })).toBe(false);
+  });
+
+  it("stop diagonal steps past the end of a fence", () => {
+    const m = { ...createBlankMap(6, 6), props: [fence(2, 2, 0)] };
+    expect(canCross(m, { x: 2, y: 2 }, { x: 3, y: 3 })).toBe(false);
+    expect(canCross(m, { x: 1, y: 3 }, { x: 2, y: 2 })).toBe(false);
+    expect(canCross(m, { x: 4, y: 2 }, { x: 5, y: 3 })).toBe(true);
+  });
+
+  it("the farm is fenced on its outer lines with a gate in the south, and walkable inside", () => {
+    const m = buildStructure(createBlankMap(12, 12), "farm", { x: 2, y: 2 }, { x: 8, y: 8 });
+    // Border squares are part of the yard.
+    expect(isBlocked(m, 2, 2)).toBe(false);
+    // No way out across the border lines, corners included.
+    expect(canCross(m, { x: 2, y: 5 }, { x: 1, y: 5 })).toBe(false);
+    expect(canCross(m, { x: 8, y: 5 }, { x: 9, y: 5 })).toBe(false);
+    expect(canCross(m, { x: 5, y: 2 }, { x: 5, y: 1 })).toBe(false);
+    expect(canCross(m, { x: 2, y: 2 }, { x: 1, y: 1 })).toBe(false);
+    expect(canCross(m, { x: 8, y: 8 }, { x: 9, y: 9 })).toBe(false);
+    expect(canCross(m, { x: 4, y: 8 }, { x: 4, y: 9 })).toBe(false);
+    // The gate: south, middle.
+    expect(canCross(m, { x: 5, y: 8 }, { x: 5, y: 9 })).toBe(true);
+    // Free to walk along the fence inside.
+    expect(canCross(m, { x: 2, y: 4 }, { x: 2, y: 5 })).toBe(true);
   });
 });

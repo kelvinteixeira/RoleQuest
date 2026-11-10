@@ -1,4 +1,4 @@
-import { isBlocked, type MapDocument } from "@/features/map/model/map-document";
+import { canCross, isBlocked, type MapDocument } from "@/features/map/model/map-document";
 import { lineCells } from "@/features/map/model/shapes";
 import type { RoomToken } from "./types";
 
@@ -58,7 +58,7 @@ function findPath(map: MapDocument, tokens: RoomToken[], mover: RoomToken, goal:
     for (const step of STEPS) {
       const next = { x: current.x + step.x, y: current.y + step.y };
       const k = key(next.x, next.y);
-      if (seen.has(k) || !canStand(map, tokens, next, mover.id)) continue;
+      if (seen.has(k) || !canStand(map, tokens, next, mover.id) || !canCross(map, current, next)) continue;
       seen.set(k, key(current.x, current.y));
       if (goal(next)) {
         const path: Cell[] = [];
@@ -86,8 +86,10 @@ export function pathToAdjacent(map: MapDocument, tokens: RoomToken[], mover: Roo
  * clear, otherwise the shortest way around. Null when there is no way.
  */
 export function routeTo(map: MapDocument, tokens: RoomToken[], mover: RoomToken, target: Cell): Cell[] | null {
-  const straight = lineCells({ x: mover.x, y: mover.y }, target).slice(1);
-  if (straight.every((c) => canStand(map, tokens, c, mover.id))) return straight;
+  const line = lineCells({ x: mover.x, y: mover.y }, target);
+  const straight = line.slice(1);
+  // Clear squares all the way, and no fence across any step.
+  if (straight.every((c, i) => canStand(map, tokens, c, mover.id) && canCross(map, line[i], c))) return straight;
   return findPath(map, tokens, mover, (c) => c.x === target.x && c.y === target.y);
 }
 

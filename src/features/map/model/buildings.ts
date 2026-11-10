@@ -278,8 +278,10 @@ function farm(doc: MapDocument, lot: Lot, seed: number): MapDocument {
   const gate = key({ x: lot.cx, y: lot.y1 });
   for (const c of outline(lot)) {
     if (key(c) === gate) continue;
-    const side = (c.x === lot.x0 || c.x === lot.x1) && c.y !== lot.y0 && c.y !== lot.y1;
-    m = put(m, c, "fence", side ? 90 : 0);
+    // Fences stand on the lot's outer lines: each border square closes its outward side, corners close two.
+    const [n, s, w, e] = [c.y === lot.y0, c.y === lot.y1, c.x === lot.x0, c.x === lot.x1];
+    if ((n || s) && (w || e)) m = put(m, c, "fence-corner", s && e ? 0 : n && e ? 90 : n && w ? 180 : 270);
+    else m = put(m, c, "fence", s ? 0 : e ? 90 : n ? 180 : 270);
   }
   const i = inner(lot);
   const clear = new Set([key({ x: lot.cx, y: lot.y1 - 1 })]);
@@ -297,7 +299,7 @@ export const BLUEPRINTS: readonly Blueprint[] = [
   { id: "castle", label: "Castelo", description: "Muralha, torres nos cantos, portão de ferro e, se couber, a fortaleza com sala do trono.", min: { w: 11, h: 11 }, build: castle },
   { id: "ruins", label: "Ruínas", description: "Paredes quebradas, piso partido e entulho.", min: { w: 4, h: 4 }, build: ruins },
   { id: "square", label: "Praça", description: "Calçamento com poço e, se couber, barracas de feira.", min: { w: 5, h: 5 }, round: true, build: square },
-  { id: "farm", label: "Fazenda", description: "Cercado de terra com feno, caixotes e carroça.", min: { w: 5, h: 5 }, build: farm },
+  { id: "farm", label: "Fazenda", description: "Terreno cercado (cerca nas linhas, porteira ao sul) com feno, caixotes e carroça.", min: { w: 5, h: 5 }, build: farm },
 ];
 
 export const BLUEPRINT_BY_ID = new Map(BLUEPRINTS.map((b) => [b.id, b]));

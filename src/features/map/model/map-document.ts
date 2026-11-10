@@ -106,7 +106,9 @@ export type DecorKind =
   | "banner"
   | "anvil"
   | "haystack"
-  | "cart";
+  | "cart"
+  | "fence"
+  | "fence-corner";
 
 /** Interactive map pieces, drawn procedurally and with state that changes during play. */
 export type FeatureKind = "door" | "gate" | "trap-spikes" | "trap-darts" | "torch" | "brazier";
@@ -141,6 +143,12 @@ export interface PropDef {
   walkable?: boolean;
   /** Random yaw when placed, so forests don't look copy-pasted. */
   randomYaw?: boolean;
+  /**
+   * Stands on the lines of its square instead of filling it (fences): the sides
+   * it closes at rotation 0, in degrees (0 south, 90 east, 180 north, 270 west).
+   * The square stays free; tokens cannot step across a closed side.
+   */
+  edges?: readonly number[];
   /** Blocks line of sight (fog of war). Raised terrain and closed doors always do. */
   opaque?: boolean;
   /** Default trap damage. */
@@ -214,7 +222,8 @@ export const PROPS: readonly PropDef[] = [
   P("tent", "Barraca", "structure", "tent_detailedOpen", { by: "width", size: 1 }, true),
   P("obelisk", "Obelisco", "structure", "statue_obelisk", { by: "height", size: 1.8 }, true),
   P("column", "Coluna", "structure", "statue_column", { by: "height", size: 1.6 }, true),
-  P("fence", "Cerca", "structure", "fence_simple", { by: "width", size: 1 }, true),
+  { id: "fence", label: "Cerca (na linha)", category: "structure", decor: "fence", fit: { by: "width", size: 1 }, blocks: false, edges: [0] },
+  { id: "fence-corner", label: "Cerca de canto", category: "structure", decor: "fence-corner", fit: { by: "width", size: 1 }, blocks: false, edges: [0, 90] },
   P("sign", "Placa", "structure", "sign", { by: "height", size: 0.8 }, false),
   D("barrel", "Barril", "barrel", true),
   D("crate", "Caixote", "crate", true),
@@ -408,6 +417,53 @@ export function isBlocked(doc: MapDocument, x: number, y: number): boolean {
   if (here.some((p) => p.walkable)) return false;
   if (terrainAt(doc, x, y).blocks) return true;
   return here.some((p) => p.blocks);
+}
+
+/* ---------- Fences: props on the lines between squares ---------- */
+
+const SIDE_STEP: Record<number, readonly [number, number]> = { 0: [0, 1], 90: [1, 0], 180: [0, -1], 270: [-1, 0] };
+const sideKey = (x: number, y: number, side: number) => `${x},${y},${side}`;
+
+/** The sides of its square a placed prop closes right now (its rotation applied). */
+export function closedSides(p: PlacedProp): number[] {
+  const edges = PROP_BY_ID.get(p.propId)?.edges;
+  if (!edges) return [];
+  const turn = (((Math.round(p.rotation / 90) * 90) % 360) + 360) % 360;
+  return edges.map((e) => (e + turn) % 360);
+}
+
+/** Closed sides per map document, each recorded from both squares it separates. */
+const fenceCache = new WeakMap<MapDocument, Set<string>>();
+
+function fencesOf(doc: MapDocument): Set<string> {
+  let closed = fenceCache.get(doc);
+  if (!closed) {
+    closed = new Set();
+    for (const p of doc.props) {
+      for (const side of closedSides(p)) {
+        const [dx, dy] = SIDE_STEP[side];
+        closed.add(sideKey(p.x, p.y, side));
+        closed.add(sideKey(p.x + dx, p.y + dy, (side + 180) % 360));
+      }
+    }
+    fenceCache.set(doc, closed);
+  }
+  return closed;
+}
+
+/**
+ * Can a token step from one square to a neighbouring one? A fence on the line
+ * between them stops it; a diagonal step needs both ways around the corner
+ * open, so nobody squeezes past the end of a fence.
+ */
+export function canCross(doc: MapDocument, from: { x: number; y: number }, to: { x: number; y: number }): boolean {
+  const closed = fencesOf(doc);
+  if (closed.size === 0) return true;
+  const dx = Math.sign(to.x - from.x);
+  const dy = Math.sign(to.y - from.y);
+  const open = (x: number, y: number, sx: number, sy: number) => !closed.has(sideKey(x, y, sx === 1 ? 90 : sx === -1 ? 270 : sy === 1 ? 0 : 180));
+  if (dx && dy) return open(from.x, from.y, dx, 0) && open(from.x + dx, from.y, 0, dy) && open(from.x, from.y, 0, dy) && open(from.x, from.y + dy, dx, 0);
+  return dx || dy ? open(from.x, from.y, dx, dy) : true;
 }
 
 /** Opaque squares per map document (documents are immutable: every change makes a new one). */

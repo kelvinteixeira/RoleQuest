@@ -83,7 +83,7 @@ export function useRoomActions(campaignId: string, gm: Author, forward?: (events
       if (!state) return;
       if (options.teleport) return void send([{ type: "token.moved", tokenId: token.id, x: cell.x, y: cell.y }]);
       const path = routeTo(state.map, state.tokens, token, cell);
-      if (!path) return void toast.info("Sem caminho até lá", "Uma porta fechada ou parede está no caminho. Segure Alt ao soltar para teleportar.");
+      if (!path) return void toast.info("Sem caminho até lá", "Uma porta fechada, parede ou cerca está no caminho. Segure Alt ao soltar para teleportar.");
       send(walk(state, token, path).events);
     }
 

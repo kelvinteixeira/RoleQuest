@@ -53,7 +53,7 @@ import { MapThumbnail } from "@/features/map/components/map-thumbnail";
 import { formatRelative } from "@/lib/format";
 import { useCampaignMaps } from "../hooks/use-campaign-maps";
 import { BackgroundSection } from "./background-section";
-import { toolLocked, useMapEditorStore, type EditorShape, type EditorTool, type LayerId } from "../store/map-editor.store";
+import { placesOneProp, toolLocked, useMapEditorStore, type EditorShape, type EditorTool, type LayerId } from "../store/map-editor.store";
 
 const TOOLS: { id: EditorTool; label: string; icon: LucideIcon }[] = [
   { id: "terrain", label: "Terreno", icon: Brush },
@@ -84,6 +84,8 @@ const SHAPES: { id: EditorShape; label: string; icon: LucideIcon }[] = [
   { id: "fill", label: "Balde", icon: PaintBucket },
 ];
 
+const FACING: Record<number, string> = { 0: "Sul", 90: "Leste", 180: "Norte", 270: "Oeste" };
+
 const CATEGORIES: PropCategory[] = ["tree", "rock", "plant", "structure", "furniture", "feature"];
 
 /** GM map editor controls. The 3D view reads the same store to preview and apply strokes. */
@@ -94,7 +96,14 @@ export function MapEditorPanel({ campaignId, onApply, onCancel }: { campaignId: 
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (!(e.ctrlKey || e.metaKey) || (e.target as HTMLElement).closest("input, textarea")) return;
+      if ((e.target as HTMLElement).closest("input, textarea")) return;
+      // R turns the next piece placed one by one.
+      if (!e.ctrlKey && !e.metaKey && !e.altKey && e.key.toLowerCase() === "r") {
+        const st = useMapEditorStore.getState();
+        if (placesOneProp(st)) st.set({ propRotation: (st.propRotation + 90) % 360 });
+        return;
+      }
+      if (!(e.ctrlKey || e.metaKey)) return;
       if (e.key.toLowerCase() === "z") {
         e.preventDefault();
         if (e.shiftKey) useMapEditorStore.getState().redo();
@@ -112,9 +121,21 @@ export function MapEditorPanel({ campaignId, onApply, onCancel }: { campaignId: 
   const draft = s.draft;
   const showBrush = s.shape === "brush" || s.shape === "line";
 
-  function togglePropSelection(id: string) {
-    const has = s.propIds.includes(id);
-    s.set({ propIds: has ? s.propIds.filter((p) => p !== id) : [...s.propIds, id] });
+  const onePiece = placesOneProp(s);
+  const scatterCategory = SCATTER_CATEGORIES.includes(category);
+  const mixing = s.scatter && scatterCategory;
+
+  /** One piece is picked at a time; in scatter mode trees, rocks and plants can be mixed. */
+  function pickProp(id: string) {
+    if (!mixing) return s.set({ propIds: [id] });
+    const mix = s.propIds.filter((p) => SCATTER_CATEGORIES.includes(PROP_BY_ID.get(p)?.category ?? "feature"));
+    const has = mix.includes(id);
+    // The mix never ends empty: unpicking the last one keeps it.
+    s.set({ propIds: has ? (mix.length > 1 ? mix.filter((p) => p !== id) : mix) : [...mix, id] });
+  }
+
+  function setScatter(on: boolean) {
+    s.set({ scatter: on, propIds: on ? s.propIds : s.propIds.slice(0, 1) });
   }
 
   return (
@@ -188,7 +209,7 @@ export function MapEditorPanel({ campaignId, onApply, onCancel }: { campaignId: 
 
       {s.tool === "spawn" && <SpawnSection campaignId={campaignId} />}
 
-      {s.tool !== "rotate" && s.tool !== "note" && s.tool !== "build" && s.tool !== "spawn" && (
+      {s.tool !== "rotate" && s.tool !== "note" && s.tool !== "build" && s.tool !== "spawn" && !onePiece && (
         <Section title="Forma (encaixa na grade)">
           <div className="grid grid-cols-6 gap-1">
             {SHAPES.map(({ id, label, icon: Icon }) => (
@@ -260,24 +281,60 @@ export function MapEditorPanel({ campaignId, onApply, onCancel }: { campaignId: 
               </button>
             ))}
           </div>
+          {scatterCategory && (
+            <div className="mb-2 grid grid-cols-2 gap-1 rounded-lg border border-line p-0.5 text-xs">
+              {([false, true] as const).map((on) => (
+                <button
+                  key={String(on)}
+                  onClick={() => setScatter(on)}
+                  aria-pressed={s.scatter === on}
+                  className={cn("rounded-md py-1.5", s.scatter === on ? "bg-accent/12 font-medium text-accent" : "text-fg-muted hover:text-fg")}
+                >
+                  {on ? "Espalhar vários" : "Um por clique"}
+                </button>
+              ))}
+            </div>
+          )}
           <div className="grid grid-cols-2 gap-1">
-            {PROPS.filter((p) => p.category === category).map((p) => (
-              <label key={p.id} className={cn("flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-xs", s.propIds.includes(p.id) ? "bg-accent/10 text-fg" : "text-fg-muted hover:bg-surface-2")}>
-                <input type="checkbox" checked={s.propIds.includes(p.id)} onChange={() => togglePropSelection(p.id)} className="accent-[var(--color-accent-solid)]" />
-                <span className="truncate">{p.label}</span>
-                {p.blocks && <span className="ml-auto size-1.5 shrink-0 rounded-full bg-danger/70" title="Bloqueia movimento" />}
-              </label>
-            ))}
+            {PROPS.filter((p) => p.category === category).map((p) => {
+              const picked = s.propIds.includes(p.id);
+              return (
+                <button
+                  key={p.id}
+                  onClick={() => pickProp(p.id)}
+                  aria-pressed={picked}
+                  className={cn(
+                    "flex items-center gap-2 rounded-md border px-2 py-1.5 text-left text-xs transition-colors",
+                    picked ? "border-accent/60 bg-accent/12 text-fg" : "border-transparent text-fg-muted hover:bg-surface-2 hover:text-fg",
+                  )}
+                >
+                  <span className="truncate">{p.label}</span>
+                  {p.blocks && <span className="ml-auto size-1.5 shrink-0 rounded-full bg-danger/70" title="Bloqueia movimento" />}
+                </button>
+              );
+            })}
           </div>
+          {onePiece && s.propIds[0] && (
+            <div className="mt-2 flex items-center gap-2 rounded-lg border border-line px-2 py-1.5 text-xs">
+              <span className="min-w-0 flex-1 truncate text-fg-muted">
+                Clique no mapa para pôr <span className="font-medium text-fg">{PROP_BY_ID.get(s.propIds[0])?.label}</span>
+              </span>
+              {!PROP_BY_ID.get(s.propIds[0])?.randomYaw && !["door", "gate"].includes(PROP_BY_ID.get(s.propIds[0])?.feature ?? "") && (
+                <Button size="sm" variant="ghost" onClick={() => s.set({ propRotation: (s.propRotation + 90) % 360 })} title="Girar a próxima peça (tecla R)" leadingIcon={<RotateCw className="size-3.5" />}>
+                  {FACING[s.propRotation]}
+                </Button>
+              )}
+            </div>
+          )}
           {category === "feature" && (
             <p className="mt-2 text-[11px] leading-relaxed text-fg-subtle">
               Portas começam fechadas e se alinham às paredes vizinhas (Girar objeto ajusta). Armadilhas começam ocultas e armadas; dano e estado se controlam na mesa, na aba Cena.
             </p>
           )}
-          {(category === "furniture" || category === "structure") && (
-            <p className="mt-2 text-[11px] leading-relaxed text-fg-subtle">Vão exatamente onde você desenha (uma por casa). A frente aponta para o sul; use Girar objeto para virar.</p>
+          {onePiece && category !== "feature" && (
+            <p className="mt-2 text-[11px] leading-relaxed text-fg-subtle">Uma peça por clique; clicar numa casa ocupada troca a peça. R gira a próxima; Girar objeto vira as que já estão no mapa.</p>
           )}
-          {s.propIds.some((id) => SCATTER_CATEGORIES.includes(PROP_BY_ID.get(id)?.category ?? "feature")) && (
+          {!onePiece && (
           <>
           <label className="mt-2 flex items-center gap-3 text-xs text-fg-muted">
             Densidade
@@ -285,11 +342,11 @@ export function MapEditorPanel({ campaignId, onApply, onCancel }: { campaignId: 
             <span className="w-9 text-right font-mono">{Math.round(s.density * 100)}%</span>
           </label>
           <p className="mt-1 text-[11px] text-fg-subtle">
-            {`Árvores, rochas e plantas são sorteadas entre os ${s.propIds.length} objeto(s) marcados. Use Retângulo ou Elipse para espalhar uma floresta.`}
+            {`Sorteia entre os ${s.propIds.length} escolhido(s); clique em vários para misturar. Use Retângulo ou Elipse para espalhar uma floresta.`}
           </p>
           </>
           )}
-          {s.propIds.length === 0 && <p className="mt-2 text-[11px] text-fg-subtle">Marque ao menos um objeto.</p>}
+          {s.propIds.length === 0 && <p className="mt-2 text-[11px] text-fg-subtle">Escolha um objeto.</p>}
         </Section>
       )}
 

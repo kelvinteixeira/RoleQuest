@@ -64,6 +64,10 @@ type MapEditorState = {
   shape: EditorShape;
   terrain: TerrainId;
   propIds: string[];
+  /** Scatter mode (trees, rocks, plants): mix the picked ones over a shape by density. Off: one piece per click. */
+  scatter: boolean;
+  /** Facing of the next piece placed one by one (0 south, 90 east, 180 north, 270 west). */
+  propRotation: number;
   brushSize: number;
   density: number;
   noteText: string;
@@ -79,7 +83,7 @@ type MapEditorState = {
   close: () => void;
   /** `coalesce`: consecutive changes with the same key share one undo step. */
   replace: (doc: MapDocument, coalesce?: string) => void;
-  set: (patch: Partial<Pick<MapEditorState, "tool" | "shape" | "terrain" | "propIds" | "brushSize" | "density" | "noteText" | "blueprint" | "spawn">>) => void;
+  set: (patch: Partial<Pick<MapEditorState, "tool" | "shape" | "terrain" | "propIds" | "scatter" | "propRotation" | "brushSize" | "density" | "noteText" | "blueprint" | "spawn">>) => void;
   toggleLayer: (id: LayerId, key: "visible" | "locked") => void;
   undo: () => void;
   redo: () => void;
@@ -92,24 +96,36 @@ type MapEditorState = {
 /** Tools that paint continuously while dragging (instead of a shape released on pointer up). Buildings are always dragged as a lot. */
 const isContinuous = (s: Pick<MapEditorState, "shape" | "tool">) => (s.shape === "brush" && s.tool !== "build") || s.tool === "rotate";
 
+const scatterable = (propIds: string[]) => propIds.length > 0 && propIds.every((id) => SCATTER_CATEGORIES.includes(PROP_BY_ID.get(id)?.category ?? "feature"));
+
+/** Objects go one per click unless the GM is scattering scenery. */
+export const placesOneProp = (s: Pick<MapEditorState, "tool" | "propIds" | "scatter">) => s.tool === "props" && !(s.scatter && scatterable(s.propIds));
+
 /** Single-click tools: one square, one change. */
-const isClick = (tool: EditorTool) => tool === "note" || tool === "spawn";
+const isClick = (s: Pick<MapEditorState, "tool" | "propIds" | "scatter">) => s.tool === "note" || s.tool === "spawn" || placesOneProp(s);
 
 /** The squares a building will cover (an ellipse for round blueprints). */
 export function blueprintCells(id: BlueprintId, a: Cell, b: Cell): Cell[] {
   return BLUEPRINT_BY_ID.get(id)?.round ? ellipseCells(a, b) : rectCells(a, b);
 }
 
-type ApplyState = Pick<MapEditorState, "tool" | "terrain" | "propIds" | "density" | "noteText" | "layers" | "spawn">;
+type ApplyState = Pick<MapEditorState, "tool" | "terrain" | "propIds" | "scatter" | "propRotation" | "density" | "noteText" | "layers" | "spawn">;
 
 function apply(doc: MapDocument, s: ApplyState, cells: Cell[], seed: number): MapDocument {
   switch (s.tool) {
     case "terrain":
       return paintTerrain(doc, cells, s.terrain);
     case "props": {
-      // Trees, rocks and plants are scattered; furniture, structures and doors go exactly where they are drawn.
-      const scatter = s.propIds.some((id) => SCATTER_CATEGORIES.includes(PROP_BY_ID.get(id)?.category ?? "feature"));
-      return placeProps(doc, cells, s.propIds, scatter ? s.density : 1, seed);
+      if (!placesOneProp(s)) return placeProps(doc, cells, s.propIds, s.density, seed);
+      // One by one: the picked piece on the clicked square, facing the chosen way
+      // (doors still align to their walls; trees and rocks keep a random yaw).
+      const cell = cells[0];
+      const id = s.propIds[0];
+      if (!cell || !id) return doc;
+      const def = PROP_BY_ID.get(id);
+      const next = placeProps(doc, [cell], [id], 1, seed);
+      if (def?.randomYaw || def?.feature === "door" || def?.feature === "gate") return next;
+      return { ...next, props: next.props.map((p) => (p.x === cell.x && p.y === cell.y ? { ...p, rotation: s.propRotation } : p)) };
     }
     case "raise":
       return shiftElevation(doc, cells, 1);
@@ -150,7 +166,9 @@ export const useMapEditorStore = create<MapEditorState>((set, get) => {
     tool: "terrain",
     shape: "brush",
     terrain: "grass",
-    propIds: ["tree-common", "pine", "tree-round"],
+    propIds: ["tree-common"],
+    scatter: false,
+    propRotation: 0,
     brushSize: 1,
     density: 0.5,
     noteText: "",
@@ -187,7 +205,7 @@ export const useMapEditorStore = create<MapEditorState>((set, get) => {
     beginStroke: (cell) => {
       const s = get();
       if (!s.draft || toolLocked(s.tool, s.layers)) return;
-      if (isClick(s.tool)) {
+      if (isClick(s)) {
         const next = apply(s.draft, s, [cell], 0);
         // Empty text on an empty square (or nothing picked) changes nothing: no undo step, not dirty.
         if (next === s.draft || (s.tool === "note" && JSON.stringify(next.notes ?? []) === JSON.stringify(s.draft.notes ?? []))) return;

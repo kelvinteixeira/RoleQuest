@@ -14,7 +14,7 @@ import { usePreferencesStore } from "@/stores/preferences.store";
 import { cellIndex, featureAt, inBounds, trapOf, type MapDocument, type MapSpawn, type PlacedProp } from "@/features/map/model/map-document";
 import { ATTITUDE_HEX } from "@/features/map-editor/model/spawn-presets";
 import { brushCells, type Cell } from "@/features/map/model/shapes";
-import { useMapEditorStore } from "@/features/map-editor/store/map-editor.store";
+import { placesOneProp, useMapEditorStore } from "@/features/map-editor/store/map-editor.store";
 import { CHARACTER_MODEL_BY_ID, modelFor } from "../model/character-models";
 import { canStand, gridDistance, isWall } from "../model/map";
 import { CharacterFigure, preloadCharacterModel } from "./character-figure";
@@ -61,6 +61,7 @@ export function RoomMap3D({
   const brushSize = useMapEditorStore((s) => s.brushSize);
   const shape = useMapEditorStore((s) => s.shape);
   const editTool = useMapEditorStore((s) => s.tool);
+  const onePiece = useMapEditorStore(placesOneProp);
   const selectedId = useRoomStore((s) => s.selectedTokenId);
   const select = useRoomStore((s) => s.select);
   const selectFeature = useRoomStore((s) => s.selectFeature);
@@ -218,10 +219,11 @@ export function RoomMap3D({
     if (!editing) return [];
     const preview = useMapEditorStore.getState().previewCells();
     if (preview.length) return preview;
-    const single = editTool === "spawn" || editTool === "build" || editTool === "note" || shape !== "brush";
-    return hover && !stroke && (shape !== "fill" || editTool === "build" || editTool === "spawn") ? brushCells(hover, single ? 1 : brushSize) : [];
+    const pointTool = editTool === "spawn" || editTool === "build" || editTool === "note" || onePiece;
+    const single = pointTool || shape !== "brush";
+    return hover && !stroke && (shape !== "fill" || pointTool) ? brushCells(hover, single ? 1 : brushSize) : [];
     // eslint-disable-next-line react-hooks/exhaustive-deps -- stroke/draft drive the preview
-  }, [editing, stroke, hover, brushSize, shape, editTool, draft]);
+  }, [editing, stroke, hover, brushSize, shape, editTool, onePiece, draft]);
 
   const fogPreview = useMemo(() => {
     if (!painting) return [];

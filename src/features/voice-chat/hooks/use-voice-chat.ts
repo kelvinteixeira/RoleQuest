@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { repositories } from "@/repositories";
 import type { VoiceLink } from "@/repositories/contracts";
 import { VoiceMesh, type VoicePeer } from "../model/voice-mesh";
+import { VoiceChanger, type VoiceEffectId } from "../model/voice-effects";
 
 export type VoiceStatus = "unavailable" | "idle" | "joining" | "live";
 
@@ -24,6 +25,12 @@ export interface VoiceChat {
   join: () => Promise<void>;
   leave: () => void;
   toggleMute: () => void;
+  /** Character voice the others hear (the GM's voice filters). */
+  voiceEffect: VoiceEffectId;
+  setVoiceEffect: (id: VoiceEffectId) => void;
+  /** Hearing your own processed voice. */
+  monitoring: boolean;
+  setMonitoring: (on: boolean) => void;
 }
 
 /** STUN finds a route through most home routers; a TURN server relays the rest (optional, see .env.example). */
@@ -93,6 +100,7 @@ interface Session {
   mesh: VoiceMesh;
   link: VoiceLink;
   mic: MediaStream;
+  changer: VoiceChanger | null;
   meter: SpeakingMeter;
   players: Map<string, HTMLAudioElement>;
   timer: ReturnType<typeof setInterval>;
@@ -107,7 +115,8 @@ const SELF = "\u0000self";
  * Voice chat for the members of a campaign: a WebRTC call with each other
  * member in the channel, set up through the campaign's signalling channel.
  */
-export function useVoiceChat(campaignId: string, userId: string): VoiceChat {
+export function useVoiceChat(campaignId: string, userId: string, options: { voiceEffects?: boolean } = {}): VoiceChat {
+  const voiceEffects = !!options.voiceEffects;
   const repo = repositories().voice;
   const [status, setStatus] = useState<VoiceStatus>(repo ? "idle" : "unavailable");
   const [reconnecting, setReconnecting] = useState(false);
@@ -116,6 +125,10 @@ export function useVoiceChat(campaignId: string, userId: string): VoiceChat {
   const [speaking, setSpeaking] = useState<Set<string>>(() => new Set());
   const [error, setError] = useState<string | null>(null);
   const session = useRef<Session | null>(null);
+  const [voiceEffect, setVoiceEffectState] = useState<VoiceEffectId>("none");
+  const [monitoring, setMonitoringState] = useState(false);
+  // Read when joining: a voice picked before the call is used from the first word.
+  const effectRef = useRef<VoiceEffectId>("none");
 
   const leave = useCallback(() => {
     const s = session.current;
@@ -126,6 +139,8 @@ export function useVoiceChat(campaignId: string, userId: string): VoiceChat {
     // A moment for the goodbye to go out before the channel closes.
     setTimeout(() => s.link.close(), 300);
     for (const track of s.mic.getTracks()) track.stop();
+    s.changer?.close();
+    setMonitoringState(false);
     for (const audio of s.players.values()) {
       audio.pause();
       audio.srcObject = null;
@@ -155,12 +170,22 @@ export function useVoiceChat(campaignId: string, userId: string): VoiceChat {
       return;
     }
 
+    // The GM's voice goes out through the voice changer (the call keeps that one stream all along).
+    let changer: VoiceChanger | null = null;
+    if (voiceEffects) {
+      try {
+        changer = new VoiceChanger(mic, effectRef.current);
+      } catch {
+        changer = null;
+      }
+    }
+    const outgoing = changer?.output ?? mic;
     const meter = new SpeakingMeter();
     meter.watch(SELF, mic);
     const players = new Map<string, HTMLAudioElement>();
     const mesh = new VoiceMesh({
       selfId: userId,
-      localStream: mic,
+      localStream: outgoing,
       send: (envelope) => link.send(envelope),
       createPeer: () => new RTCPeerConnection({ iceServers: iceServers() }),
       onRemoteStream: (id, stream) => {
@@ -206,8 +231,21 @@ export function useVoiceChat(campaignId: string, userId: string): VoiceChat {
         return next.size === prev.size && [...next].every((id) => prev.has(id)) ? prev : next;
       });
     }, LEVEL_EVERY_MS);
-    session.current = { mesh, link, mic, meter, players, timer, muted: false, joined: false };
-  }, [repo, campaignId, userId, leave]);
+    session.current = { mesh, link, mic, changer, meter, players, timer, muted: false, joined: false };
+  }, [repo, campaignId, userId, leave, voiceEffects]);
+
+  const setVoiceEffect = useCallback((id: VoiceEffectId) => {
+    effectRef.current = id;
+    setVoiceEffectState(id);
+    session.current?.changer?.setEffect(id);
+  }, []);
+
+  const setMonitoring = useCallback((on: boolean) => {
+    const changer = session.current?.changer;
+    if (!changer) return;
+    changer.setMonitor(on);
+    setMonitoringState(on);
+  }, []);
 
   const toggleMute = useCallback(() => {
     const s = session.current;
@@ -236,5 +274,9 @@ export function useVoiceChat(campaignId: string, userId: string): VoiceChat {
     join,
     leave,
     toggleMute,
+    voiceEffect,
+    setVoiceEffect,
+    monitoring,
+    setMonitoring,
   };
 }

@@ -95,3 +95,33 @@ describe("editor layers", () => {
     ).toBe(true);
   });
 });
+
+describe("placing objects", () => {
+  beforeEach(() => editor().open(createBlankMap(8, 8)));
+
+  it("puts one picked piece per click, facing the chosen way, even with a big brush", () => {
+    editor().set({ tool: "props", propIds: ["table"], scatter: false, propRotation: 90, shape: "rect", brushSize: 4 });
+    editor().beginStroke({ x: 3, y: 3 });
+    editor().endStroke();
+    expect(editor().draft!.props.map((p) => [p.propId, p.x, p.y, p.rotation])).toEqual([["table", 3, 3, 90]]);
+    editor().set({ propIds: ["barrel"] });
+    editor().beginStroke({ x: 3, y: 3 });
+    expect(editor().draft!.props.map((p) => p.propId)).toEqual(["barrel"]);
+  });
+
+  it("scatters a mix of scenery over a shape only in scatter mode", () => {
+    editor().set({ tool: "props", propIds: ["pine", "oak"], scatter: true, density: 1, shape: "rect" });
+    editor().beginStroke({ x: 0, y: 0 });
+    editor().moveStroke({ x: 2, y: 1 });
+    editor().endStroke();
+    expect(editor().draft!.props).toHaveLength(6);
+  });
+
+  it("furniture never scatters, scatter mode or not", () => {
+    editor().set({ tool: "props", propIds: ["chair"], scatter: true, shape: "rect" });
+    editor().beginStroke({ x: 1, y: 1 });
+    editor().moveStroke({ x: 4, y: 4 });
+    editor().endStroke();
+    expect(editor().draft!.props).toHaveLength(1);
+  });
+});

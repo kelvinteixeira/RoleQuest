@@ -463,5 +463,5 @@ const audioTracks: AudioTrackRepository = {
   file: (ref) => mockImages.get(ref),
 };
 
-export const mockRepositories: Repositories = { auth, users, campaigns, sessions, inviteLinks, characters, library, systems, maps, images: mockImages, npcs, encounters, journal, roomSync: null, chronicles, audioTracks };
+export const mockRepositories: Repositories = { auth, users, campaigns, sessions, inviteLinks, characters, library, systems, maps, images: mockImages, npcs, encounters, journal, roomSync: null, voice: null, chronicles, audioTracks };
 export { resetMockDatabase } from "./database";

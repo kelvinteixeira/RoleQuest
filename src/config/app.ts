@@ -19,7 +19,6 @@ export const FEATURE_PHASE = {
   virtualTabletop: 3,
   characterEditor: 2,
   customSystemBuilder: 2,
-  voiceChat: 4,
   textChat: 4,
   audioEngine: 4,
   npcManager: 5,

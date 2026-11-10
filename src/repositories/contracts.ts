@@ -206,6 +206,38 @@ export interface RoomSyncRepository {
   subscribe(campaignId: ID, userId: ID, handlers: RoomSyncHandlers): () => void;
 }
 
+/** What two members of a voice channel tell each other to set up a WebRTC call. */
+export type VoiceSignal =
+  /** "I'm in": the receiver answers by setting up a call (or a `hello`, so the newcomer does). */
+  | { kind: "join" }
+  /** "I'm here too": the receiver sets up the call. */
+  | { kind: "hello" }
+  | { kind: "leave" }
+  | { kind: "offer"; sdp: string }
+  | { kind: "answer"; sdp: string }
+  | { kind: "ice"; candidate: RTCIceCandidateInit }
+  | { kind: "muted"; muted: boolean };
+
+/** A signal from one member to another (`to: null` reaches everyone in the channel). */
+export interface VoiceEnvelope {
+  from: ID;
+  to: ID | null;
+  signal: VoiceSignal;
+}
+
+export interface VoiceLink {
+  send(envelope: VoiceEnvelope): void;
+  close(): void;
+}
+
+/**
+ * The signalling channel for a campaign's voice chat. Only members may join it;
+ * the audio itself goes straight between browsers (WebRTC), never through here.
+ */
+export interface VoiceSignalRepository {
+  connect(campaignId: ID, onSignal: (envelope: VoiceEnvelope) => void, onStatus: (status: "connected" | "offline") => void): VoiceLink;
+}
+
 export interface Repositories {
   auth: AuthRepository;
   users: UserRepository;
@@ -222,6 +254,8 @@ export interface Repositories {
   journal: JournalRepository;
   /** null in local mode (no real-time backend). */
   roomSync: RoomSyncRepository | null;
+  /** null in local mode (no one else to talk to). */
+  voice: VoiceSignalRepository | null;
   chronicles: ChronicleRepository;
   audioTracks: AudioTrackRepository;
 }

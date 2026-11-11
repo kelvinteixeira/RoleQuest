@@ -7,6 +7,7 @@ import { ArrowDown, ArrowUp, Check, Clapperboard, Download, ImagePlus, Loader2, 
 import { Button } from "@/components/ui/button";
 import { Input, Textarea } from "@/components/ui/field";
 import { Badge, Card } from "@/components/ui/primitives";
+import { Tabs } from "@/components/ui/tabs";
 import { LoadingState } from "@/components/feedback/states";
 import { cn } from "@/lib/cn";
 import { toUserMessage } from "@/lib/errors";
@@ -17,6 +18,8 @@ import { episodeSeconds, sceneImageKey } from "../model/script";
 import { EpisodeVideo, FPS, HEIGHT, WIDTH, episodeFrames } from "../video/episode-video";
 
 const EpisodePlayer = dynamic(() => import("./episode-player"), { ssr: false, loading: () => <div className="aspect-video w-full animate-pulse rounded-xl bg-surface-2" /> });
+
+const ComicView = dynamic(() => import("./comic-view"), { ssr: false, loading: () => <LoadingState label="Montando as páginas…" /> });
 
 const KIND_LABEL: Record<EpisodeScene["kind"], string> = { title: "Abertura", scene: "Cena", roll: "Rolagem", end: "Encerramento" };
 
@@ -36,6 +39,7 @@ export function EpisodeEditor({ episode: initial, campaignName, imagesLive, onCh
   const [steps, setSteps] = useState<IllustrationStep[] | null>(null);
   const [exporting, setExporting] = useState<number | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [view, setView] = useState<"video" | "comic">("video");
   const abort = useRef<AbortController | null>(null);
   const running = useRef(false);
   // One object URL per image, kept while the image is the same (no reload of every picture on each step).
@@ -213,7 +217,15 @@ export function EpisodeEditor({ episode: initial, campaignName, imagesLive, onCh
         )}
       </div>
 
-      {blobs ? <EpisodePlayer key={`${script.scenes.map((s) => `${s.id}${s.seconds}`).join()}`} script={script} images={urls} campaignName={campaignName} /> : <LoadingState label="Carregando as imagens…" />}
+      <Tabs items={[{ value: "video", label: "Vídeo" }, { value: "comic", label: "HQ" }]} value={view} onChange={setView} className="self-start" />
+
+      {!blobs ? (
+        <LoadingState label="Carregando as imagens…" />
+      ) : view === "video" ? (
+        <EpisodePlayer key={`${script.scenes.map((s) => `${s.id}${s.seconds}`).join()}`} script={script} images={urls} campaignName={campaignName} />
+      ) : (
+        <ComicView script={script} blobs={blobs} campaignName={campaignName} fileBase={`${slug(campaignName)}-${slug(script.title)}`} />
+      )}
 
       <div className="flex flex-wrap items-center gap-2">
         <Button onClick={() => void illustrate()} disabled={busy || !blobs} leadingIcon={<Palette className="size-4" />}>
@@ -307,7 +319,7 @@ export function EpisodeEditor({ episode: initial, campaignName, imagesLive, onCh
         })}
       </ol>
       <p className="flex items-center gap-1.5 text-xs text-fg-subtle">
-        <Clapperboard className="size-3.5" /> O vídeo é montado neste navegador (Remotion). Exporte com a aba aberta e visível.
+        <Clapperboard className="size-3.5" /> O vídeo (Remotion) e a HQ são montados neste navegador. Exporte o vídeo com a aba aberta e visível.
       </p>
     </div>
   );

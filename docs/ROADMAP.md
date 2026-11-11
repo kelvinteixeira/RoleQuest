@@ -42,13 +42,17 @@ Legenda: ✅ entregue · 🟡 parcial · ⬜ pendente
 - ✅ Importar imagem como mapa: desenho por baixo da grade (PNG, JPG, WebP), casas na largura, ajuste fino e opacidade; paredes, portas e armadilhas pintadas por cima; imagem guardada no navegador (IndexedDB)
 - ✅ Camadas no editor (imagem de fundo, terreno, objetos, anotações do mestre) com ocultar e travar; ferramenta "Anotar" e anotações visíveis só para o mestre na mesa
 - ✅ Regras de combate por sistema a partir das fichas: aba Combate na ficha (defesa, armadura, deslocamento, ataques com alcance), ataque e defesa pela mecânica de cada sistema, iniciativa por sistema, inimigos e bots convertidos para a escala do sistema; PV sincronizados entre mesa e ficha; personagens de demonstração com fichas preenchidas
-- ✅ Dados 3D (rolam sobre a mesa a cada rolagem e mostram os valores) e efeitos sonoros sintetizados (dados, golpes, cura, portas, grades, armadilhas, fogo, passos, início de combate), com botão de silenciar
+- ✅ Dados 3D arremessados sobre toda a mesa: faces numeradas (d4 a d20 e d100) que caem com o resultado virado para a câmera, quiques com gravidade, poeira, estalo e tremor de câmera a cada batida; o d20 sozinho termina em câmera lenta; crítico com coluna de luz dourada, onda de choque, faíscas e clarão; falha crítica com fumaça vermelha, brasas e tremor. Efeitos sonoros sintetizados (dados, golpes, cura, portas, grades, armadilhas, fogo, passos, início de combate), com botão de silenciar
 - ✅ Construções no editor: arrastar um lote gera casa, taverna, templo, torre, castelo (com fortaleza e sala do trono), ruínas, praça ou fazenda, com piso, paredes, porta e mobília; terrenos novos (assoalho, calçamento, tapete, neve, parede de madeira, muralha de pedra); mapas prontos "Vilarejo da encruzilhada" e "Castelo do vale"
 - ✅ Mobília e itens de vila (17 peças: barril, mesa, cama, trono, poço, barraca de feira…) e objetos colocados um por clique, com giro antes de colocar; árvores, rochas e plantas mantêm o modo "Espalhar vários"
 - ✅ Cercas nas linhas da grade (e peça de canto): a casa fica livre e o token não atravessa o lado cercado
 - ✅ Personagens no mapa: NPCs da campanha, pessoas e criaturas posicionados no editor (só o mestre vê) viram tokens ao aplicar o mapa; reaplicar não traz de volta quem já entrou
-- ✅ Bestiário: 39 monstros prontos, do slime ao dragão ancião, com 32 modelos animados CC0; no editor (Personagens → Monstros) e na mesa (aba Mestre → Bestiário)
+- ✅ Bestiário: 39 monstros prontos, do slime ao dragão ancião, com 34 modelos animados CC0; no editor (Personagens → Monstros) e na mesa (aba Mestre → Bestiário)
 - ✅ Criaturas grandes ocupam 2×2, 3×3 ou 4×4 casas: ninguém entra no espaço delas, não passam em vão estreito, alcance e distância medidos pela borda
+- ✅ Modelos revistos: taverneiro (com caneca) e aldeão com corpos próprios; lobisomem bípede animado com focinho, cauda e olhos acesos; golem de pedra facetado com pedras nos ombros, costas e antebraços; dragão jovem com corpo inteiro; lula flutuante sem asas nem chifres (distinta do diabrete); slimes, gosmas e cogumelos balançam, quicam e pulam
+- ✅ Movimento planejado: clicar no chão (ou arrastar o token) mostra o caminho e a distância; só anda depois de confirmar (Enter) ou cancela (Esc); no combate o jogador só planeja com o próprio personagem e na sua vez, sem passar do deslocamento; o boneco segue o caminho sem voltar ao início
+- ✅ Câmera em 3ª pessoa: atrás do personagem selecionado (ou de quem está na vez), acompanhando enquanto ele anda; giro e zoom continuam valendo
+- ✅ "Encerrar sessão" (mestre): salva na hora a mesa inteira (mapa, objetos, tokens e monstros com os PV, névoa, combate, chat e áudio) e ela abre igual na próxima sessão
 
 ## Fase 4 — Comunicação ✅
 - ✅ Chat geral, privado e do sistema; anotações do mestre (entregues nas Fases 3 e 5)

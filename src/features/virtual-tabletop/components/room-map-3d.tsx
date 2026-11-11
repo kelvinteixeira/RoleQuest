@@ -473,6 +473,10 @@ function ViewButton({ label, active, disabled, onClick, children }: { label: str
 const ENEMY_RING = "#ef4444";
 /** A route older than this when a figure first appears was already walked (the figure stands at its end). */
 const ROUTE_FRESH_MS = 1500;
+/** Farther than this without a route, a token jumps to its square instead of walking. */
+const TELEPORT_CELLS = 2.5;
+/** Cells per second a token walks. */
+const WALK_SPEED = 3.4;
 
 function Token3D({
   doc,
@@ -516,6 +520,9 @@ function Token3D({
   const hpColor = pct > 0.5 ? "#4ade80" : pct > 0.25 ? "#facc15" : "#ef4444";
   const target = cue?.targetId ? tokens.find((t) => t.id === cue.targetId) : undefined;
   const barY = model.height + (model.hover ?? 0) + 0.3;
+  // Only where the figure first stands comes from React: a position prop would be re-applied on every move
+  // and teleport the figure to its new square before it could walk there. The frame loop moves it from then on.
+  const [spawnAt] = useState<[number, number, number]>(() => [wx, y, wz]);
 
   useFrame((state, delta) => {
     const g = group.current;
@@ -546,15 +553,17 @@ function Token3D({
         next = waypoints.current[0];
       }
       const [gx, gz, gy] = next ?? [wx, wz, y];
+      // A far jump with no route (GM teleport, a new map) lands at once instead of gliding across the table.
+      if (!next && Math.hypot(gx - g.position.x, gz - g.position.z) > TELEPORT_CELLS) g.position.set(gx, gy, gz);
       const dx = gx - g.position.x;
       const dz = gz - g.position.z;
       const dist = Math.hypot(dx, dz);
       moving.current = dist > 0.04 || waypoints.current.length > 0;
-      // Walk speed in cells/second, so long moves read as walking, not sliding.
-      const step = Math.min(dist, (next ? 4.2 : 3.2) * delta + (next ? 0 : dist * 0.02));
+      // Walk speed in cells per second, the same at any frame rate, so the stride matches the walk clip.
+      const step = Math.min(dist, WALK_SPEED * Math.min(delta, 0.1));
       if (dist > 0) {
-        g.position.x += (dx / dist) * Math.max(step, Math.min(dist, 0.05));
-        g.position.z += (dz / dist) * Math.max(step, Math.min(dist, 0.05));
+        g.position.x += (dx / dist) * step;
+        g.position.z += (dz / dist) * step;
       }
       g.position.y += (gy - g.position.y) * 0.25;
       // Face the walking direction, or the target of an attack/spell.
@@ -575,7 +584,7 @@ function Token3D({
   });
 
   return (
-    <group ref={group} position={[wx, y, wz]} scale={size}>
+    <group ref={group} position={spawnAt} scale={size}>
       {active && (
         <mesh ref={ring} rotation-x={-Math.PI / 2} position-y={0.03} raycast={() => null}>
           <ringGeometry args={[0.42, 0.49, 40]} />

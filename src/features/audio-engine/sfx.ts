@@ -5,7 +5,7 @@
  * ship or license). Everything goes through one effects bus with its own
  * volume. Music and ambience (audio centre) share the context, on their own buses.
  */
-export type SfxName = "dice" | "hit" | "heal" | "door-open" | "door-close" | "gate" | "trap" | "combat" | "fire" | "step";
+export type SfxName = "dice" | "dice-hit" | "crit" | "fumble" | "hit" | "heal" | "door-open" | "door-close" | "gate" | "trap" | "combat" | "fire" | "step";
 
 let ctx: AudioContext | null = null;
 let bus: GainNode | null = null;
@@ -86,6 +86,23 @@ const SOUNDS: Record<SfxName, (c: AudioContext, out: AudioNode, t: number) => vo
   // Dice rattling on wood: a handful of short clicks.
   dice: (c, out, t) => {
     for (let i = 0; i < 7; i++) burst(c, out, t + i * 0.045 + Math.random() * 0.03, { duration: 0.04, freq: 2400 + Math.random() * 1800, q: 6, gain: 0.35 - i * 0.03 });
+  },
+  // One die striking the table: a hard click with a little wooden body under it.
+  "dice-hit": (c, out, t) => {
+    burst(c, out, t, { duration: 0.035, freq: 2600 + Math.random() * 1400, q: 5, gain: 0.4 });
+    tone(c, out, t, { freq: 180 + Math.random() * 60, slideTo: 120, duration: 0.07, type: "triangle", gain: 0.18 });
+  },
+  // Natural 20: a rising shimmer that opens into a bright major chord.
+  crit: (c, out, t) => {
+    burst(c, out, t, { duration: 0.5, freq: 2000, q: 2, gain: 0.12, sweepTo: 9000 });
+    [523, 659, 784, 1047].forEach((f, i) => tone(c, out, t + 0.12 + i * 0.05, { freq: f, duration: 1.2, type: "triangle", gain: 0.11 }));
+    tone(c, out, t + 0.12, { freq: 131, duration: 1.1, type: "sine", gain: 0.35 });
+  },
+  // Natural 1: a heavy thud and a sour, falling pair of notes.
+  fumble: (c, out, t) => {
+    tone(c, out, t, { freq: 90, slideTo: 40, duration: 0.5, type: "sine", gain: 0.6 });
+    [311, 294].forEach((f, i) => tone(c, out, t + 0.15 + i * 0.28, { freq: f, slideTo: f * 0.94, duration: 0.45, type: "sawtooth", gain: 0.05 }));
+    burst(c, out, t, { duration: 0.4, freq: 300, q: 0.7, gain: 0.3, type: "lowpass" });
   },
   hit: (c, out, t) => {
     tone(c, out, t, { freq: 140, slideTo: 55, duration: 0.22, type: "triangle", gain: 0.5 });

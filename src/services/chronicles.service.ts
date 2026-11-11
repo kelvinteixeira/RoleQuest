@@ -5,7 +5,9 @@ import { demoScript } from "@/features/chronicles/model/demo-script";
 import { momentsFromJournal, pickHighlights } from "@/features/chronicles/model/moments";
 import { placeholderImage } from "@/features/chronicles/model/placeholder";
 import { castOf, portraitPrompt, scenePrompt } from "@/features/chronicles/model/prompts";
-import { characterImageKey, normalizeScript, sceneImageKey, type GeneratedScript } from "@/features/chronicles/model/script";
+import { characterImageKey, normalizeScript, SCENE_SECONDS_MAX, sceneImageKey, type GeneratedScript } from "@/features/chronicles/model/script";
+import { NARRATION_START, FPS, voiceFits } from "@/features/chronicles/model/audio-mix";
+import { wavSeconds } from "@/features/chronicles/model/wav";
 import type { ChronicleEpisode, ChronicleMoment, EpisodeScene, EpisodeScript } from "@/types/chronicle";
 import type { ID } from "@/types/common";
 import type { Npc } from "@/types/gm";
@@ -19,8 +21,16 @@ export interface StudioData {
   highlightIds: string[];
   npcs: Npc[];
   episodes: ChronicleEpisode[];
-  ai: { script: boolean; images: boolean };
+  ai: { script: boolean; images: boolean; voice: boolean };
 }
+
+/** What a player sees: the episodes the GMs shared. */
+export interface SharedEpisodesData {
+  overview: CampaignOverview;
+  episodes: ChronicleEpisode[];
+}
+
+export type NarrationStep = { sceneId: string; label: string; status: "pending" | "recording" | "done" | "error"; error?: string };
 
 export type IllustrationStep = { key: string; label: string; status: "pending" | "drawing" | "done" | "error"; error?: string };
 
@@ -93,8 +103,8 @@ export const chroniclesService = {
       repo.npcs.listForCampaign(campaignId),
       repo.chronicles.listEpisodes(campaignId),
       fetch("/api/chronicles/status")
-        .then((r) => r.json() as Promise<{ script: boolean; images: boolean }>)
-        .catch(() => ({ script: false, images: false })),
+        .then((r) => r.json() as Promise<StudioData["ai"]>)
+        .catch(() => ({ script: false, images: false, voice: false })),
     ]);
     const moments = momentsFromJournal(journal);
     return { overview, moments, highlightIds: pickHighlights(moments).map((m) => m.id), npcs, episodes, ai };
@@ -120,7 +130,83 @@ export const chroniclesService = {
   },
 
   async createEpisode(campaignId: ID, user: Pick<UserProfile, "id">, momentIds: string[], script: EpisodeScript): Promise<ChronicleEpisode> {
-    return repositories().chronicles.createEpisode({ campaignId, title: script.title, momentIds, script, images: {} }, user.id);
+    return repositories().chronicles.createEpisode({ campaignId, title: script.title, momentIds, script, images: {}, voices: {}, publishedAt: null }, user.id);
+  },
+
+  /** Shares an episode with the campaign's players (they watch the saved version), or stops sharing it. */
+  async setShared(episode: ChronicleEpisode, user: Pick<UserProfile, "id">, shared: boolean): Promise<ChronicleEpisode> {
+    const { role } = await campaignService.getOverview(episode.campaignId, user.id);
+    if (role !== "game_master") throw new AppError("forbidden", "Só os mestres da campanha compartilham episódios.");
+    return repositories().chronicles.updateEpisode(episode.id, { publishedAt: shared ? new Date().toISOString() : null });
+  },
+
+  /** The episodes shared with a member of the campaign (players and GMs alike). */
+  async loadShared(campaignId: ID, user: Pick<UserProfile, "id">): Promise<SharedEpisodesData> {
+    const overview = await campaignService.getOverview(campaignId, user.id);
+    const episodes = await repositories().chronicles.listShared(campaignId);
+    return { overview, episodes: episodes.filter((e) => e.script) };
+  },
+
+  /** Loads the recorded narration that still matches the captions (scene id -> clip). */
+  async loadVoices(episode: ChronicleEpisode): Promise<Record<string, Blob>> {
+    const scenes = episode.script?.scenes ?? [];
+    const entries = await Promise.all(
+      scenes.filter((s) => voiceFits(s, episode.voices[s.id])).map(async (s) => [s.id, await repositories().chronicles.getImage(episode.voices[s.id].ref).catch(() => null)] as const),
+    );
+    return Object.fromEntries(entries.filter((e): e is readonly [string, Blob] => !!e[1]));
+  },
+
+  /**
+   * Records the narrator (Gemini TTS) for every caption without a matching
+   * clip. A scene too short for its clip grows to fit it. `missingKey`: no TTS
+   * configured (the preview then reads the captions with the browser's voice).
+   */
+  async recordNarration(
+    episode: ChronicleEpisode,
+    onStep: (steps: NarrationStep[], episode: ChronicleEpisode, clips: Record<string, Blob>) => void,
+    signal?: AbortSignal,
+  ): Promise<{ episode: ChronicleEpisode; missingKey: boolean; failed: number }> {
+    const script = episode.script;
+    if (!script) throw new AppError("validation", "Escreva o roteiro antes de narrar.");
+    const repo = repositories().chronicles;
+    const todo = script.scenes.filter((s) => s.narration.trim() && !voiceFits(s, episode.voices[s.id]));
+    const steps: NarrationStep[] = todo.map((s) => ({ sceneId: s.id, label: `Cena ${script.scenes.indexOf(s) + 1}`, status: "pending" }));
+    const clips: Record<string, Blob> = {};
+    let current = episode;
+    onStep([...steps], current, clips);
+    for (const [i, scene] of todo.entries()) {
+      if (signal?.aborted) break;
+      steps[i] = { ...steps[i], status: "recording" };
+      onStep([...steps], current, clips);
+      try {
+        const response = await callRoute("/api/chronicles/voice", { campaignId: episode.campaignId, text: scene.narration, mood: scene.mood }, signal);
+        if (!response.ok) {
+          const error = await errorOf(response);
+          if (error.missingKey) return { episode: current, missingKey: true, failed: 0 };
+          throw new AppError("unknown", error.message);
+        }
+        const blob = await response.blob();
+        const seconds = wavSeconds(new Uint8Array(await blob.arrayBuffer()));
+        const ref = await repo.putImage(episode.campaignId, episode.id, `voice:${scene.id}`, new Blob([blob], { type: "audio/wav" }));
+        const previous = current.voices[scene.id]?.ref;
+        // The clip starts with the caption box: the scene lasts at least as long (up to the longest scene).
+        const needed = Math.min(SCENE_SECONDS_MAX, Math.ceil(seconds + NARRATION_START / FPS + 0.5));
+        const latest = current.script ?? script;
+        const nextScript = { ...latest, scenes: latest.scenes.map((s) => (s.id === scene.id && s.seconds < needed ? { ...s, seconds: needed } : s)) };
+        current = await repo.updateEpisode(current.id, { voices: { ...current.voices, [scene.id]: { ref, text: scene.narration, seconds } }, script: nextScript });
+        if (previous && previous !== ref) void repo.removeImage(previous).catch(() => undefined);
+        clips[scene.id] = blob;
+        steps[i] = { ...steps[i], status: "done" };
+      } catch (error) {
+        if (isAbort(error)) {
+          steps[i] = { ...steps[i], status: "pending" };
+          break;
+        }
+        steps[i] = { ...steps[i], status: "error", error: error instanceof Error ? error.message : "Falhou." };
+      }
+      onStep([...steps], current, clips);
+    }
+    return { episode: current, missingKey: false, failed: steps.filter((s) => s.status === "error").length };
   },
 
   async saveScript(episode: ChronicleEpisode, script: EpisodeScript): Promise<ChronicleEpisode> {

@@ -42,13 +42,18 @@ Legenda: ✅ entregue · 🟡 parcial · ⬜ pendente
 - ✅ Importar imagem como mapa: desenho por baixo da grade (PNG, JPG, WebP), casas na largura, ajuste fino e opacidade; paredes, portas e armadilhas pintadas por cima; imagem guardada no navegador (IndexedDB)
 - ✅ Camadas no editor (imagem de fundo, terreno, objetos, anotações do mestre) com ocultar e travar; ferramenta "Anotar" e anotações visíveis só para o mestre na mesa
 - ✅ Regras de combate por sistema a partir das fichas: aba Combate na ficha (defesa, armadura, deslocamento, ataques com alcance), ataque e defesa pela mecânica de cada sistema, iniciativa por sistema, inimigos e bots convertidos para a escala do sistema; PV sincronizados entre mesa e ficha; personagens de demonstração com fichas preenchidas
-- ✅ Dados 3D (rolam sobre a mesa a cada rolagem e mostram os valores) e efeitos sonoros sintetizados (dados, golpes, cura, portas, grades, armadilhas, fogo, passos, início de combate), com botão de silenciar
+- ✅ Dados 3D arremessados sobre toda a mesa: faces numeradas (d4 a d20 e d100) que caem com o resultado virado para a câmera, quiques com gravidade, poeira, estalo e tremor de câmera a cada batida; o d20 sozinho termina em câmera lenta; crítico com coluna de luz dourada, onda de choque, faíscas e clarão; falha crítica com fumaça vermelha, brasas e tremor. Efeitos sonoros sintetizados (dados, golpes, cura, portas, grades, armadilhas, fogo, passos, início de combate), com botão de silenciar
 - ✅ Construções no editor: arrastar um lote gera casa, taverna, templo, torre, castelo (com fortaleza e sala do trono), ruínas, praça ou fazenda, com piso, paredes, porta e mobília; terrenos novos (assoalho, calçamento, tapete, neve, parede de madeira, muralha de pedra); mapas prontos "Vilarejo da encruzilhada" e "Castelo do vale"
 - ✅ Mobília e itens de vila (17 peças: barril, mesa, cama, trono, poço, barraca de feira…) e objetos colocados um por clique, com giro antes de colocar; árvores, rochas e plantas mantêm o modo "Espalhar vários"
 - ✅ Cercas nas linhas da grade (e peça de canto): a casa fica livre e o token não atravessa o lado cercado
 - ✅ Personagens no mapa: NPCs da campanha, pessoas e criaturas posicionados no editor (só o mestre vê) viram tokens ao aplicar o mapa; reaplicar não traz de volta quem já entrou
-- ✅ Bestiário: 39 monstros prontos, do slime ao dragão ancião, com 32 modelos animados CC0; no editor (Personagens → Monstros) e na mesa (aba Mestre → Bestiário)
+- ✅ Bestiário: 39 monstros prontos, do slime ao dragão ancião, com 34 modelos animados CC0; no editor (Personagens → Monstros) e na mesa (aba Mestre → Bestiário)
 - ✅ Criaturas grandes ocupam 2×2, 3×3 ou 4×4 casas: ninguém entra no espaço delas, não passam em vão estreito, alcance e distância medidos pela borda
+- ✅ Modelos revistos: taverneiro (com caneca) e aldeão com corpos próprios; lobisomem bípede animado com focinho, cauda e olhos acesos; golem de pedra facetado com pedras nos ombros, costas e antebraços; dragão jovem com corpo inteiro; lula flutuante sem asas nem chifres (distinta do diabrete); slimes, gosmas e cogumelos balançam, quicam e pulam
+- ✅ Movimento planejado: clicar no chão (ou arrastar o token) mostra o caminho e a distância; só anda depois de confirmar (Enter) ou cancela (Esc); no combate o jogador só planeja com o próprio personagem e na sua vez, sem passar do deslocamento; o boneco segue o caminho sem voltar ao início
+- ✅ Câmera em 3ª pessoa: atrás do personagem selecionado (ou de quem está na vez), acompanhando enquanto ele anda; giro e zoom continuam valendo
+- ✅ "Encerrar sessão" (mestre): salva na hora a mesa inteira (mapa, objetos, tokens e monstros com os PV, névoa, combate, chat e áudio) e ela abre igual na próxima sessão
+- ✅ Ao encerrar, o mestre marca a sessão agendada como jogada (opção ligada por padrão): ela vai para o histórico da campanha e a próxima vira "Sessão N+1"
 
 ## Fase 4 — Comunicação ✅
 - ✅ Chat geral, privado e do sistema; anotações do mestre (entregues nas Fases 3 e 5)
@@ -65,7 +70,7 @@ Legenda: ✅ entregue · 🟡 parcial · ⬜ pendente
 - ✅ Geradores por cenário (fantasia, horror, moderno/cyberpunk): NPC rápido por nível de ameaça, nomes, lugares, tesouro e ganchos
 - ✅ Combate e iniciativa (entregues na Fase 3)
 
-## Fase 6 — Chronicles Studio 🟡
+## Fase 6 — Chronicles Studio ✅
 Os melhores momentos da campanha viram um episódio em vídeo que mistura cinema e HQ. Guia em [CHRONICLES.md](CHRONICLES.md).
 - ✅ Momentos com nota de drama a partir do diário (épicos, 20/1 naturais, quedas, vitórias, armadilhas, revelações) e seleção automática dos melhores, ao menos um por sessão
 - ✅ Roteiro escrito pelo Claude (saída estruturada: cenas com recordatório, balões, onomatopeia, câmera, clima, duração e rolagens decisivas; elenco com aparência fixa) e editável cena a cena
@@ -73,7 +78,9 @@ Os melhores momentos da campanha viram um episódio em vídeo que mistura cinema
 - ✅ Vídeo com Remotion: abertura com tarja de cinema, quadros com movimento de câmera e cor por clima, recordatório que aparece palavra por palavra, balões que surgem um a um, onomatopeia, d20 gigante nos dados decisivos (crítico dourado, falha vermelha) e encerramento "Continua…"; prévia no player e exportação MP4 no próprio navegador
 - ✅ Sem chaves, roteiro por regras e imagens de exemplo (tudo funciona para testar)
 - ✅ Formato HQ para baixar: o mesmo episódio diagramado em páginas A4 (capa, quadros lado a lado ou de página inteira, recordatórios, balões, onomatopeias, d20 nas rolagens decisivas e "Continua…"), com prévia na aba HQ e download em PDF ou em páginas PNG (ZIP), tudo montado no navegador
-- ⬜ Narração por voz e trilha sonora, compartilhar episódios com os jogadores
+- ✅ Trilha sonora sintetizada no navegador a partir do clima de cada cena (acordes, pulsação, impactos na abertura, nas onomatopeias e no d20; fanfarra no crítico, trombone triste na falha), que abaixa sozinha enquanto o narrador ou um balão fala; vai junto no MP4
+- ✅ Narração do recordatório: gravada pela voz do Gemini (com GEMINI_API_KEY; entra na prévia e no MP4, e a cena cresce para caber a fala) ou, sem chave, lida pela voz do navegador na prévia
+- ✅ Compartilhar episódios com os jogadores: o mestre marca "Compartilhar" e os jogadores da campanha assistem ao vídeo e leem ou baixam a HQ na página Episódios, só leitura (RLS e Storage liberam só os episódios compartilhados e os arquivos que eles usam)
 
 ## Fase 7 — Supabase ✅
 Antecipada para destravar a Fase 4. Guia de configuração em [SUPABASE.md](SUPABASE.md).

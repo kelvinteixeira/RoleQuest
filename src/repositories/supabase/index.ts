@@ -177,6 +177,12 @@ const sessions: SessionRepository = {
   async create(input) {
     return toSession(unwrap(await supabase().from("game_sessions").insert(sessionRow(input)).select("*").single()));
   },
+  async complete(id) {
+    // RLS (sessions_write) lets only the campaign's GMs update; for anyone else no row comes back.
+    const rows = unwrap(await supabase().from("game_sessions").update({ status: "completed" }).eq("id", id).select("*"));
+    if (rows.length === 0) throw new AppError("forbidden", "Só o mestre da campanha marca a sessão como jogada.");
+    return toSession(rows[0]);
+  },
 };
 
 const inviteLinks: InviteLinkRepository = {

@@ -6,6 +6,7 @@ import {
   BookOpen,
   CalendarDays,
   Clapperboard,
+  Film,
   Crown,
   DoorOpen,
   Globe2,
@@ -99,6 +100,11 @@ function OverviewContent({ data }: { data: Overview }) {
           {isGM && (
             <ButtonLink href={`/campaign/${campaign.id}/gm`} variant="secondary" leadingIcon={<Crown className="size-4" />}>
               Ferramentas do mestre
+            </ButtonLink>
+          )}
+          {!isGM && (
+            <ButtonLink href={`/campaign/${campaign.id}/episodes`} variant="secondary" leadingIcon={<Film className="size-4" />}>
+              Episódios
             </ButtonLink>
           )}
           {isGM && (

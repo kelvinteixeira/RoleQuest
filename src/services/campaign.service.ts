@@ -1,6 +1,7 @@
 import { repositories } from "@/repositories";
 import { AppError } from "@/lib/errors";
 import { rules } from "@/lib/validation";
+import { can } from "@/lib/permissions";
 import { createCustomSystem, type CustomSystemSeed } from "@/features/systems/templates";
 import { systemService, type SystemSummary } from "./system.service";
 import type { ID } from "@/types/common";
@@ -202,6 +203,18 @@ export const campaignService = {
       pastSessions: sessions.filter((s) => s.status === "completed").sort(byDateDesc),
       currentSession: currentSessionOf(sessions),
     };
+  },
+
+  /** Marks a session of the campaign as played (GMs only): it moves to the history, and the next one comes up. */
+  async completeSession(campaignId: ID, sessionId: ID, user: Pick<UserProfile, "id">): Promise<GameSession> {
+    const repo = repositories();
+    const campaign = await repo.campaigns.getById(campaignId);
+    if (!campaign) throw new AppError("not_found", "Campanha não encontrada.");
+    if (!can(roleOf(campaign, user.id), "session:start")) throw new AppError("forbidden", "Só o mestre da campanha marca a sessão como jogada.");
+    const [session] = (await repo.sessions.listForCampaigns([campaignId])).filter((s) => s.id === sessionId);
+    if (!session) throw new AppError("not_found", "Sessão não encontrada.");
+    if (session.status === "completed") return session;
+    return repo.sessions.complete(sessionId);
   },
 
   /** What an invite link opens, before joining. */

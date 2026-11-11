@@ -2,15 +2,19 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { AnimatePresence } from "framer-motion";
-import { ArrowLeft, Bot, CloudFog, Crown, Dices, MapPinned, MessageSquare, Music2, Pause, Play, Radio, RotateCcw, Star, Swords, UserMinus, UserPlus, Volume2, VolumeX } from "lucide-react";
+import { ArrowLeft, Bot, DoorOpen, Save, CloudFog, Crown, Dices, MapPinned, MessageSquare, Music2, Pause, Play, Radio, RotateCcw, Star, Swords, UserMinus, UserPlus, Volume2, VolumeX } from "lucide-react";
 import { toHexColor } from "@/lib/color";
 import { usePreferencesStore } from "@/stores/preferences.store";
+import { toast } from "@/stores/toast.store";
+import { toUserMessage } from "@/lib/errors";
 import { DiceTray, type TrayRoll } from "@/features/dice/components/dice-tray";
 import { useRoomSounds } from "../hooks/use-room-sounds";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/field";
 import { Badge } from "@/components/ui/primitives";
+import { Switch } from "@/components/ui/switch";
 import { Modal } from "@/components/ui/modal";
 import { Tabs } from "@/components/ui/tabs";
 import { ErrorState, LoadingState } from "@/components/feedback/states";
@@ -78,6 +82,10 @@ function Room({ overview, reloadOverview }: { overview: CampaignOverview; reload
   const [epicOpen, setEpicOpen] = useState(false);
   const [epicText, setEpicText] = useState("");
   const [confirmReset, setConfirmReset] = useState(false);
+  const [endOpen, setEndOpen] = useState(false);
+  const [ending, setEnding] = useState(false);
+  const [markPlayed, setMarkPlayed] = useState(true);
+  const router = useRouter();
   const [editing, setEditing] = useState(false);
   const isGM = overview.role === "game_master";
   const me = overview.members.find((m) => m.profile.id === user.id);
@@ -170,6 +178,8 @@ function Room({ overview, reloadOverview }: { overview: CampaignOverview; reload
   const bots = room.tokens.filter((t) => t.controller === "bot");
   const hasParty = room.tokens.some((t) => t.kind !== "enemy");
   const next = overview.upcomingSessions[0];
+  // The session being played: one under way, else the next scheduled one.
+  const playing = overview.currentSession ?? next ?? null;
   const canMove = restricted ? (token: { id: string }) => policy.playersCanMoveOwnToken && ownTokenIds.includes(token.id) : undefined;
   const access = !restricted ? "gm" : selected && ownTokenIds.includes(selected.id) ? "own" : "view";
   const requestCheck = actions.requestCheck;
@@ -181,6 +191,41 @@ function Room({ overview, reloadOverview }: { overview: CampaignOverview; reload
     useRoomStore.getState().selectFeature(null);
     setEditing(true);
   }
+  /** Save point: the whole table is stored as it is, and opens the same way next session. */
+  async function endSession() {
+    setEnding(true);
+    // A map still open in the editor is applied first, so the work on it is not lost.
+    const draft = editing ? useMapEditorStore.getState().draft : null;
+    if (draft) await applyMap(draft);
+    if (editing) {
+      useMapEditorStore.getState().close();
+      setEditing(false);
+    }
+    setBotsRunning(false);
+    const ok = await sync.saveNow();
+    if (!ok) {
+      setEnding(false);
+      return toast.error("Não deu para salvar a mesa", "Verifique a conexão e tente de novo. Nada foi perdido nesta aba.");
+    }
+    // Only once the table is safely saved: the session goes to the campaign's history.
+    let played = false;
+    if (playing && markPlayed) {
+      try {
+        await campaignService.completeSession(campaignId, playing.id, user);
+        played = true;
+      } catch (error) {
+        toast.error(`A mesa foi salva, mas a sessão ${playing.number} não foi marcada como jogada`, toUserMessage(error));
+      }
+    }
+    setEnding(false);
+    setEndOpen(false);
+    toast.success(
+      played ? `Sessão ${playing!.number} jogada, mesa salva` : "Sessão encerrada e salva",
+      "Mapa, itens, monstros, névoa e combate voltam assim na próxima sessão.",
+    );
+    router.push(`/campaign/${campaignId}`);
+  }
+
   function stopEditing(apply: boolean) {
     const draft = useMapEditorStore.getState().draft;
     if (apply && draft) void applyMap(draft);
@@ -276,6 +321,11 @@ function Room({ overview, reloadOverview }: { overview: CampaignOverview; reload
           {runsTable && (
             <Button size="icon-sm" variant="ghost" onClick={() => setConfirmReset(true)} aria-label="Reiniciar cena" title="Reiniciar cena">
               <RotateCcw className="size-3.5" />
+            </Button>
+          )}
+          {runsTable && isGM && (
+            <Button size="sm" variant="secondary" onClick={() => setEndOpen(true)} leadingIcon={<DoorOpen className="size-3.5" />}>
+              Encerrar sessão
             </Button>
           )}
         </div>
@@ -408,6 +458,44 @@ function Room({ overview, reloadOverview }: { overview: CampaignOverview; reload
         }
       >
         <Input label="O que aconteceu?" placeholder="Kira roubou a joia debaixo do nariz do guardião." value={epicText} onChange={(e) => setEpicText(e.target.value)} autoFocus />
+      </Modal>
+
+      <Modal
+        open={endOpen}
+        onClose={() => !ending && setEndOpen(false)}
+        title="Encerrar a sessão?"
+        description="A mesa fica salva exatamente como está e abre igual na próxima sessão."
+        size="sm"
+        footer={
+          <>
+            <Button variant="ghost" onClick={() => setEndOpen(false)} disabled={ending}>
+              Continuar jogando
+            </Button>
+            <Button onClick={() => void endSession()} loading={ending} leadingIcon={<Save className="size-4" />}>
+              Salvar e encerrar
+            </Button>
+          </>
+        }
+      >
+        <ul className="list-inside list-disc space-y-1 text-sm text-fg-muted">
+          <li>Mapa, móveis, itens, portas e armadilhas</li>
+          <li>Personagens, monstros e NPCs onde estão, com os PV de agora</li>
+          <li>Névoa de guerra e o que o grupo já explorou</li>
+          <li>Combate em andamento (rodada e vez), chat e áudio da mesa</li>
+        </ul>
+        {editing && <p className="mt-3 text-sm text-warning">O mapa aberto no editor será aplicado antes de salvar.</p>}
+        {room.combat.active && <p className="mt-3 text-sm text-fg-muted">O combate continua na rodada {room.combat.round} quando vocês voltarem.</p>}
+        {playing && (
+          <div className="mt-4 border-t border-line pt-3">
+            <Switch
+              checked={markPlayed}
+              onChange={setMarkPlayed}
+              disabled={ending}
+              label={`Marcar a sessão ${playing.number} como jogada`}
+              description={`"${playing.title}" vai para o histórico da campanha e a próxima vira a sessão ${playing.number + 1}.`}
+            />
+          </div>
+        )}
       </Modal>
 
       <Modal

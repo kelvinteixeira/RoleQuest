@@ -2,9 +2,10 @@ import { appConfig } from "@/config/app";
 import { withDemoSheet } from "@/mocks/fixtures/demo-sheets";
 import { createSeed, type MockSeed } from "@/mocks/fixtures/seed";
 import { seedGmTools } from "@/mocks/fixtures/gm-tools";
+import { seedEpisodes } from "@/mocks/fixtures/episodes";
 
-/** v2: demo characters ship with filled-in sheets. v3: campaign map library. v4: GM tools (NPCs, encounters, journal). v5: invite links replace e-mail invites. v6: Chronicles episodes. v7: audio library. */
-const SCHEMA_VERSION = 7;
+/** v2: demo characters ship with filled-in sheets. v3: campaign map library. v4: GM tools (NPCs, encounters, journal). v5: invite links replace e-mail invites. v6: Chronicles episodes. v7: audio library. v8: episodes have narration and can be shared (plus a shared demo episode). */
+const SCHEMA_VERSION = 8;
 
 export type MockDatabase = MockSeed & { version: number };
 
@@ -29,6 +30,11 @@ export function upgradeDatabase(stored: MockDatabase): MockDatabase | null {
   }
   if (db.version === 5) db = { ...db, version: 6, episodes: db.episodes ?? [] };
   if (db.version === 6) db = { ...db, version: 7, audioTracks: db.audioTracks ?? [] };
+  if (db.version === 7) {
+    const episodes = db.episodes.map((e) => ({ ...e, voices: e.voices ?? {}, publishedAt: e.publishedAt ?? null }));
+    const demo = seedEpisodes(new Date()).filter((e) => db.campaigns.some((c) => c.id === e.campaignId) && !episodes.some((x) => x.id === e.id));
+    db = { ...db, version: 8, episodes: [...episodes, ...demo] };
+  }
   return db.version === SCHEMA_VERSION ? db : null;
 }
 

@@ -83,7 +83,7 @@ npm run db:check
 
 ## Chronicles Studio
 
-Episódios e imagens geradas ficam no banco e no bucket privado `chronicles` (migração `20261107000000_chronicles.sql`). As chaves de IA e o resto da configuração estão em [CHRONICLES.md](CHRONICLES.md).
+Episódios, imagens geradas e narrações ficam no banco e no bucket privado `chronicles` (migrações `20261107000000_chronicles.sql` e `20261111000000_chronicles_sharing.sql`; a segunda permite compartilhar episódios com os jogadores). As chaves de IA e o resto da configuração estão em [CHRONICLES.md](CHRONICLES.md).
 
 ## O que ainda fica no navegador
 

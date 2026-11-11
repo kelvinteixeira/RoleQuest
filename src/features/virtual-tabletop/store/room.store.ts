@@ -32,6 +32,8 @@ export interface TokenCue {
 export interface TokenRoute {
   id: string;
   cells: { x: number; y: number }[];
+  /** When it started (ms): a figure that appears later does not walk an old route again. */
+  at: number;
 }
 
 /** Derives animation cues from what just happened at the table. */
@@ -54,7 +56,7 @@ function effectsOf(events: RoomEvent[], before: RoomState | undefined) {
     .filter((e): e is Extract<RoomEvent, { type: "token.hp" }> => e.type === "token.hp" && e.delta !== 0)
     .map((e) => ({ id: createId("fx"), tokenId: e.tokenId, text: e.delta > 0 ? `+${e.delta}` : `${e.delta}`, tone: e.delta > 0 ? "heal" : "damage" }));
   const routes: Record<string, TokenRoute> = {};
-  for (const e of events) if (e.type === "token.moved" && e.path && e.path.length > 1) routes[e.tokenId] = { id: createId("route"), cells: e.path };
+  for (const e of events) if (e.type === "token.moved" && e.path && e.path.length > 1) routes[e.tokenId] = { id: createId("route"), cells: e.path, at: Date.now() };
   return { fx, cues: cuesFor(events), routes, sounds: before ? soundsFor(events, before) : [] };
 }
 
@@ -135,8 +137,10 @@ export const useRoomStore = create<RoomStore>()(
         const seen = seenEvents.get(campaignId) ?? new Set<string>();
         for (const e of next.log.slice(-events.length)) seen.add(e.id);
         seenEvents.set(campaignId, seen);
-        set({ rooms: { ...get().rooms, [campaignId]: next } });
-        playEffects(effectsOf(events, room));
+        // The new square and the route to it land together: a figure never starts for the square before it has the route.
+        const effects = effectsOf(events, room);
+        set({ rooms: { ...get().rooms, [campaignId]: next }, ...withRoutes(effects.routes) });
+        playEffects(effects);
       },
 
       replaceRoom: (campaignId, room) => {
@@ -153,8 +157,9 @@ export const useRoomStore = create<RoomStore>()(
         for (const e of recent) seen.add(e.id);
         if (seen.size > 400) seenEvents.set(campaignId, new Set(recent.map((e) => e.id)));
         else seenEvents.set(campaignId, seen);
-        set({ rooms: { ...get().rooms, [campaignId]: room }, remote: { ...get().remote, [campaignId]: true } });
-        if (fresh.length) playEffects(effectsOf(fresh.map((e) => e.event), before));
+        const effects = fresh.length ? effectsOf(fresh.map((e) => e.event), before) : null;
+        set({ rooms: { ...get().rooms, [campaignId]: room }, remote: { ...get().remote, [campaignId]: true }, ...(effects && withRoutes(effects.routes)) });
+        if (effects) playEffects(effects);
       },
 
       select: (tokenId) => set({ selectedTokenId: tokenId, selectedFeatureId: tokenId ? null : get().selectedFeatureId }),
@@ -189,13 +194,17 @@ export const useRoomStore = create<RoomStore>()(
 /** Selector for one campaign's room. */
 export const useRoom = (campaignId: string) => useRoomStore((s) => s.rooms[campaignId] ?? null);
 
-/** Puts effects on screen for a moment (damage numbers, cues), starts routes and sounds. */
-function playEffects({ fx, cues, routes, sounds }: ReturnType<typeof effectsOf>) {
+/** New routes merged over the ones in the store (none: no change). */
+function withRoutes(routes: Record<string, TokenRoute>): Partial<RoomStore> {
+  return Object.keys(routes).length > 0 ? { routes: { ...useRoomStore.getState().routes, ...routes } } : {};
+}
+
+/** Puts effects on screen for a moment (damage numbers, cues) and plays sounds; routes go in with the room (see `withRoutes`). */
+function playEffects({ fx, cues, sounds }: ReturnType<typeof effectsOf>) {
   const { getState: get, setState: set } = useRoomStore;
   set({
     fx: [...get().fx, ...fx],
     cues: [...get().cues, ...cues],
-    ...(Object.keys(routes).length > 0 && { routes: { ...get().routes, ...routes } }),
     ...(sounds.length > 0 && { sounds: { id: createId("sfx"), names: sounds } }),
   });
   for (const f of fx) setTimeout(() => set({ fx: get().fx.filter((x) => x.id !== f.id) }), 1300);

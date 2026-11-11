@@ -94,7 +94,7 @@ export function cryptMap(): MapDocument {
 
 const TOWNSFOLK = {
   guard: { name: "Guarda", concept: "Humano · guarda da vila", modelId: "warrior", color: "oklch(0.66 0.15 150)", attitude: "ally", stats: { hp: 16, defense: 15, attackBonus: 4, damage: "1d8+2", speed: 6, initiativeBonus: 1, attackName: "Lança" } },
-  innkeeper: { name: "Taverneiro", concept: "Humano · dono da taverna", modelId: "barbarian", color: "oklch(0.75 0.12 85)", attitude: "neutral", stats: { hp: 9, defense: 11, attackBonus: 2, damage: "1d6", speed: 6, initiativeBonus: 0, attackName: "Caneca" } },
+  innkeeper: { name: "Taverneiro", concept: "Humano · dono da taverna", modelId: "innkeeper", color: "oklch(0.75 0.12 85)", attitude: "neutral", stats: { hp: 9, defense: 11, attackBonus: 2, damage: "1d6", speed: 6, initiativeBonus: 0, attackName: "Caneca" } },
   priest: { name: "Sacerdote", concept: "Humano · servo do templo", modelId: "mage", color: "oklch(0.66 0.15 150)", attitude: "ally", stats: { hp: 12, defense: 12, attackBonus: 3, damage: "1d6+1", speed: 6, initiativeBonus: 0, attackName: "Chama sagrada", range: 6 } },
 } as const;
 

@@ -1,15 +1,76 @@
 "use client";
 
-import { Player } from "@remotion/player";
+import { useEffect, useMemo, useRef } from "react";
+import { Player, type PlayerRef } from "@remotion/player";
 import type { EpisodeScript } from "@/types/chronicle";
-import { EpisodeVideo, FPS, HEIGHT, WIDTH, episodeFrames } from "../video/episode-video";
+import { NARRATION_START, sceneStarts } from "../model/audio-mix";
+import { EpisodeVideo, FPS, HEIGHT, WIDTH, episodeFrames, type EpisodeVideoProps } from "../video/episode-video";
 
-/** The episode preview (Remotion Player): play, scrub, full screen. */
-export default function EpisodePlayer({ script, images, campaignName }: { script: EpisodeScript; images: Record<string, string>; campaignName: string }) {
+/** A Portuguese voice of this browser, if it has one. */
+function narratorVoice(): SpeechSynthesisVoice | null {
+  const voices = window.speechSynthesis.getVoices();
+  return voices.find((v) => v.lang === "pt-BR") ?? voices.find((v) => v.lang.startsWith("pt")) ?? null;
+}
+
+/**
+ * Captions without a recorded narration are read by the browser's own voice
+ * (Web Speech) as their scene starts playing. Preview only: the exported MP4
+ * carries just the recorded narration.
+ */
+function useBrowserNarrator(player: React.RefObject<PlayerRef | null>, script: EpisodeScript, recorded: Record<string, unknown>) {
+  useEffect(() => {
+    const p = player.current;
+    if (!p || typeof window === "undefined" || !("speechSynthesis" in window)) return;
+    const synth = window.speechSynthesis;
+    const starts = sceneStarts(script);
+    let spoken = -1;
+    const stop = () => {
+      synth.cancel();
+      spoken = -1;
+    };
+    const onFrame = ({ detail }: { detail: { frame: number } }) => {
+      if (!p.isPlaying()) return;
+      const i = starts.findLastIndex((s) => s <= detail.frame);
+      if (i < 0 || i === spoken) return;
+      const scene = script.scenes[i];
+      const into = detail.frame - starts[i];
+      // Only from the scene's beginning (not after a jump into its middle).
+      if (into < NARRATION_START || into > NARRATION_START + FPS) return;
+      spoken = i;
+      synth.cancel();
+      if (recorded[scene.id] || !scene.narration.trim() || p.isMuted()) return;
+      const line = new SpeechSynthesisUtterance(scene.narration);
+      line.lang = "pt-BR";
+      const voice = narratorVoice();
+      if (voice) line.voice = voice;
+      line.rate = 1.05;
+      line.volume = p.getVolume();
+      synth.speak(line);
+    };
+    p.addEventListener("frameupdate", onFrame);
+    p.addEventListener("pause", stop);
+    p.addEventListener("seeked", stop);
+    p.addEventListener("ended", stop);
+    return () => {
+      p.removeEventListener("frameupdate", onFrame);
+      p.removeEventListener("pause", stop);
+      p.removeEventListener("seeked", stop);
+      p.removeEventListener("ended", stop);
+      synth.cancel();
+    };
+  }, [player, script, recorded]);
+}
+
+/** The episode preview (Remotion Player): play, scrub, full screen, with music and narration. */
+export default function EpisodePlayer({ script, images, campaignName, music = null, voices = {} }: Pick<EpisodeVideoProps, "script" | "images" | "campaignName" | "music" | "voices">) {
+  const ref = useRef<PlayerRef>(null);
+  const inputProps = useMemo(() => ({ script, images, campaignName, music, voices }), [script, images, campaignName, music, voices]);
+  useBrowserNarrator(ref, script, voices);
   return (
     <Player
+      ref={ref}
       component={EpisodeVideo}
-      inputProps={{ script, images, campaignName }}
+      inputProps={inputProps}
       durationInFrames={episodeFrames(script)}
       fps={FPS}
       compositionWidth={WIDTH}

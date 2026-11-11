@@ -1,28 +1,31 @@
 "use client";
 
-import { Suspense, useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useFrame, type ThreeEvent } from "@react-three/fiber";
 import { Billboard, Html, Line } from "@react-three/drei";
 import { AnimatePresence, motion } from "framer-motion";
-import { Grid3x3, Mountain, RotateCcw, RotateCw, ScanEye } from "lucide-react";
+import { Check, Footprints, Grid3x3, Mountain, PersonStanding, RotateCcw, RotateCw, ScanEye, X } from "lucide-react";
 import * as THREE from "three";
 import { cn } from "@/lib/cn";
 import { toHexColor } from "@/lib/color";
 import { initials } from "@/lib/format";
-import { CellHighlights, cellStandY, cellToWorld, MapCanvas, preloadMapProps, type CameraView, type FeatureView, type FogView, type LightSpot } from "@/features/map/components/map-scene";
+import { CellHighlights, cellStandY, cellToWorld, MapCanvas, preloadMapProps, type CameraView, type FeatureView, type FogView, type FollowTarget, type LightSpot } from "@/features/map/components/map-scene";
 import { usePreferencesStore } from "@/stores/preferences.store";
+import { toast } from "@/stores/toast.store";
 import { cellIndex, featureAt, inBounds, trapOf, type MapDocument, type MapSpawn, type PlacedProp } from "@/features/map/model/map-document";
 import { ATTITUDE_HEX } from "@/features/map-editor/model/spawn-presets";
-import { brushCells, type Cell } from "@/features/map/model/shapes";
+import { brushCells, lineCells, type Cell } from "@/features/map/model/shapes";
 import { placesOneProp, useMapEditorStore } from "@/features/map-editor/store/map-editor.store";
 import { CHARACTER_MODEL_BY_ID, modelFor, sizeOf } from "../model/character-models";
-import { anchorFor, canStand, footprint, gridDistance, isWall } from "../model/map";
+import { anchorFor, canStand, footprint, gridDistance, isWall, routeTo } from "../model/map";
 import { CharacterFigure, preloadCharacterModel } from "./character-figure";
 import { currentTurnToken, isDown, partyVision } from "../model/room-engine";
 import type { RoomState, RoomToken } from "../model/types";
 import { useRoomStore, type TokenFx } from "../store/room.store";
 
 type Drag = { tokenId: string; origin: Cell; hover: Cell };
+/** A move being prepared: the path is shown and nothing happens until it is confirmed. */
+type Plan = { tokenId: string; target: Cell; teleport: boolean; /** Where the token stood and whose turn it was when planned. */ from: string };
 
 /** Carried lights from their compact key ("id:x:y:radius|…"), so the light list only changes when a light moves. */
 function parseCarried(key: string): LightSpot[] {
@@ -75,6 +78,7 @@ export function RoomMap3D({
   const [view, setView] = useState<CameraView>({ mode: "perspective", rotation: 0, nonce: 0 });
   const [showGrid, setShowGrid] = useState(true);
   const [drag, setDrag] = useState<Drag | null>(null);
+  const [plan, setPlan] = useState<Plan | null>(null);
   const [hover, setHover] = useState<Cell | null>(null);
   const doc: MapDocument = editing && draft ? draft : room.map;
   const turnToken = currentTurnToken(room);
@@ -117,6 +121,14 @@ export function RoomMap3D({
   const lightFocus = focusKey ? { x: fx0, y: fy0 } : undefined;
   /** Players cannot pick anything in never-explored darkness. */
   const reachable = (cell: Cell) => viewer === "gm" || !fog?.hidden.has(cellIndex(room.map, cell.x, cell.y));
+  /** Players (`canMove` given) move their own character, and in combat only on its turn; the GM moves anyone. */
+  const restricted = !!canMove;
+  const movable = (token: RoomToken) => !isDown(token) && (canMove?.(token) ?? true) && (!restricted || !room.combat.active || turnToken?.id === token.id);
+  const planOrigin = (token: RoomToken) => `${token.x}:${token.y}:${turnToken?.id ?? ""}`;
+  function explainBlocked(token: RoomToken) {
+    if (isDown(token)) toast.info(`${token.name} está caído`);
+    else if (restricted && room.combat.active && (canMove?.(token) ?? false) && turnToken?.id !== token.id) toast.info("Espere a sua vez", "No combate, cada um move o seu personagem no próprio turno.");
+  }
 
   useEffect(() => preloadMapProps(), []);
   // Start loading the models present at the table.
@@ -145,12 +157,13 @@ export function RoomMap3D({
       if (!d) return;
       const token = room.tokens.find((t) => t.id === d.tokenId);
       const moved = d.hover.x !== d.origin.x || d.hover.y !== d.origin.y;
-      if (token && moved && canStand(room.map, room.tokens, d.hover, token.id)) onMove(token, d.hover, { teleport: viewer === "gm" && e.altKey });
+      // Dropping only plans the move: the path shows, and the move waits for a confirmation.
+      if (token && moved) setPlan({ tokenId: token.id, target: d.hover, teleport: viewer === "gm" && e.altKey, from: `${token.x}:${token.y}:${currentTurnToken(room)?.id ?? ""}` });
       setDrag(null);
     };
     window.addEventListener("pointerup", up);
     return () => window.removeEventListener("pointerup", up);
-  }, [editing, room, onMove, onFogPaint, viewer]);
+  }, [editing, room, onFogPaint, viewer]);
 
   const brushIndices = (cell: Cell) =>
     brushCells(cell, fogBrushSize)
@@ -168,6 +181,15 @@ export function RoomMap3D({
       e.stopPropagation();
       fogRef.current = { mode: fogBrush, cells: new Set(brushIndices(cell)) };
       setFogStroke({ ...fogRef.current });
+      return;
+    }
+    // With a character of yours selected, a click on the floor plans its move there.
+    const mover = selectedId ? room.tokens.find((t) => t.id === selectedId) : undefined;
+    if (mover && movable(mover) && reachable(cell)) {
+      e.stopPropagation();
+      const anchor = anchorFor(cell, sizeOf(mover));
+      if (anchor.x === mover.x && anchor.y === mover.y) setPlan(null);
+      else setPlan({ tokenId: mover.id, target: anchor, teleport: viewer === "gm" && e.nativeEvent.altKey, from: planOrigin(mover) });
       return;
     }
     // Flat features (traps) are easier to pick by their square.
@@ -204,7 +226,9 @@ export function RoomMap3D({
     if (editing || painting || e.nativeEvent.button !== 0) return;
     e.stopPropagation();
     select(token.id);
-    if (!isDown(token) && (canMove?.(token) ?? true)) setDrag({ tokenId: token.id, origin: { x: token.x, y: token.y }, hover: { x: token.x, y: token.y } });
+    if (plan && plan.tokenId !== token.id) setPlan(null);
+    if (movable(token)) setDrag({ tokenId: token.id, origin: { x: token.x, y: token.y }, hover: { x: token.x, y: token.y } });
+    else explainBlocked(token);
   }
 
   const dragging = drag ? room.tokens.find((t) => t.id === drag.tokenId) : undefined;
@@ -237,6 +261,59 @@ export function RoomMap3D({
   }, [painting, fogStroke, hover, fogBrushSize, room.map]);
   const selectedFeature = selectedFeatureId ? room.map.props.find((p) => p.id === selectedFeatureId) : undefined;
 
+  // Third-person view: follows the selected token, else whoever has the turn, else the viewer's own character.
+  const figures = useRef(new Map<string, THREE.Object3D>());
+  const ownToken = room.tokens.find((t) => t.kind === "pc" && (canMove?.(t) ?? true));
+  const followId = selectedId ?? turnToken?.id ?? ownToken?.id ?? null;
+  const followRef = useRef(followId);
+  useEffect(() => {
+    followRef.current = followId;
+  }, [followId]);
+  const follow = useCallback((): FollowTarget | null => {
+    const id = followRef.current;
+    const object = id ? figures.current.get(id) : undefined;
+    const token = id ? room.tokens.find((t) => t.id === id) : undefined;
+    return object && token ? { object, height: modelFor(token).height * sizeOf(token) } : null;
+  }, [room.tokens]);
+  const registerFigure = useCallback((id: string, object: THREE.Object3D | null) => {
+    if (object) figures.current.set(id, object);
+    else figures.current.delete(id);
+  }, []);
+
+  // The planned move: the squares it crosses (as the table will walk them), its length and whether it can go.
+  const planned = plan ? room.tokens.find((t) => t.id === plan.tokenId) : undefined;
+  const planPath = useMemo(() => {
+    if (!plan || !planned) return null;
+    if (plan.teleport) return lineCells({ x: planned.x, y: planned.y }, plan.target).slice(1);
+    return routeTo(room.map, room.tokens, planned, plan.target);
+  }, [plan, planned, room.map, room.tokens]);
+  const planSteps = planPath?.length ?? 0;
+  const planTooFar = !!planned && room.combat.active && !plan?.teleport && planSteps > planned.stats.speed;
+  const planOk = !!(plan && planned && planPath && canStand(room.map, room.tokens, plan.target, planned.id) && !(restricted && planTooFar));
+
+  // A plan only lives while its token stays selected, where it was planned from, in the same turn.
+  if (plan && (!planned || selectedId !== plan.tokenId || editing || painting || planOrigin(planned) !== plan.from)) setPlan(null);
+
+  function confirmPlan() {
+    if (!plan || !planned || !planOk) return;
+    onMove(planned, plan.target, { teleport: plan.teleport });
+    setPlan(null);
+  }
+  const confirmRef = useRef(confirmPlan);
+  useEffect(() => {
+    confirmRef.current = confirmPlan;
+  });
+  useEffect(() => {
+    if (!plan) return;
+    const key = (e: KeyboardEvent) => {
+      if (e.target instanceof HTMLElement && e.target.closest("input, textarea, select, [contenteditable]")) return;
+      if (e.key === "Enter") confirmRef.current();
+      if (e.key === "Escape") setPlan(null);
+    };
+    window.addEventListener("keydown", key);
+    return () => window.removeEventListener("keydown", key);
+  }, [plan]);
+
   const dragValid = !!(drag && dragging && canStand(room.map, room.tokens, drag.hover, dragging.id));
   const distance = drag ? gridDistance(drag.origin, drag.hover) : 0;
 
@@ -258,6 +335,7 @@ export function RoomMap3D({
         carriedLights={editing ? undefined : carriedLights}
         lightFocus={lightFocus}
         flicker={!reduceMotion}
+        follow={editing ? undefined : follow}
         showProps={!editing || layers.props.visible}
         showBackground={!editing || layers.background.visible}
         notes={editing ? (layers.notes.visible ? doc.notes : null) : viewer === "gm" && showNotes ? doc.notes : null}
@@ -275,9 +353,16 @@ export function RoomMap3D({
             {selectedFeature && <CellHighlights doc={doc} cells={[selectedFeature]} color="#f59e0b" opacity={0.45} />}
             {drag && <CellHighlights doc={doc} cells={rangeCells} color="#a855f7" opacity={0.14} />}
             {drag && <CellHighlights doc={doc} cells={footprint(drag.hover, dragging ? sizeOf(dragging) : 1)} color={dragValid ? "#a855f7" : "#ef4444"} opacity={0.55} />}
+            {plan && planned && planPath && (
+              <>
+                <CellHighlights doc={doc} cells={planPath.slice(0, -1)} color={planOk ? "#c084fc" : "#ef4444"} opacity={0.32} />
+                <CellHighlights doc={doc} cells={footprint(plan.target, sizeOf(planned))} color={planOk ? "#a855f7" : "#ef4444"} opacity={0.6} />
+                <PathLine doc={doc} from={planned} cells={planPath} size={sizeOf(planned)} valid={planOk} />
+              </>
+            )}
             {drag && dragging && distance > 0 && <MoveLine doc={doc} from={drag.origin} to={drag.hover} valid={dragValid} label={`${distance} □ · ${(distance * doc.cellDistance).toLocaleString("pt-BR")} ${doc.cellUnit}`} overSpeed={distance > dragging.stats.speed} />}
             {shownTokens.map((t) => (
-              <Token3D key={t.id} doc={doc} token={t} tokens={room.tokens} selected={t.id === selectedId} active={t.id === turnToken?.id} onPointerDown={(e) => onTokenDown(t, e)} />
+              <Token3D key={t.id} doc={doc} token={t} tokens={room.tokens} selected={t.id === selectedId} active={t.id === turnToken?.id} onPointerDown={(e) => onTokenDown(t, e)} register={registerFigure} />
             ))}
             {fx.map((f) => (
               <FloatingNumber key={f.id} doc={doc} fx={f} token={shownTokens.find((t) => t.id === f.tokenId)} />
@@ -287,8 +372,16 @@ export function RoomMap3D({
       </MapCanvas>
 
       <div className="absolute bottom-3 left-3 flex overflow-hidden rounded-lg border border-line bg-surface/90 backdrop-blur">
-        <ViewButton label={view.mode === "top" ? "Vista em perspectiva" : "Vista de cima"} active={view.mode === "top"} onClick={() => setView((v) => ({ ...v, mode: v.mode === "top" ? "perspective" : "top", nonce: v.nonce + 1 }))}>
+        <ViewButton label={view.mode === "top" ? "Vista em perspectiva" : "Vista de cima"} active={view.mode === "top"} onClick={() => setView((v) => ({ ...v, mode: v.mode === "top" ? "perspective" : "top", rotation: v.mode === "follow" ? 0 : v.rotation, nonce: v.nonce + 1 }))}>
           {view.mode === "top" ? <Mountain className="size-4" /> : <ScanEye className="size-4" />}
+        </ViewButton>
+        <ViewButton
+          label={view.mode === "follow" ? "Sair da 3ª pessoa" : "Câmera em 3ª pessoa (segue o personagem selecionado)"}
+          active={view.mode === "follow"}
+          disabled={editing || !followId}
+          onClick={() => setView((v) => ({ mode: v.mode === "follow" ? "perspective" : "follow", rotation: 0, nonce: v.nonce + 1 }))}
+        >
+          <PersonStanding className="size-4" />
         </ViewButton>
         <ViewButton label="Girar à esquerda" onClick={() => setView((v) => ({ ...v, rotation: v.rotation - 45, nonce: v.nonce + 1 }))}>
           <RotateCcw className="size-4" />
@@ -300,8 +393,35 @@ export function RoomMap3D({
           <Grid3x3 className="size-4" />
         </ViewButton>
       </div>
+      {plan && planned && (
+        <div className="absolute inset-x-3 bottom-16 mx-auto flex max-w-md items-center gap-2 rounded-xl border border-accent/40 bg-surface/95 p-2 pl-3 shadow-xl backdrop-blur">
+          <Footprints className="size-4 shrink-0 text-accent" />
+          <p className="min-w-0 flex-1 text-sm">
+            <span className="font-medium">{planned.name}</span>{" "}
+            {!planPath ? (
+              <span className="text-danger">não tem caminho até lá</span>
+            ) : (
+              <span className={cn(planTooFar ? "text-warning" : "text-fg-muted")}>
+                {plan.teleport ? "teleporta" : "anda"} {planSteps} □ · {(planSteps * doc.cellDistance).toLocaleString("pt-BR")} {doc.cellUnit}
+                {planTooFar && ` (deslocamento ${planned.stats.speed} □)`}
+              </span>
+            )}
+          </p>
+          <button onClick={() => setPlan(null)} className="flex h-8 items-center gap-1 rounded-lg px-2 text-xs text-fg-muted hover:bg-surface-2 hover:text-fg" title="Cancelar (Esc)">
+            <X className="size-3.5" /> Cancelar
+          </button>
+          <button
+            onClick={confirmPlan}
+            disabled={!planOk}
+            className="flex h-8 items-center gap-1 rounded-lg bg-accent-solid px-3 text-xs font-semibold text-accent-fg hover:bg-accent-strong disabled:pointer-events-none disabled:opacity-40"
+            title="Confirmar (Enter)"
+          >
+            <Check className="size-3.5" /> Confirmar
+          </button>
+        </div>
+      )}
       <p className="pointer-events-none absolute bottom-3 right-3 hidden rounded-md bg-canvas/80 px-2 py-1 text-[11px] text-fg-subtle backdrop-blur sm:block">
-        {doc.name} · 1 □ = {doc.cellDistance.toLocaleString("pt-BR")} {doc.cellUnit} · direito move · rolagem zoom · meio gira
+        {doc.name} · 1 □ = {doc.cellDistance.toLocaleString("pt-BR")} {doc.cellUnit} · clique no chão para planejar o movimento · direito arrasta · rolagem zoom · meio gira
       </p>
     </div>
   );
@@ -333,9 +453,16 @@ function SpawnMarker({ doc, spawn }: { doc: MapDocument; spawn: MapSpawn }) {
   );
 }
 
-function ViewButton({ label, active, onClick, children }: { label: string; active?: boolean; onClick: () => void; children: React.ReactNode }) {
+function ViewButton({ label, active, disabled, onClick, children }: { label: string; active?: boolean; disabled?: boolean; onClick: () => void; children: React.ReactNode }) {
   return (
-    <button onClick={onClick} aria-label={label} title={label} aria-pressed={active} className={cn("flex size-9 items-center justify-center hover:bg-surface-2", active ? "text-accent" : "text-fg-muted hover:text-fg")}>
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      aria-label={label}
+      title={label}
+      aria-pressed={active}
+      className={cn("flex size-9 items-center justify-center hover:bg-surface-2 disabled:pointer-events-none disabled:opacity-40", active ? "text-accent" : "text-fg-muted hover:text-fg")}
+    >
       {children}
     </button>
   );
@@ -344,6 +471,12 @@ function ViewButton({ label, active, onClick, children }: { label: string; activ
 /* ---------- Tokens ---------- */
 
 const ENEMY_RING = "#ef4444";
+/** A route older than this when a figure first appears was already walked (the figure stands at its end). */
+const ROUTE_FRESH_MS = 1500;
+/** Farther than this without a route, a token jumps to its square instead of walking. */
+const TELEPORT_CELLS = 2.5;
+/** Cells per second a token walks. */
+const WALK_SPEED = 3.4;
 
 function Token3D({
   doc,
@@ -352,6 +485,7 @@ function Token3D({
   selected,
   active,
   onPointerDown,
+  register,
 }: {
   doc: MapDocument;
   token: RoomToken;
@@ -359,6 +493,8 @@ function Token3D({
   selected: boolean;
   active: boolean;
   onPointerDown: (e: ThreeEvent<PointerEvent>) => void;
+  /** Hands the figure to the follow camera (null when it leaves). */
+  register?: (id: string, object: THREE.Object3D | null) => void;
 }) {
   const group = useRef<THREE.Group>(null);
   const figure = useRef<THREE.Group>(null);
@@ -366,20 +502,16 @@ function Token3D({
   const moving = useRef(false);
   const cue = useRoomStore((s) => s.cues.filter((c) => c.tokenId === token.id).at(-1));
   // A move with a route: walk it square by square (turning at corners) instead of cutting across.
-  const route = useRoomStore((s) => s.routes[token.id]);
   const waypoints = useRef<[number, number, number][]>([]);
-  const routeId = useRef<string | null>(null);
+  // The route already walked (or too old to walk) when this figure appeared: it must not replay it.
+  const routeId = useRef<string | null | undefined>(undefined);
   // Large creatures stand on the middle of their block and are drawn that many times bigger.
   const size = sizeOf(token);
   const centre = (size - 1) / 2;
   useEffect(() => {
-    if (!route || route.id === routeId.current) return;
-    routeId.current = route.id;
-    waypoints.current = route.cells.map((c) => {
-      const [x, z] = cellToWorld(doc, c.x + centre, c.y + centre);
-      return [x, z, cellStandY(doc, c.x, c.y)];
-    });
-  }, [route, doc, centre]);
+    register?.(token.id, figure.current);
+    return () => register?.(token.id, null);
+  }, [register, token.id]);
   const model = modelFor(token);
   const [wx, wz] = cellToWorld(doc, token.x + centre, token.y + centre);
   const y = cellStandY(doc, token.x, token.y);
@@ -388,9 +520,31 @@ function Token3D({
   const hpColor = pct > 0.5 ? "#4ade80" : pct > 0.25 ? "#facc15" : "#ef4444";
   const target = cue?.targetId ? tokens.find((t) => t.id === cue.targetId) : undefined;
   const barY = model.height + (model.hover ?? 0) + 0.3;
+  // Only where the figure first stands comes from React: a position prop would be re-applied on every move
+  // and teleport the figure to its new square before it could walk there. The frame loop moves it from then on.
+  const [spawnAt] = useState<[number, number, number]>(() => [wx, y, wz]);
 
   useFrame((state, delta) => {
     const g = group.current;
+    // Routes are read here, not through React: the frame that first sees the new square also has its route.
+    const route = useRoomStore.getState().routes[token.id];
+    if (routeId.current === undefined) routeId.current = route && Date.now() - route.at > ROUTE_FRESH_MS ? route.id : null;
+    if (g && route && route.id !== routeId.current) {
+      routeId.current = route.id;
+      const points = route.cells.map((c): [number, number, number] => {
+        const [x, z] = cellToWorld(doc, c.x + centre, c.y + centre);
+        return [x, z, cellStandY(doc, c.x, c.y)];
+      });
+      // Start from the square nearest to where the figure is, never back towards where it came from.
+      let nearest = 0;
+      points.forEach((p, i) => {
+        const [nx, nz] = points[nearest];
+        if (Math.hypot(p[0] - g.position.x, p[1] - g.position.z) < Math.hypot(nx - g.position.x, nz - g.position.z)) nearest = i;
+      });
+      const [fx, fz] = points[nearest];
+      const first = Math.hypot(fx - g.position.x, fz - g.position.z) < 0.5 ? nearest + 1 : nearest;
+      waypoints.current = points.slice(first);
+    }
     if (g) {
       // Next square of the route, else the token's square.
       let next = waypoints.current[0];
@@ -399,15 +553,17 @@ function Token3D({
         next = waypoints.current[0];
       }
       const [gx, gz, gy] = next ?? [wx, wz, y];
+      // A far jump with no route (GM teleport, a new map) lands at once instead of gliding across the table.
+      if (!next && Math.hypot(gx - g.position.x, gz - g.position.z) > TELEPORT_CELLS) g.position.set(gx, gy, gz);
       const dx = gx - g.position.x;
       const dz = gz - g.position.z;
       const dist = Math.hypot(dx, dz);
       moving.current = dist > 0.04 || waypoints.current.length > 0;
-      // Walk speed in cells/second, so long moves read as walking, not sliding.
-      const step = Math.min(dist, (next ? 4.2 : 3.2) * delta + (next ? 0 : dist * 0.02));
+      // Walk speed in cells per second, the same at any frame rate, so the stride matches the walk clip.
+      const step = Math.min(dist, WALK_SPEED * Math.min(delta, 0.1));
       if (dist > 0) {
-        g.position.x += (dx / dist) * Math.max(step, Math.min(dist, 0.05));
-        g.position.z += (dz / dist) * Math.max(step, Math.min(dist, 0.05));
+        g.position.x += (dx / dist) * step;
+        g.position.z += (dz / dist) * step;
       }
       g.position.y += (gy - g.position.y) * 0.25;
       // Face the walking direction, or the target of an attack/spell.
@@ -428,7 +584,7 @@ function Token3D({
   });
 
   return (
-    <group ref={group} position={[wx, y, wz]} scale={size}>
+    <group ref={group} position={spawnAt} scale={size}>
       {active && (
         <mesh ref={ring} rotation-x={-Math.PI / 2} position-y={0.03} raycast={() => null}>
           <ringGeometry args={[0.42, 0.49, 40]} />
@@ -515,6 +671,17 @@ function MoveLine({ doc, from, to, valid, label, overSpeed }: { doc: MapDocument
       </Html>
     </>
   );
+}
+
+/** The planned route drawn over the floor, square by square, from the token's centre. */
+function PathLine({ doc, from, cells, size, valid }: { doc: MapDocument; from: Cell; cells: Cell[]; size: number; valid: boolean }) {
+  const c = (size - 1) / 2;
+  const points = [from, ...cells].map((p): [number, number, number] => {
+    const [x, z] = cellToWorld(doc, p.x + c, p.y + c);
+    return [x, cellStandY(doc, p.x, p.y) + 0.1, z];
+  });
+  if (points.length < 2) return null;
+  return <Line points={points} color={valid ? "#e9d5ff" : "#fca5a5"} lineWidth={3} dashed dashSize={0.2} gapSize={0.12} />;
 }
 
 function FloatingNumber({ doc, fx, token }: { doc: MapDocument; fx: TokenFx; token?: RoomToken }) {

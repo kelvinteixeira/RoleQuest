@@ -725,11 +725,17 @@ export function CellHighlights({ doc, cells, color = "#a855f7", opacity = 0.4 }:
 
 /* ---------- Camera ---------- */
 
-export type CameraView = { mode: "perspective" | "top"; rotation: number; nonce: number };
+/** "follow": third person, behind and above a character, travelling with it. */
+export type CameraView = { mode: "perspective" | "top" | "follow"; rotation: number; nonce: number };
+
+/** What the follow camera tracks: the object (a token's figure) and how tall it stands. */
+export type FollowTarget = { object: THREE.Object3D; height: number };
 
 const TILT = (52 * Math.PI) / 180;
+const FOLLOW_DISTANCE = 4.2;
+const FOLLOW_PITCH = (27 * Math.PI) / 180;
 
-function CameraRig({ doc, view }: { doc: MapDocument; view: CameraView }) {
+function CameraRig({ doc, view, follow }: { doc: MapDocument; view: CameraView; follow?: () => FollowTarget | null }) {
   const { camera, controls, size } = useThree() as unknown as {
     camera: THREE.PerspectiveCamera;
     controls: { target: THREE.Vector3; update: () => void } | null;
@@ -737,8 +743,18 @@ function CameraRig({ doc, view }: { doc: MapDocument; view: CameraView }) {
   };
   const goal = useRef<THREE.Vector3 | null>(null);
   const aspect = size.width / Math.max(size.height, 1);
+  // Follow mode: where the tracked character was last frame, and whether to swing behind it again.
+  const last = useRef<THREE.Vector3 | null>(null);
+  const placeBehind = useRef(false);
+  const followed = useRef<THREE.Object3D | null>(null);
 
   useLayoutEffect(() => {
+    if (view.mode === "follow") {
+      placeBehind.current = true;
+      goal.current = null;
+      return;
+    }
+    last.current = null;
     // Distance that fits the whole map in view for the current canvas proportions.
     const halfV = THREE.MathUtils.degToRad(camera.fov / 2);
     const halfH = Math.atan(Math.tan(halfV) * aspect);
@@ -754,6 +770,37 @@ function CameraRig({ doc, view }: { doc: MapDocument; view: CameraView }) {
   }, [doc.cols, doc.rows, view, controls, aspect, camera]);
 
   useFrame(() => {
+    const target = view.mode === "follow" ? follow?.() : null;
+    if (target) {
+      // Look at the character's chest; the camera rides along with it, keeping the angle the user orbited to.
+      const focus = target.object.getWorldPosition(new THREE.Vector3());
+      focus.y += target.height * 0.6;
+      if (followed.current !== target.object) placeBehind.current = true;
+      followed.current = target.object;
+      if (placeBehind.current || !last.current) {
+        // Behind the way it faces, turned by the rotate buttons.
+        const yaw = target.object.getWorldQuaternion(new THREE.Quaternion());
+        const facing = new THREE.Euler().setFromQuaternion(yaw, "YXZ").y + (view.rotation * Math.PI) / 180;
+        const back = new THREE.Vector3(-Math.sin(facing), 0, -Math.cos(facing)).multiplyScalar(FOLLOW_DISTANCE * Math.cos(FOLLOW_PITCH));
+        goal.current = focus.clone().add(back).setY(focus.y + FOLLOW_DISTANCE * Math.sin(FOLLOW_PITCH));
+        placeBehind.current = false;
+        last.current = focus.clone();
+        if (controls) controls.target.copy(focus);
+      }
+      const moved = focus.clone().sub(last.current);
+      last.current.copy(focus);
+      camera.position.add(moved);
+      if (goal.current) {
+        goal.current.add(moved);
+        camera.position.lerp(goal.current, 0.12);
+        if (camera.position.distanceTo(goal.current) < 0.03) goal.current = null;
+      }
+      if (controls) {
+        controls.target.lerp(focus, 0.3);
+        controls.update();
+      }
+      return;
+    }
     if (!goal.current) return;
     camera.position.lerp(goal.current, 0.14);
     controls?.update();
@@ -782,10 +829,13 @@ export function MapCanvas({
   carriedLights = NO_LIGHTS,
   lightFocus,
   flicker = true,
+  follow,
   children,
 }: {
   doc: MapDocument;
   view: CameraView;
+  /** The character the "follow" view tracks (read every frame). */
+  follow?: () => FollowTarget | null;
   showGrid?: boolean;
   controlsEnabled?: boolean;
   onCellDown?: CellPointerHandler;
@@ -848,13 +898,15 @@ export function MapCanvas({
         makeDefault
         enabled={controlsEnabled}
         enableDamping
-        maxPolarAngle={1.12}
-        minDistance={4}
+        // Following, the camera may come down to shoulder height and close in; panning would fight the tracking.
+        enablePan={view.mode !== "follow"}
+        maxPolarAngle={view.mode === "follow" ? 1.42 : 1.12}
+        minDistance={view.mode === "follow" ? 1.5 : 4}
         maxDistance={span * 3.5}
         mouseButtons={{ LEFT: undefined as unknown as THREE.MOUSE, MIDDLE: THREE.MOUSE.ROTATE, RIGHT: THREE.MOUSE.PAN }}
         touches={{ ONE: THREE.TOUCH.PAN, TWO: THREE.TOUCH.DOLLY_ROTATE }}
       />
-      <CameraRig doc={doc} view={view} />
+      <CameraRig doc={doc} view={view} follow={follow} />
     </Canvas>
   );
 }

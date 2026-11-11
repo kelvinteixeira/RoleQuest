@@ -7,11 +7,19 @@
  * the Player (preview) and in the browser export (renderMediaOnWeb), so it
  * sticks to what client-side rendering supports: no z-index (DOM order), only
  * linear gradients, system fonts, SVG as <Img> data URIs.
+ *
+ * Sound: the soundtrack (synthesised in the browser) runs under the whole
+ * episode and ducks while the narrator or a balloon speaks; recorded narration
+ * starts with each caption box. Both go through @remotion/media's <Audio>,
+ * which the browser export mixes into the MP4.
  */
+import { useMemo } from "react";
 import { AbsoluteFill, Img, Sequence, interpolate, spring, useCurrentFrame, useVideoConfig, Easing } from "remotion";
+import { Audio } from "@remotion/media";
 import type { EpisodeScene, EpisodeScript, SceneMood } from "@/types/chronicle";
+import { FPS, NARRATION_START, ROLL_REVEAL, balloonStart, musicVolume, sceneStarts, sfxStart, speechWindows } from "../model/audio-mix";
 
-export const FPS = 30;
+export { FPS };
 export const WIDTH = 1920;
 export const HEIGHT = 1080;
 
@@ -20,6 +28,10 @@ export interface EpisodeVideoProps extends Record<string, unknown> {
   /** Image key -> object URL (scenes by id). */
   images: Record<string, string>;
   campaignName: string;
+  /** Soundtrack (object URL); none: silent. */
+  music?: string | null;
+  /** Recorded narration that matches the caption, by scene id. */
+  voices?: Record<string, { url: string; text: string; seconds: number }>;
 }
 
 export const episodeFrames = (script: Pick<EpisodeScript, "scenes">) => Math.max(1, script.scenes.reduce((n, s) => n + s.seconds * FPS, 0));
@@ -90,7 +102,7 @@ function Caption({ text, duration }: { text: string; duration: number }) {
   const frame = useCurrentFrame();
   if (!text) return null;
   const words = text.split(/\s+/);
-  const shown = Math.ceil(interpolate(frame, [8, Math.max(9, duration * 0.45)], [0, words.length], { extrapolateLeft: "clamp", extrapolateRight: "clamp" }));
+  const shown = Math.ceil(interpolate(frame, [NARRATION_START, Math.max(NARRATION_START + 1, duration * 0.45)], [0, words.length], { extrapolateLeft: "clamp", extrapolateRight: "clamp" }));
   const enter = interpolate(frame, [0, 10], [-30, 0], { extrapolateRight: "clamp" });
   return (
     <div style={{ position: "absolute", left: 90, top: 80, maxWidth: 1000, transform: `translateY(${enter}px) rotate(-1deg)`, opacity: interpolate(frame, [0, 8], [0, 1], { extrapolateRight: "clamp" }) }}>
@@ -148,8 +160,8 @@ function RollBeat({ scene }: { scene: EpisodeScene }) {
   const glow = crit ? "#fde68a" : fumble ? "#fca5a5" : "#e9d5ff";
   const enter = spring({ frame: frame - 6, fps, config: { damping: 12, stiffness: 120 } });
   const spin = interpolate(frame, [6, 40], [720, 0], { extrapolateLeft: "clamp", extrapolateRight: "clamp", easing: Easing.out(Easing.cubic) });
-  const reveal = interpolate(frame, [36, 46], [0, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
-  const stamp = spring({ frame: frame - 46, fps, config: { damping: 9, stiffness: 200 } });
+  const reveal = interpolate(frame, [ROLL_REVEAL - 10, ROLL_REVEAL], [0, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
+  const stamp = spring({ frame: frame - ROLL_REVEAL, fps, config: { damping: 9, stiffness: 200 } });
   return (
     <AbsoluteFill style={{ alignItems: "center", justifyContent: "center", backgroundImage: "linear-gradient(180deg, rgba(0,0,0,0.35), rgba(0,0,0,0.75))" }}>
       <div style={{ position: "relative", width: 420, height: 420, transform: `scale(${enter}) rotate(${spin}deg)`, filter: `drop-shadow(0 0 ${crit ? 60 : 24}px ${glow})` }}>
@@ -225,23 +237,34 @@ function SceneView({ scene, index, script, images, campaignName }: { scene: Epis
       {scene.kind === "roll" && scene.roll ? <RollBeat scene={scene} /> : null}
       {scene.kind === "end" ? <EndCard scene={scene} script={script} /> : <Caption text={scene.narration} duration={duration} />}
       {scene.kind !== "end" &&
-        scene.dialogue.slice(0, 3).map((d, i) => <Balloon key={i} speaker={d.speaker} line={d.line} spot={BALLOON_SPOTS[i % BALLOON_SPOTS.length]} start={Math.round(duration * 0.3) + i * 26} />)}
-      {scene.kind === "scene" && <Sfx text={scene.sfx} at={Math.round(duration * 0.22)} />}
+        scene.dialogue.slice(0, 3).map((d, i) => <Balloon key={i} speaker={d.speaker} line={d.line} spot={BALLOON_SPOTS[i % BALLOON_SPOTS.length]} start={balloonStart(duration, i)} />)}
+      {scene.kind === "scene" && <Sfx text={scene.sfx} at={sfxStart(duration)} />}
       <div style={{ position: "absolute", right: 60, bottom: 44, fontFamily: FONT_COMIC, fontSize: 22, letterSpacing: 4, textTransform: "uppercase", color: "rgba(255,255,255,0.55)" }}>{campaignName}</div>
     </AbsoluteFill>
   );
 }
 
-/** The whole episode: one sequence per scene, back to back. */
-export function EpisodeVideo({ script, images, campaignName }: EpisodeVideoProps) {
-  const starts = script.scenes.reduce<number[]>((acc, s, i) => [...acc, i === 0 ? 0 : acc[i - 1] + script.scenes[i - 1].seconds * FPS], []);
+/** The whole episode: one sequence per scene, back to back, with the soundtrack under it. */
+export function EpisodeVideo({ script, images, campaignName, music, voices = {} }: EpisodeVideoProps) {
+  const starts = sceneStarts(script);
+  const total = episodeFrames(script);
+  const windows = useMemo(() => speechWindows(script, voices), [script, voices]);
   return (
     <AbsoluteFill style={{ backgroundColor: "#06050a" }}>
-      {script.scenes.map((scene, i) => (
-        <Sequence key={scene.id} from={starts[i]} durationInFrames={scene.seconds * FPS}>
-          <SceneView scene={scene} index={i} script={script} images={images} campaignName={campaignName} />
-        </Sequence>
-      ))}
+      {music ? <Audio src={music} volume={(f) => musicVolume(f, total, windows)} /> : null}
+      {script.scenes.map((scene, i) => {
+        const voice = voices[scene.id];
+        return (
+          <Sequence key={scene.id} from={starts[i]} durationInFrames={scene.seconds * FPS}>
+            <SceneView scene={scene} index={i} script={script} images={images} campaignName={campaignName} />
+            {voice && voice.text === scene.narration ? (
+              <Sequence from={NARRATION_START} layout="none">
+                <Audio src={voice.url} />
+              </Sequence>
+            ) : null}
+          </Sequence>
+        );
+      })}
     </AbsoluteFill>
   );
 }

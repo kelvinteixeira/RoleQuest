@@ -2,7 +2,7 @@ import "server-only";
 import { createClient } from "@supabase/supabase-js";
 import { appConfig } from "@/config/app";
 
-export type AiUse = "script" | "image";
+export type AiUse = "script" | "image" | "voice";
 
 /**
  * Local mode has no real accounts, so the AI routes only answer a development
@@ -43,7 +43,8 @@ export async function requireGm(request: Request, campaignId: string, use: AiUse
   const { data: allowed, error: quotaError } = await client.rpc("spend_chronicle_quota", { cid: campaignId, what: use });
   if (quotaError) return Response.json({ error: "Só os mestres da campanha criam episódios." }, { status: 403 });
   if (allowed !== true) {
-    return Response.json({ error: use === "script" ? "Limite diário de roteiros atingido. Volte amanhã." : "Limite diário de imagens atingido. Volte amanhã." }, { status: 429 });
+    const what = { script: "roteiros", image: "imagens", voice: "narrações" }[use];
+    return Response.json({ error: `Limite diário de ${what} atingido. Volte amanhã.` }, { status: 429 });
   }
   return null;
 }

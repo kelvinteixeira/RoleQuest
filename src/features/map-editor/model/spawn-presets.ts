@@ -48,8 +48,8 @@ const preset = (key: string, group: SpawnPreset["group"], name: string, concept:
 
 export const SPAWN_PRESETS: readonly SpawnPreset[] = [
   preset("guard", "people", "Guarda", "Humano · guarda da cidade", "warrior", "ally", { hp: 16, defense: 15, attackBonus: 4, damage: "1d8+2", speed: 6, initiativeBonus: 1, attackName: "Lança" }),
-  preset("villager", "people", "Aldeão", "Humano · gente do povo", "barbarian", "neutral", { hp: 6, defense: 10, attackBonus: 1, damage: "1d4", speed: 6, initiativeBonus: 0, attackName: "Porrete" }),
-  preset("innkeeper", "people", "Taverneiro", "Humano · dono da taverna", "barbarian", "neutral", { hp: 9, defense: 11, attackBonus: 2, damage: "1d6", speed: 6, initiativeBonus: 0, attackName: "Caneca" }),
+  preset("villager", "people", "Aldeão", "Humano · gente do povo", "villager", "neutral", { hp: 6, defense: 10, attackBonus: 1, damage: "1d4", speed: 6, initiativeBonus: 0, attackName: "Porrete" }),
+  preset("innkeeper", "people", "Taverneiro", "Humano · dono da taverna", "innkeeper", "neutral", { hp: 9, defense: 11, attackBonus: 2, damage: "1d6", speed: 6, initiativeBonus: 0, attackName: "Caneca" }),
   preset("priest", "people", "Sacerdote", "Humano · servo do templo", "mage", "ally", { hp: 12, defense: 12, attackBonus: 3, damage: "1d6+1", speed: 6, initiativeBonus: 0, attackName: "Chama sagrada", range: 6 }),
   preset("hunter", "people", "Caçador", "Humano · batedor da floresta", "archer", "neutral", { hp: 12, defense: 13, attackBonus: 4, damage: "1d8+1", speed: 7, initiativeBonus: 2, attackName: "Arco longo", range: 8 }),
   preset("bandit", "people", "Bandido", "Humano · salteador de estrada", "assassin", "hostile", { hp: 11, defense: 13, attackBonus: 4, damage: "1d6+2", speed: 6, initiativeBonus: 2, attackName: "Adaga" }),
@@ -122,11 +122,11 @@ export const MONSTER_PRESETS: readonly SpawnPreset[] = [
 
   beast("ogre", "large", "Ogro", "Gigante · forte e burro", "orc", st(59, 11, 6, "2d8+4", 6, "Clava")),
   beast("yeti", "large", "Yeti", "Fera · terror das montanhas", "yeti-big", st(51, 12, 6, "2d6+4", 7, "Garras")),
-  beast("golem", "large", "Golem de pedra", "Constructo · imune a quase tudo", "goleling-evolved", st(80, 17, 8, "2d10+5", 4, "Punho de pedra")),
+  beast("golem", "large", "Golem de pedra", "Constructo · imune a quase tudo", "stone-golem", st(80, 17, 8, "2d10+5", 4, "Punho de pedra")),
   beast("demon", "large", "Demônio", "Demônio · garras em chamas", "demon-big", st(70, 15, 8, "2d8+5", 7, "Garras flamejantes")),
   beast("frost-demon", "large", "Demônio de gelo", "Demônio · congela o que toca", "blue-demon", st(75, 16, 8, "2d8+4", 7, "Garras gélidas")),
   beast("mushroom-king", "large", "Rei Cogumelo", "Planta · senhor do bosque podre", "mushroom-king", st(60, 14, 7, "2d8+3", 5, "Nuvem de esporos", 3)),
-  beast("young-dragon", "large", "Dragão jovem", "Dragão · já cospe fogo", "dragon", st(110, 17, 9, "2d10+5", 8, "Sopro de fogo", 6)),
+  beast("young-dragon", "large", "Dragão jovem", "Dragão · já cospe fogo", "dragon-young", st(110, 17, 9, "2d10+5", 8, "Sopro de fogo", 6)),
 
   beast("troll", "huge", "Troll das colinas", "Gigante · regenera os ferimentos", "orc", st(105, 15, 8, "3d8+5", 6, "Garras e mordida")),
   beast("frost-giant", "huge", "Gigante das neves", "Gigante · arremessa rochas", "yeti-big", st(138, 15, 9, "3d12+6", 7, "Clava de gelo", 2)),
@@ -134,7 +134,7 @@ export const MONSTER_PRESETS: readonly SpawnPreset[] = [
   beast("demon-lord", "huge", "Senhor demônio", "Demônio · general do abismo", "demon-big", st(180, 18, 11, "3d8+6", 8, "Lâmina infernal", 2)),
   beast("dragon", "huge", "Dragão adulto", "Dragão · fogo, garras e orgulho", "dragon-evolved", st(200, 19, 12, "2d10+8", 8, "Sopro de fogo", 9)),
 
-  beast("stone-titan", "colossal", "Titã de pedra", "Constructo · uma montanha que anda", "goleling-evolved", st(300, 20, 13, "4d10+8", 5, "Esmagar", 2)),
+  beast("stone-titan", "colossal", "Titã de pedra", "Constructo · uma montanha que anda", "stone-golem", st(300, 20, 13, "4d10+8", 5, "Esmagar", 2)),
   beast("ancient-dragon", "colossal", "Dragão ancião", "Dragão · lenda viva, fim de campanha", "dragon-evolved", st(350, 22, 15, "2d10+10", 8, "Sopro devastador", 12)),
 ];
 

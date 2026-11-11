@@ -1,6 +1,6 @@
 # Chronicles Studio
 
-Os melhores momentos da campanha viram um **episódio em vídeo** que mistura cinema e história em quadrinhos.
+Os melhores momentos da campanha viram um **episódio em vídeo** que mistura cinema e história em quadrinhos, e uma **HQ** para baixar.
 
 ## Como funciona
 
@@ -8,6 +8,7 @@ Os melhores momentos da campanha viram um **episódio em vídeo** que mistura ci
 2. **Roteiro (Claude).** O Claude recebe os momentos, os personagens, os NPCs conhecidos (só a parte pública, nunca as notas secretas) e o tom do mundo, e devolve um roteiro estruturado: abertura, cenas, rolagens decisivas e encerramento, com recordatório, balões, onomatopeia, movimento de câmera, clima e duração. Dá para pedir uma direção ("mais sombrio", "foco na Isolde") e editar tudo depois.
 3. **Quadros (Gemini).** Primeiro um retrato de referência de cada personagem que aparece; depois cada quadro, enviando os retratos de quem está na cena, para os personagens saírem iguais em todo o episódio. As imagens não têm texto: balões e legendas são do vídeo.
 4. **Vídeo (Remotion).** Prévia no player e exportação **MP4 no próprio navegador** (Chrome ou Edge; deixe a aba visível enquanto exporta).
+5. **HQ para baixar.** A aba **HQ** do episódio mostra a mesma história diagramada em páginas A4: a abertura vira capa, cenas curtas ficam lado a lado e as de muito texto, as barulhentas e o encerramento ocupam a faixa inteira. Baixe em **PDF** (um arquivo) ou em **páginas PNG** (um ZIP quando há mais de uma). As páginas são desenhadas no navegador com o roteiro e as imagens que estão na tela, então editar um balão ou redesenhar um quadro já muda a HQ. Cena sem imagem sai como um quadro de cor.
 
 ## Chaves
 

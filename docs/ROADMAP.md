@@ -72,7 +72,8 @@ Os melhores momentos da campanha viram um episódio em vídeo que mistura cinema
 - ✅ Quadros ilustrados pelo Gemini, com retrato de referência de cada personagem para mantê-los iguais em todos os quadros; redesenhar um quadro
 - ✅ Vídeo com Remotion: abertura com tarja de cinema, quadros com movimento de câmera e cor por clima, recordatório que aparece palavra por palavra, balões que surgem um a um, onomatopeia, d20 gigante nos dados decisivos (crítico dourado, falha vermelha) e encerramento "Continua…"; prévia no player e exportação MP4 no próprio navegador
 - ✅ Sem chaves, roteiro por regras e imagens de exemplo (tudo funciona para testar)
-- ⬜ Formato HQ para baixar (páginas em PNG/PDF), narração por voz e trilha sonora, compartilhar episódios com os jogadores
+- ✅ Formato HQ para baixar: o mesmo episódio diagramado em páginas A4 (capa, quadros lado a lado ou de página inteira, recordatórios, balões, onomatopeias, d20 nas rolagens decisivas e "Continua…"), com prévia na aba HQ e download em PDF ou em páginas PNG (ZIP), tudo montado no navegador
+- ⬜ Narração por voz e trilha sonora, compartilhar episódios com os jogadores
 
 ## Fase 7 — Supabase ✅
 Antecipada para destravar a Fase 4. Guia de configuração em [SUPABASE.md](SUPABASE.md).

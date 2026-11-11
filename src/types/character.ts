@@ -102,7 +102,7 @@ export interface CharacterSheet {
   classBonus?: Record<string, number>;
   /** Choices of the system's rules module (see `SheetBuild`). */
   build?: SheetBuild;
-  /** Values that follow the rules (max HP, resources, speed) update by themselves; false: the player sets them. Default on. */
+  /** Values that follow the rules (max HP, resources, speed) update by themselves. Unset: on only for sheets with a `build` (made by a guide). */
   autoDerived?: boolean;
   /** @deprecated Read once by `ensureSheet`, which moves it to `build`. */
   dnd?: LegacyDndBuild;

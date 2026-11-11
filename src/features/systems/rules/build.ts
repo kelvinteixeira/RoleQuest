@@ -12,8 +12,12 @@ export function withBuild<T>(sheet: CharacterSheet, systemId: string, data: T): 
   return { ...sheet, build: { system: systemId, data } };
 }
 
-/** Rules-driven values update by themselves unless the player turned that off. */
-export const autoDerived = (sheet: CharacterSheet) => sheet.autoDerived !== false;
+/**
+ * Rules-driven values update by themselves: new sheets and sheets made by a
+ * guide start with it on; older sheets keep what the player typed until the
+ * switch is turned on (opening a sheet never rewrites it by surprise).
+ */
+export const autoDerived = (sheet: CharacterSheet) => sheet.autoDerived ?? !!sheet.build;
 
 /** Sets a resource's maximum; current moves by the same amount (levelling up heals the gain, never hurts). */
 export function setResourceMax(sheet: CharacterSheet, key: string, max: number): CharacterSheet {

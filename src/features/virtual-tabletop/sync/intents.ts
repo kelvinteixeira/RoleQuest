@@ -202,6 +202,7 @@ export function parseIntent(value: unknown): RoomIntent | null {
         typeof r === "object" &&
         ["attributeKey", "skillKey"].every((k) => r[k] === undefined || typeof r[k] === "string") &&
         (r.save === undefined || typeof r.save === "boolean") &&
+        ["saveKey", "label"].every((k) => r[k] === undefined || (typeof r[k] === "string" && (r[k] as string).length <= 60)) &&
         modes.includes(r.mode as string);
       return ok ? (v as RoomIntent) : null;
     }

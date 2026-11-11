@@ -5,18 +5,20 @@
 
 ## 1. Onde estamos
 
-| Sistema | Rolagem pela mecânica | Defesa/iniciativa derivadas | Valores derivados automáticos | Bloco próprio na ficha | Criação guiada |
-| --- | --- | --- | --- | --- | --- |
-| D&D 5e (módulo) | ✅ | ✅ (CA por armadura) | ✅ PV, dados de vida, espaços de magia, deslocamento | ✅ | ✅ (SRD 5.1) |
-| Pathfinder 2e | ✅ | ✅ (simples) | ⬜ | ⬜ | ⬜ |
-| Tormenta20 | ✅ | ✅ (simples) | ⬜ | ⬜ | ⬜ |
-| 3D&T Victory | ✅ | ✅ | ⬜ | ⬜ | ⬜ |
-| Call of Cthulhu | ✅ | ✅ | 🟡 (Sanidade = POD na criação) | ⬜ | ⬜ |
-| Vampiro: A Máscara | ✅ | ✅ | ⬜ | ⬜ | ⬜ |
-| Lobisomem: O Apocalipse | ✅ | ✅ | ⬜ | ⬜ | ⬜ |
-| Ordem Paranormal | ✅ | ✅ | ⬜ | ⬜ | ⬜ |
-| Cyberpunk RED | ✅ | ✅ | ⬜ | ⬜ | ⬜ |
-| GURPS | ✅ | ✅ | ⬜ | ⬜ | ⬜ |
+| Sistema | Módulo | Valores automáticos | Bloco na ficha | Criação guiada |
+| --- | --- | --- | --- | --- |
+| D&D 5e | ✅ `dnd5e/` | PV, dados de vida, espaços de magia, deslocamento, CA por armadura | raça/classe/antecedente, resistências, conjuração, traços | ✅ SRD 5.1 completo |
+| Pathfinder 2e | ✅ `pathfinder2e/` | PV (ancestralidade + (classe + CON) × nível), deslocamento | graus de proficiência (perícias, resistências, Percepção, CA, CD de classe), CA, Percepção como iniciativa | ✅ reforços, PV, perícias |
+| Tormenta20 | ✅ `tormenta20/` | PV/PM pela classe cadastrada | Defesa, ½ nível em perícias, treino 2/4/6, Fortitude/Reflexos/Vontade | ✅ classe, pontos (10), perícias |
+| 3D&T Victory | ✅ `3dt-victory/` | PV, PM, PA | pontos gastos | ✅ pontos de personagem |
+| Call of Cthulhu | ✅ `call-of-cthulhu/` | PV, PM, teto da Sanidade | Movimento, Dano extra, Corpo, Esquivar, metade/quinto | ✅ rolagem ou 460 pontos, ocupação + interesse, Sorte |
+| Vampiro: A Máscara | ✅ `storyteller/` | Vitalidade, Força de Vontade | trilhas de dano superficial/agravado | ✅ 4/3/3/3/2/2/2/2/1, perfis de perícia, Humanidade 7, Fome 1 |
+| Lobisomem: O Apocalipse | ✅ `storyteller/` | Vitalidade, Força de Vontade | trilhas de dano | ✅ idem, Fúria 1 |
+| Ordem Paranormal | ✅ `ordem-paranormal/` | PV/PE/SAN pela classe cadastrada, por NEX | NEX, PE por turno, Defesa, resistências | ✅ classe, pontos (4), perícias +5 |
+| Cyberpunk RED | ✅ `cyberpunk-red/` | PV, Humanidade (menos implantes), Sorte | gravemente ferido, teste de morte, EMP efetiva, implantes | ✅ 62 pontos de atributo, 86 de perícia |
+| GURPS | ✅ `gurps/` | PV, PF (com extras comprados) | Velocidade, Deslocamento, Esquiva, Carga, pontos gastos × total, traços | ✅ compra de atributos com o total da campanha |
+
+Fichas que já existiam guardam os próprios valores: o cálculo automático só liga sozinho em fichas novas ou feitas pelo guia; nas outras, o jogador liga no bloco do sistema.
 
 O que já existe e será reaproveitado:
 - `features/character-sheet/model/checks.ts`: rolagem de cada mecânica, inclusive testes de resistência (`save`).
@@ -76,7 +78,13 @@ Meta: ficha, criação e mesa deixam de ter código de D&D dentro e passam a per
 
 Pronto quando: typecheck, lint e testes passam; a ficha e a criação de D&D funcionam igual; um sistema sem módulo continua igual a hoje.
 
-## 4. Etapa B — um módulo por sistema
+## 4. Etapa B — um módulo por sistema ✅
+
+Entregue para os dez sistemas, sobre o painel genérico (`rules/panel.tsx`: números, resistências, chave do automático e um extra por sistema) e a criação por configuração (`rules/creation-kit.tsx`: classe cadastrada, método de atributos, método de perícias, toques finais). Também: perícias da Ordem Paranormal e do Narrador ligadas ao atributo de cada uma, e o bônus de perícia do Tormenta20 corrigido (½ nível em todas + treino 2/4/6).
+
+Fórmulas de sistemas fechados (T20, Ordem, PF2, Vampiro/Lobisomem, Cyberpunk, GURPS) foram escritas a partir de conhecimento geral das regras: vale conferir com os livros e ajustar os módulos se algum número divergir.
+
+O que estava planejado:
 
 Cada módulo entrega o mesmo pacote:
 1. `features/systems/<id>/rules.ts` com `derived`, `sync` e o que mais o sistema precisar;
@@ -85,50 +93,50 @@ Cada módulo entrega o mesmo pacote:
 4. criação guiada;
 5. verificação no navegador (criar um personagem, subir de nível, rolar na mesa).
 
-### B1. Tormenta20 ⬜
+### B1. Tormenta20 ✅
 - **Derivados:** PV e PM por classe e nível (+CON nos PV), Defesa = 10 + DES + armadura + escudo, bônus de perícia = metade do nível + atributo + treino (o treino cresce com o nível). Fortitude, Reflexos e Vontade são perícias e viram os "testes de resistência".
 - **Correção:** `proficiencyBonus` do T20 hoje é `2 + nível/2`; separar "metade do nível" (todas as perícias) do bônus de treino.
 - **Criação:** atributos por pontos com tabela de custo configurável; raça/origem/classe escolhidas das cadastradas pelo grupo, com os bônus e as perícias definidos nelas; perícias treinadas.
 - **Conteúdo:** fechado. O grupo cadastra raças, origens e classes.
 
-### B2. Ordem Paranormal ⬜
+### B2. Ordem Paranormal ✅
 - **Derivados:** PV, PE e SAN pela classe (valor inicial + VIG ou PRE) e por NEX; Defesa = 10 + AGI + equipamento; limite de PE por turno pelo NEX; graus de perícia (treinado, veterano, expert) somando bônus fixos.
 - **Criação:** atributos começam em 1 com pontos a distribuir e a opção de reduzir um a 0; origem e classe cadastradas pelo grupo; perícias da origem e da classe.
 - **Mesa:** marcador de Sanidade no token, como a Vitalidade.
 - **Conteúdo:** fechado.
 
-### B3. Pathfinder 2e ⬜
+### B3. Pathfinder 2e ✅
 - **Derivados:** graus de proficiência (destreinado, treinado, especialista, mestre, lendário = nível + 2/4/6/8); CA = 10 + DES (com limite da armadura) + proficiência + item; Fortitude, Reflexos e Vontade com graus; Percepção como iniciativa; PV = ancestralidade + (classe + CON) × nível.
 - **Ficha:** trocar "treinado sim/não" das perícias por graus.
 - **Criação:** ancestralidade, formação e classe com reforços de atributo (+1 ou +2 por etapa).
 - **Conteúdo:** depende da confirmação da licença ORC; senão, cadastrado pelo grupo.
 
-### B4. 3D&T Victory ⬜
+### B4. 3D&T Victory ✅
 - **Derivados:** PV = R × 5, PM = R × 5, PA = P (já descritos no modelo; viram automáticos).
 - **Criação:** orçamento de pontos de personagem por escala, distribuídos entre P, H e R; vantagens e desvantagens como lista com custo, debitado do orçamento.
 - **Conteúdo:** vantagens com nome e custo cadastrados pelo grupo.
 
-### B5. Call of Cthulhu ⬜
+### B5. Call of Cthulhu ✅
 - **Derivados:** PV = (CON + TAM) / 10, Sanidade inicial = POD, PM = POD / 5, Esquivar = DES / 2, Língua nativa = EDU, Taxa de movimento (DES/FOR × TAM), Bônus de dano e Corpo (FOR + TAM); valores de metade e quinto ao lado de cada atributo e perícia.
 - **Criação:** rolar atributos (3d6 × 5 e (2d6 + 6) × 5 conforme o atributo) ou distribuir; Sorte rolada; pontos de ocupação e de interesse (fórmulas por EDU e INT) distribuídos nas perícias.
 - **Conteúdo:** lista de ocupações cadastrada pelo grupo.
 
-### B6. Vampiro: A Máscara ⬜
+### B6. Vampiro: A Máscara ✅
 - **Derivados:** Vitalidade = Vigor + 3, Força de Vontade = Autocontrole + Determinação, Humanidade inicial, Fome.
 - **Ficha:** trilha de dano com caixas (superficial e agravado) para Vitalidade e Força de Vontade, no lugar da barra.
 - **Criação:** distribuição fixa de atributos (um em 4, três em 3, quatro em 2, um em 1) e de perícias por perfil; clã, disciplinas e predador como campos do grupo.
 - **Conteúdo:** fechado (clãs e disciplinas não entram).
 
-### B7. Lobisomem: O Apocalipse ⬜
+### B7. Lobisomem: O Apocalipse ✅
 - Mesmo núcleo do Vampiro (módulo "Narrador" compartilhado: trilha de dano, distribuição de atributos e perícias) + Fúria e Equilíbrio.
 - **Conteúdo:** fechado.
 
-### B8. Cyberpunk RED ⬜
+### B8. Cyberpunk RED ✅
 - **Derivados:** PV = 10 + 5 × média(COR, VON) arredondada para cima; limiar de "gravemente ferido" = metade dos PV; Humanidade = EMP × 10 menos o custo dos implantes; Sorte = SOR; deslocamento por MOV.
 - **Criação:** distribuição de pontos nos 10 atributos (ou pacote rápido) e perícias; função (papel) cadastrada pelo grupo.
 - **Ficha:** implantes com custo de Humanidade, que reduz a Humanidade máxima.
 
-### B9. GURPS ⬜
+### B9. GURPS ✅
 - **Derivados:** PV = ST, PF = HT, Vontade e Percepção = IQ, Velocidade Básica = (HT + DX) / 4, Deslocamento = parte inteira da velocidade, Esquiva = velocidade + 3; custo em pontos de cada atributo.
 - **Ficha:** total de pontos gastos × orçamento, perícias com dificuldade e nível relativo (custo calculado).
 - **Criação:** orçamento de pontos, atributos, vantagens/desvantagens e perícias cadastradas pelo grupo.

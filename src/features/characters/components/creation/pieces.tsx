@@ -252,3 +252,120 @@ export function ValueAssigner({
 export function ChoiceGrid({ children }: { children: React.ReactNode }) {
   return <div className="grid gap-2 sm:grid-cols-3">{children}</div>;
 }
+
+/** Each pool value is used at most once and all of them are placed; keys left out stay at 0. */
+export function poolPlaced(values: Record<string, number | undefined>, pool: number[]): boolean {
+  const left = [...pool];
+  for (const v of Object.values(values)) {
+    if (!v) continue;
+    const i = left.indexOf(v);
+    if (i < 0) return false;
+    left.splice(i, 1);
+  }
+  return left.length === 0;
+}
+
+/**
+ * Number inputs under a budget: each slot between `min` and `max` (in `step`s),
+ * and `cost(key, value)` added up must stay within `budget` (GURPS costs per
+ * attribute, Call of Cthulhu occupation points, Cyberpunk stat points…).
+ */
+export function NumberBudget({
+  slots,
+  values,
+  onChange,
+  min,
+  max,
+  step = 1,
+  cost,
+  budget,
+  total,
+  columns = 2,
+}: {
+  slots: ScoreSlot[];
+  values: Record<string, number | undefined>;
+  onChange: (values: Record<string, number>) => void;
+  min: number | ((key: string) => number);
+  max: number | ((key: string) => number);
+  step?: number;
+  /** What a value costs; `all` holds every slot's value (costs relative to another slot). */
+  cost: (key: string, value: number, all: Record<string, number>) => number;
+  budget: number;
+  total?: (key: string, value: number) => React.ReactNode;
+  columns?: 1 | 2 | 3;
+}) {
+  const lo = (k: string) => (typeof min === "function" ? min(k) : min);
+  const hi = (k: string) => (typeof max === "function" ? max(k) : max);
+  const full = Object.fromEntries(slots.map((s) => [s.key, values[s.key] ?? lo(s.key)]));
+  const spent = slots.reduce((sum, s) => sum + cost(s.key, full[s.key], full), 0);
+  return (
+    <div className="flex flex-col gap-2">
+      <p className={cn("text-xs", spent > budget ? "text-danger" : "text-fg-subtle")}>
+        Pontos: {spent}/{budget}
+      </p>
+      <div className={cn("grid gap-2", columns === 1 ? "" : columns === 3 ? "sm:grid-cols-3" : "sm:grid-cols-2")}>
+        {slots.map((slot) => (
+          <SlotRow
+            key={slot.key}
+            slot={slot}
+            total={total?.(slot.key, full[slot.key])}
+            control={
+              <input
+                type="number"
+                aria-label={slot.label}
+                value={full[slot.key]}
+                min={lo(slot.key)}
+                max={hi(slot.key)}
+                step={step}
+                onChange={(e) => {
+                  const n = Number(e.target.value);
+                  if (!Number.isFinite(n)) return;
+                  onChange({ ...full, [slot.key]: Math.max(lo(slot.key), Math.min(hi(slot.key), Math.round(n))) });
+                }}
+                className="h-8 w-16 rounded-md border border-line bg-surface-2/60 text-center font-mono text-sm text-fg outline-none focus:border-accent/60"
+              />
+            }
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/** Places a pool of dots on some of the slots (Storyteller skills): each value once, the rest stay at 0. */
+export function PoolPlacer({ slots, pool, values, onChange }: { slots: ScoreSlot[]; pool: number[]; values: Record<string, number | undefined>; onChange: (values: Record<string, number | undefined>) => void }) {
+  const left = [...pool];
+  for (const v of Object.values(values)) {
+    const i = v ? left.indexOf(v) : -1;
+    if (i >= 0) left.splice(i, 1);
+  }
+  return (
+    <div className="flex flex-col gap-2">
+      <p className="text-xs text-fg-subtle">Falta colocar: {left.length ? [...left].sort((a, b) => b - a).join(", ") : "nada"}</p>
+      <div className="grid gap-1.5 sm:grid-cols-3">
+        {slots.map((slot) => {
+          const v = values[slot.key];
+          const options = [...new Set([...(v ? [v] : []), ...left])].sort((a, b) => b - a);
+          return (
+            <label key={slot.key} className="flex items-center justify-between gap-2 rounded-lg border border-line bg-surface-2/40 px-2 py-1">
+              <span className="truncate text-xs text-fg-muted">{slot.label}</span>
+              <select
+                aria-label={slot.label}
+                value={v ?? 0}
+                onChange={(e) => onChange({ ...values, [slot.key]: Number(e.target.value) || undefined })}
+                className="h-7 w-14 rounded-md border border-line bg-surface-2/60 text-center font-mono text-sm text-fg outline-none focus:border-accent/60"
+              >
+                <option value={0}>0</option>
+                {options.map((o) => (
+                  <option key={o} value={o}>
+                    {o}
+                  </option>
+                ))}
+              </select>
+            </label>
+          );
+        })}
+      </div>
+    </div>
+  );
+}

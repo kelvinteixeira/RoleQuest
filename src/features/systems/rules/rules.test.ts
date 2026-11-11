@@ -5,6 +5,8 @@ import { deriveDefense } from "@/features/combat/model/profile";
 import { dnd5e, tormenta20 } from "@/features/systems/templates/fantasy";
 import { duplicateAsCustom, newClass, pruneReferences, validateSystem } from "@/features/systems/model/system-editor";
 import { dndOf, dndRules } from "@/features/systems/dnd5e/rules";
+import { t20Rules } from "@/features/systems/tormenta20/rules";
+import { createCustomSystem } from "@/features/systems/templates/custom";
 import type { Character, CharacterSheet } from "@/types/character";
 import type { SystemTemplate } from "@/types/system";
 import { buildOf, withBuild } from "./build";
@@ -21,10 +23,11 @@ function t20WithClass(): SystemTemplate {
 }
 
 describe("rules registry", () => {
-  it("picks the system's module, the base's for copies, and the generic one otherwise", () => {
+  it("picks the system's module, the base's for copies, and the generic one for systems made from scratch", () => {
     expect(rulesFor(dnd5e)).toBe(dndRules);
     expect(rulesFor(duplicateAsCustom(dnd5e))).toBe(dndRules);
-    expect(rulesFor(tormenta20)).toBe(genericRules);
+    expect(rulesFor(duplicateAsCustom(tormenta20))).toBe(t20Rules);
+    expect(rulesFor(createCustomSystem({ name: "Brasas", theme: "", primaryDie: "d20" }))).toBe(genericRules);
   });
 });
 
@@ -84,5 +87,18 @@ describe("module data on the sheet", () => {
     expect(deriveDefense(dnd5e, migrated)).toBe(18);
     // Saving throws still come from the module.
     expect(resolveCheck(dnd5e, migrated, 1, { attributeKey: "str", save: true }, () => 10).result.total).toBe(12);
+  });
+});
+
+describe("automatic values on existing sheets", () => {
+  it("new sheets follow the rules; older ones keep their values until turned on", () => {
+    expect(createSheet(tormenta20).autoDerived).toBe(true);
+    const old = { ...createSheet(tormenta20), autoDerived: undefined, resources: { ...createSheet(tormenta20).resources, pv: { current: 30, max: 40 } } };
+    const loaded = ensureSheet({ sheet: old, resources: [] } as unknown as Character, tormenta20);
+    expect(loaded.autoDerived).toBeUndefined();
+    const system = t20WithClass();
+    const withClass = { ...loaded, classKey: system.classes![0].key };
+    expect(syncSheet(system, withClass, 5)).toBe(withClass);
+    expect(syncSheet(system, { ...withClass, autoDerived: true }, 5).resources.pv.max).toBe(12 + 12);
   });
 });

@@ -108,10 +108,15 @@ function storytellerAttributes(): AttributeDefinition[] {
   ];
 }
 
+// Storyteller skills pair with any attribute; these are the usual pairings (the sheet can change each one).
 const STORYTELLER_SKILLS = [
-  ...skills(undefined, ["Armas brancas", "Armas de fogo", "Atletismo", "Briga", "Condução", "Furtividade", "Ladroagem", "Ofícios", "Sobrevivência"]),
-  ...skills(undefined, ["Empatia com animais", "Etiqueta", "Intimidação", "Intuição", "Liderança", "Manha", "Performance", "Persuasão", "Subterfúgio"]),
-  ...skills(undefined, ["Ciência", "Erudição", "Finanças", "Investigação", "Medicina", "Ocultismo", "Percepção", "Política", "Tecnologia"]),
+  ...skills("strength", ["Armas brancas", "Briga"]),
+  ...skills("dexterity", ["Armas de fogo", "Atletismo", "Condução", "Furtividade", "Ladroagem", "Ofícios"]),
+  ...skills("wits", ["Sobrevivência"]),
+  ...skills("charisma", ["Empatia com animais", "Etiqueta", "Intimidação", "Liderança", "Performance", "Persuasão"]),
+  ...skills("manipulation", ["Manha", "Subterfúgio"]),
+  ...skills("wits", ["Intuição", "Percepção"]),
+  ...skills("intelligence", ["Ciência", "Erudição", "Finanças", "Investigação", "Medicina", "Ocultismo", "Política", "Tecnologia"]),
 ];
 
 export const vampireMasquerade: SystemTemplate = {
@@ -276,26 +281,14 @@ export const ordemParanormal: SystemTemplate = {
     resource("pe", "Pontos de Esforço", RESOURCE_COLORS.stamina, 3, { derivedFrom: "Classe + PRE, por NEX", showOnToken: true }),
     resource("san", "Sanidade", RESOURCE_COLORS.sanity, 12, { derivedFrom: "Classe, por NEX", showOnToken: true }),
   ],
-  skills: skills(undefined, [
-    "Acrobacia",
-    "Atletismo",
-    "Ciências",
-    "Crime",
-    "Diplomacia",
-    "Enganação",
-    "Fortitude",
-    "Furtividade",
-    "Intuição",
-    "Investigação",
-    "Luta",
-    "Medicina",
-    "Ocultismo",
-    "Percepção",
-    "Pontaria",
-    "Reflexos",
-    "Tecnologia",
-    "Vontade",
-  ]),
+  // Each skill rolls its attribute's dice (Ordem: the attribute is the number of d20s).
+  skills: [
+    ...skills("agi", ["Acrobacia", "Crime", "Furtividade", "Pontaria", "Reflexos"]),
+    ...skills("for", ["Atletismo", "Luta"]),
+    ...skills("int", ["Ciências", "Investigação", "Medicina", "Ocultismo", "Tecnologia"]),
+    ...skills("pre", ["Diplomacia", "Enganação", "Intuição", "Percepção", "Vontade"]),
+    ...skills("vig", ["Fortitude"]),
+  ],
   abilitiesLabel: "Poderes e rituais",
   conditions: [
     ...COMMON_CONDITIONS,

@@ -7,7 +7,8 @@ import { DiceFormulaError, type RollMode } from "@/features/dice/dice-engine";
 import { doorOf } from "@/features/map/model/map-document";
 import type { CheckRequest } from "@/features/character-sheet/model/checks";
 import type { PlayerPolicy } from "@/types/campaign";
-import { gridDistance, routeTo } from "../model/map";
+import { routeTo } from "../model/map";
+import { createId } from "@/lib/id";
 import { attack, attacksInReach, currentTurnToken, isDown, rollEvent, say, walk, whisper } from "../model/room-engine";
 import type { Author, RoomEvent, RoomState, RoomToken } from "../model/types";
 import { tokensVisibleTo } from "./views";
@@ -18,6 +19,10 @@ export type RoomIntent =
   | { kind: "roll"; formula: string; label?: string; mode?: RollMode; secret?: boolean }
   | { kind: "attack"; attackerId: string; targetId: string; attackId?: string }
   | { kind: "door"; propId: string }
+  /** "I want to go here": a mark everyone sees; the GM moves the character. */
+  | { kind: "ping"; x: number; y: number }
+  /** Takes back this member's ping. */
+  | { kind: "unping" }
   /** A check from the member's sheet: the host reads the sheet and rolls. */
   | { kind: "check"; tokenId: string; request: CheckRequest }
   /** The member edited their sheet: the host refreshes the token from it. */
@@ -81,7 +86,7 @@ export function resolveIntent(state: RoomState, intent: RoomIntent, actor: Inten
     case "move": {
       const token = ownToken(state, actor, intent.tokenId);
       if (typeof token === "string") return fail(token);
-      if (actor.role !== "game_master" && !actor.policy.playersCanMoveOwnToken) return fail("O mestre move os personagens nesta mesa.");
+      if (actor.role !== "game_master") return fail("O mestre move os personagens. Marque no mapa para onde quer ir.");
       if (isDown(token)) return fail(`${token.name} está caído.`);
       const blocked = turnBlocked(state, actor, token);
       if (blocked) return fail(blocked);
@@ -90,10 +95,6 @@ export function resolveIntent(state: RoomState, intent: RoomIntent, actor: Inten
       const path = routeTo(state.map, state.tokens, token, { x: intent.x, y: intent.y });
       if (!path) return fail("Não há caminho até lá.");
       const steps = path.filter((c) => c.x !== token.x || c.y !== token.y).length;
-      if (limited) {
-        const left = Math.max(0, token.stats.speed - usage.moved);
-        if (steps > left) return fail(left === 0 ? "Você já usou todo o deslocamento neste turno." : `Neste turno você ainda anda ${left} □.`);
-      }
       return { ok: true, events: walk(state, token, path).events, actorId: token.id, spent: { moved: steps } };
     }
 
@@ -138,21 +139,26 @@ export function resolveIntent(state: RoomState, intent: RoomIntent, actor: Inten
     }
 
     case "door": {
+      // The map is the GM's: players ask (chat or ping) and the GM opens it.
+      if (actor.role !== "game_master") return fail("Só o mestre mexe no mapa. Peça a ele para abrir a porta.");
       const prop = state.map.props.find((p) => p.id === intent.propId);
       const door = prop && doorOf(prop);
       if (!prop || !door) return fail("Porta não encontrada.");
       if (!door.open && door.locked) return fail("A porta está trancada.");
-      if (actor.role !== "game_master") {
-        // In combat, doors are part of your turn.
-        if (state.combat.active && !actor.tokenIds.includes(currentTurnToken(state)?.id ?? "")) return fail("Espere a sua vez no combate.");
-        const near = actor.tokenIds.some((id) => {
-          const t = state.tokens.find((x) => x.id === id);
-          return t && !isDown(t) && gridDistance(t, prop) <= 1;
-        });
-        if (!near) return fail("Chegue perto da porta para abri-la.");
-      }
       if (door.open && state.tokens.some((t) => t.x === prop.x && t.y === prop.y)) return fail("Há alguém na passagem.");
       return { ok: true, events: [{ type: "prop.updated", propId: prop.id, door: { open: !door.open } }], actorId: actor.userId };
+    }
+
+    case "ping": {
+      const inside = (n: number, size: number) => Number.isInteger(n) && n >= 0 && n < size;
+      if (!inside(intent.x, state.map.cols) || !inside(intent.y, state.map.rows)) return fail("Ponto fora do mapa.");
+      const ping = { id: createId("ping"), x: intent.x, y: intent.y, author: actor.author, tokenId: actor.tokenIds[0], at: new Date().toISOString() };
+      return { ok: true, events: [{ type: "ping.placed", ping }], actorId: actor.userId };
+    }
+
+    case "unping": {
+      const mine = state.pings?.find((p) => p.author.id === actor.author.id);
+      return { ok: true, events: mine ? [{ type: "ping.cleared", pingId: mine.id }] : [], actorId: actor.userId };
     }
 
     case "check":
@@ -184,9 +190,19 @@ export function parseIntent(value: unknown): RoomIntent | null {
       return str("attackerId") && str("targetId") && optional("attackId", "string") ? (v as RoomIntent) : null;
     case "door":
       return str("propId") ? (v as RoomIntent) : null;
+    case "ping":
+      return int("x") && int("y") ? (v as RoomIntent) : null;
+    case "unping":
+      return v as RoomIntent;
     case "check": {
       const r = v.request as Record<string, unknown> | null;
-      const ok = str("tokenId") && !!r && typeof r === "object" && ["attributeKey", "skillKey"].every((k) => r[k] === undefined || typeof r[k] === "string") && modes.includes(r.mode as string);
+      const ok =
+        str("tokenId") &&
+        !!r &&
+        typeof r === "object" &&
+        ["attributeKey", "skillKey"].every((k) => r[k] === undefined || typeof r[k] === "string") &&
+        (r.save === undefined || typeof r.save === "boolean") &&
+        modes.includes(r.mode as string);
       return ok ? (v as RoomIntent) : null;
     }
     case "sheet":

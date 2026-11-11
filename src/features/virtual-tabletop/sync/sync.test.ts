@@ -133,23 +133,39 @@ describe("what a player receives", () => {
 });
 
 describe("what a player may ask the host", () => {
-  it("moves only their own token, when the table allows, on their turn in combat", () => {
-    const ok = resolveIntent(room(), { kind: "move", tokenId: "hero", x: 2, y: 5 }, anaActor);
-    expect(ok.ok && ok.events[0]).toMatchObject({ type: "token.moved", tokenId: "hero", x: 2, y: 5 });
+  it("never moves a token: the GM moves the characters", () => {
+    expect(resolveIntent(room(), { kind: "move", tokenId: "hero", x: 2, y: 5 }, anaActor)).toEqual({ ok: false, error: "O mestre move os personagens. Marque no mapa para onde quer ir." });
     expect(resolveIntent(room(), { kind: "move", tokenId: "friend", x: 2, y: 5 }, anaActor)).toEqual({ ok: false, error: "Você só age com o seu personagem." });
-    expect(resolveIntent(room(), { kind: "move", tokenId: "hero", x: 2, y: 5 }, { ...anaActor, policy: { ...POLICY, playersCanMoveOwnToken: false } }).ok).toBe(false);
     const combat = room({ combat: { active: true, round: 1, turn: 0, order: [{ tokenId: "near", initiative: 18 }, { tokenId: "hero", initiative: 10 }] } });
-    expect(resolveIntent(combat, { kind: "move", tokenId: "hero", x: 2, y: 5 }, anaActor)).toEqual({ ok: false, error: "Espere a sua vez no combate." });
     // The GM moves anyone, any time.
+    const ok = resolveIntent(combat, { kind: "move", tokenId: "hero", x: 2, y: 5 }, gmActor);
+    expect(ok.ok && ok.events[0]).toMatchObject({ type: "token.moved", tokenId: "hero", x: 2, y: 5 });
     expect(resolveIntent(combat, { kind: "move", tokenId: "far", x: 17, y: 9 }, gmActor).ok).toBe(true);
   });
 
   it("walks the route, so a hidden trap (that the player could not see) still goes off", () => {
-    const r = resolveIntent(room(), { kind: "move", tokenId: "hero", x: 5, y: 5 }, anaActor);
+    const r = resolveIntent(room(), { kind: "move", tokenId: "hero", x: 5, y: 5 }, gmActor);
     expect(r.ok).toBe(true);
     const types = r.ok ? r.events.map((e) => e.type) : [];
     expect(types.slice(0, 2)).toEqual(["token.moved", "prop.updated"]);
     expect(types).toContain("token.hp");
+  });
+
+  it("pings where they want to go: one ping each, everyone sees it, moving the character answers it", () => {
+    const r = resolveIntent(room(), { kind: "ping", x: 6, y: 4 }, anaActor);
+    expect(r.ok && r.events[0]).toMatchObject({ type: "ping.placed", ping: { x: 6, y: 4, tokenId: "hero", author: { id: "u-ana" } } });
+    expect(resolveIntent(room(), { kind: "ping", x: 99, y: 4 }, anaActor)).toEqual({ ok: false, error: "Ponto fora do mapa." });
+    let state = applyEvents(room(), r.ok ? r.events : [], "u-ana");
+    const again = resolveIntent(state, { kind: "ping", x: 7, y: 4 }, anaActor);
+    state = applyEvents(state, again.ok ? again.events : [], "u-ana");
+    expect(state.pings).toHaveLength(1);
+    expect(state.pings![0]).toMatchObject({ x: 7, y: 4 });
+    expect(viewFor(state, { ...ana, userId: "u-bia", tokenIds: ["friend"] }, { revision: 1, mapRevision: 1 }).recent.map((e) => e.event.type)).toContain("ping.placed");
+    const moved = applyEvents(state, [{ type: "token.moved", tokenId: "hero", x: 7, y: 4 }], "u-gm");
+    expect(moved.pings).toEqual([]);
+    const taken = resolveIntent(state, { kind: "unping" }, anaActor);
+    expect(applyEvents(state, taken.ok ? taken.events : [], "u-ana").pings).toEqual([]);
+    expect(parseIntent({ kind: "ping", x: 1.5, y: 2 })).toBeNull();
   });
 
   it("chat and whispers to the GM (when private messages are on)", () => {
@@ -174,38 +190,26 @@ describe("what a player may ask the host", () => {
     expect(resolveIntent(room(), { kind: "attack", attackerId: "near", targetId: "hero" }, anaActor).ok).toBe(false);
   });
 
-  it("doors open from next to them, unless locked", () => {
-    expect(resolveIntent(room(), { kind: "door", propId: "door" }, anaActor).ok).toBe(true);
-    const away = room({ tokens: [{ ...hero, x: 10, y: 10 }, friend, nearFoe, farFoe] });
-    expect(resolveIntent(away, { kind: "door", propId: "door" }, anaActor)).toEqual({ ok: false, error: "Chegue perto da porta para abri-la." });
+  it("doors are the GM's: players ask for them", () => {
+    expect(resolveIntent(room(), { kind: "door", propId: "door" }, anaActor)).toEqual({ ok: false, error: "Só o mestre mexe no mapa. Peça a ele para abrir a porta." });
+    expect(resolveIntent(room(), { kind: "door", propId: "door" }, gmActor).ok).toBe(true);
     const locked = room({ map: { ...map(), props: map().props.map((p) => (p.id === "door" ? { ...p, door: { open: false, locked: true } } : p)) } });
-    expect(resolveIntent(locked, { kind: "door", propId: "door" }, anaActor).ok).toBe(false);
+    expect(resolveIntent(locked, { kind: "door", propId: "door" }, gmActor).ok).toBe(false);
   });
 
-  it("in combat a player gets one attack and their speed in squares per turn", () => {
+  it("in combat a player gets one attack per turn", () => {
     const combat = room({ combat: { active: true, round: 1, turn: 0, order: [{ tokenId: "hero", initiative: 18 }, { tokenId: "near", initiative: 9 }] } });
     expect(resolveIntent(combat, { kind: "attack", attackerId: "hero", targetId: "near" }, anaActor, { moved: 0, attacked: true })).toEqual({ ok: false, error: "Você já atacou neste turno." });
     const first = resolveIntent(combat, { kind: "attack", attackerId: "hero", targetId: "near" }, anaActor);
     expect(first.ok && first.spent).toEqual({ attacked: true });
-    // Speed 6: 3 squares walked leaves 3.
-    expect(resolveIntent(combat, { kind: "move", tokenId: "hero", x: 2, y: 8 }, anaActor, { moved: 3, attacked: false })).toEqual({ ok: false, error: "Neste turno você ainda anda 3 □." });
-    const walked = resolveIntent(combat, { kind: "move", tokenId: "hero", x: 2, y: 5 }, anaActor, { moved: 3, attacked: false });
-    expect(walked.ok && walked.spent).toEqual({ moved: 3 });
-    // Out of combat there is no budget.
-    expect(resolveIntent(room(), { kind: "move", tokenId: "hero", x: 2, y: 10 }, anaActor, { moved: 99, attacked: true }).ok).toBe(true);
   });
 
   it("destinations outside the map are refused before any path search", () => {
-    expect(resolveIntent(room(), { kind: "move", tokenId: "hero", x: 2147483647, y: 2 }, anaActor)).toEqual({ ok: false, error: "Destino inválido." });
-    expect(resolveIntent(room(), { kind: "move", tokenId: "hero", x: -1, y: 2 }, anaActor)).toEqual({ ok: false, error: "Destino inválido." });
+    expect(resolveIntent(room(), { kind: "move", tokenId: "hero", x: 2147483647, y: 2 }, gmActor)).toEqual({ ok: false, error: "Destino inválido." });
+    expect(resolveIntent(room(), { kind: "move", tokenId: "hero", x: -1, y: 2 }, gmActor)).toEqual({ ok: false, error: "Destino inválido." });
     expect(parseIntent({ kind: "move", tokenId: "hero", x: 1e300, y: 1 })).toBeNull();
     expect(parseIntent({ kind: "roll", formula: "1d20", mode: "cheat" })).toBeNull();
     expect(parseIntent({ kind: "chat", text: "oi", toGm: "sim" })).toBeNull();
-  });
-
-  it("doors in combat only on your turn", () => {
-    const combat = room({ combat: { active: true, round: 1, turn: 0, order: [{ tokenId: "near", initiative: 18 }, { tokenId: "hero", initiative: 9 }] } });
-    expect(resolveIntent(combat, { kind: "door", propId: "door" }, anaActor)).toEqual({ ok: false, error: "Espere a sua vez no combate." });
   });
 
   it("raw events only from GMs; malformed intents are dropped", () => {

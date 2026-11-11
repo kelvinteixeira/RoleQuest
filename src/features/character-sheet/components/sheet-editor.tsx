@@ -17,6 +17,8 @@ import { applyClass, levelPerks } from "../model/sheet";
 import { useCharacterSheet, type SaveStatus } from "../hooks/use-character-sheet";
 import { AbilitiesSection, AttributesSection, CustomFieldsSection, InventorySection, SkillsSection, StorySection, type SectionProps } from "./sheet-sections";
 import { CombatSection } from "./combat-section";
+import { DndSection } from "./dnd-section";
+import { isDnd, syncDerived } from "@/features/systems/dnd5e/rules";
 
 type Tab = "main" | "combat" | "skills" | "abilities" | "inventory" | "custom" | "story";
 
@@ -71,6 +73,13 @@ export function SheetEditor({
     // `data` is read for the current values only; reacting to it would undo edits made on the sheet.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [liveHp, loaded]);
+
+  // D&D 5e: max HP, hit dice, spell slots and speed follow class, level and CON (when automatic).
+  const level = data?.character.level ?? null;
+  const dndSheet = data && isDnd(data.system) && data.canEdit ? data.character.sheet : null;
+  useEffect(() => {
+    if (dndSheet && syncDerived(dndSheet, level) !== dndSheet) updateSheet((s) => syncDerived(s, level));
+  }, [dndSheet, level, updateSheet]);
 
   if (error && !data) return <ErrorState error={error} onRetry={reload} />;
   if (!data) return <LoadingState label="Abrindo ficha…" />;
@@ -177,7 +186,12 @@ export function SheetEditor({
               { value: "story", label: "História" },
             ]}
           />
-          {tab === "main" && <AttributesSection {...props} />}
+          {tab === "main" && (
+            <div className="flex flex-col gap-4">
+              {isDnd(system) && <DndSection {...props} level={character.level} />}
+              <AttributesSection {...props} />
+            </div>
+          )}
           {tab === "combat" && <CombatSection {...props} level={character.level} />}
           {tab === "skills" && <SkillsSection {...props} />}
           {tab === "abilities" && <AbilitiesSection {...props} />}

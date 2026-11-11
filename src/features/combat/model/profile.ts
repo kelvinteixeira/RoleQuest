@@ -6,6 +6,7 @@
 import { checkValue } from "@/features/character-sheet/model/checks";
 import { findAttribute, findSkill } from "@/features/character-sheet/model/combat-defaults";
 import { attributeModifier, proficiencyBonus } from "@/features/character-sheet/model/sheet";
+import { armorClass, isDnd } from "@/features/systems/dnd5e/rules";
 import type { CharacterSheet, SheetAttack } from "@/types/character";
 import type { SystemTemplate } from "@/types/system";
 import type { CombatStats, TokenAttack } from "./types";
@@ -29,6 +30,8 @@ function reader(system: SystemTemplate, sheet: CharacterSheet) {
 /** Defense the sheet gets when the player leaves it on "automático". */
 export function deriveDefense(system: SystemTemplate, sheet: CharacterSheet): number {
   const { value, mod, skill } = reader(system, sheet);
+  // D&D 5e with an SRD build: worn armor, shield and unarmored defense.
+  if (isDnd(system) && sheet.dnd) return armorClass(sheet).value;
   switch (system.dice.mechanic) {
     case "d20-plus-modifier":
       return 10 + mod(["dex", "des"]);

@@ -36,6 +36,16 @@ export function partyTokenFor(member: Member, system: CampaignOverview["system"]
   };
 }
 
+/** Tokens for players whose character is not on the table yet (joined, or created their character, after the room was set up). */
+export function missingPartyTokens(overview: Pick<CampaignOverview, "members" | "system">, room: Pick<RoomState, "map" | "tokens">): RoomToken[] {
+  const added: RoomToken[] = [];
+  overview.members.forEach((m, i) => {
+    if (m.role !== "player" || !m.character || room.tokens.some((t) => t.characterId === m.character!.id)) return;
+    added.push(partyTokenFor(m, overview.system, room.map, [...room.tokens, ...added], PLAYER_SPAWNS[i % PLAYER_SPAWNS.length]));
+  });
+  return added;
+}
+
 /**
  * Builds a fresh room for a campaign: starter map, the system's combat rules,
  * a test encounter and a token (stats from the sheet) for every player whose

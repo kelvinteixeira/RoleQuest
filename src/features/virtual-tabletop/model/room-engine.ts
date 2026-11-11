@@ -132,8 +132,15 @@ function reduce(state: RoomState, event: RoomEvent): RoomState {
         tokens: state.tokens.filter((t) => t.id !== event.tokenId),
         combat: { ...state.combat, order: state.combat.order.filter((o) => o.tokenId !== event.tokenId) },
       };
-    case "token.moved":
-      return updateToken(state, event.tokenId, (t) => ({ ...t, x: event.x, y: event.y }));
+    case "token.moved": {
+      // Moving a character answers its player's ping.
+      const moved = updateToken(state, event.tokenId, (t) => ({ ...t, x: event.x, y: event.y }));
+      return state.pings?.some((p) => p.tokenId === event.tokenId) ? { ...moved, pings: state.pings.filter((p) => p.tokenId !== event.tokenId) } : moved;
+    }
+    case "ping.placed":
+      return { ...state, pings: [...(state.pings ?? []).filter((p) => p.author.id !== event.ping.author.id), event.ping] };
+    case "ping.cleared":
+      return { ...state, pings: (state.pings ?? []).filter((p) => p.id !== event.pingId) };
     case "token.hp":
       return updateToken(state, event.tokenId, (t) => {
         const current = Math.max(0, Math.min(t.hp.max, t.hp.current + event.delta));

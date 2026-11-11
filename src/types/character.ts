@@ -58,6 +58,22 @@ export interface SheetCombat {
 }
 
 /**
+ * D&D 5e choices (SRD 5.1 content, see features/systems/dnd5e): they drive
+ * saving throws, armor class, hit points, speed and spellcasting.
+ */
+export interface DndBuild {
+  race: string;
+  class: string;
+  background: string;
+  armor: string;
+  shield: boolean;
+  /** Ability increases the race gave (undone exactly when the race changes). */
+  raceBonus: Record<string, number>;
+  /** Max HP, hit dice and spell slots follow class, level and CON (off: the player sets them). */
+  auto: boolean;
+}
+
+/**
  * Editable sheet. Keys follow the system template (attribute/resource/skill
  * keys), so a template change never loses data: unknown keys are kept.
  */
@@ -79,6 +95,8 @@ export interface CharacterSheet {
   classKey?: string;
   /** Resource bonus the class gave when chosen (undone exactly on a switch). */
   classBonus?: Record<string, number>;
+  /** D&D 5e: race, class, background and armor. */
+  dnd?: DndBuild;
 }
 
 /**

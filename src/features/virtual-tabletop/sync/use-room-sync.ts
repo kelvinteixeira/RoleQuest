@@ -13,10 +13,9 @@ import type { MapDocument } from "@/features/map/model/map-document";
 import { ensureSheet } from "@/features/character-sheet/model/sheet";
 import { resolveCheck } from "@/features/character-sheet/model/checks";
 import { authorOf, checkEvent } from "../model/room-engine";
-import { partyTokenFor } from "../model/room-factory";
+import { missingPartyTokens } from "../model/room-factory";
 import { upgradeRoom } from "../model/room-migration";
-import { PLAYER_SPAWNS } from "../model/map";
-import type { RoomEvent, RoomState, RoomToken } from "../model/types";
+import type { RoomEvent, RoomState } from "../model/types";
 import { useRoomStore } from "../store/room.store";
 import { parseIntent, resolveIntent, type IntentActor, type RoomIntent, type TurnUsage } from "./intents";
 import { playerMapOf, roomFromView, viewFor, type Notice, type RoomView, type Viewer } from "./views";
@@ -289,12 +288,7 @@ export function useRoomSync(
       const ensureParty = () => {
         const room = store().rooms[campaignId];
         if (!room || !hosting) return;
-        const { overview: ov } = latest.current;
-        const added: RoomToken[] = [];
-        ov.members.forEach((m, i) => {
-          if (m.role !== "player" || !m.character || room.tokens.some((t) => t.characterId === m.character!.id)) return;
-          added.push(partyTokenFor(m, ov.system, room.map, [...room.tokens, ...added], PLAYER_SPAWNS[i % PLAYER_SPAWNS.length]));
-        });
+        const added = missingPartyTokens(latest.current.overview, room);
         if (added.length) store().dispatch(campaignId, "system", added.map((token): RoomEvent => ({ type: "token.added", token })));
       };
 

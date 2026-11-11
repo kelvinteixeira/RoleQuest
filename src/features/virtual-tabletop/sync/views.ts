@@ -93,6 +93,9 @@ export function eventVisibleTo(event: RoomEvent, room: Pick<RoomState, "tokens" 
     case "combat.turn":
     case "combat.ended":
     case "lighting.set":
+    // Pings are for the whole table to see.
+    case "ping.placed":
+    case "ping.cleared":
       return true;
     default:
       return false;

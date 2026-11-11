@@ -6,11 +6,14 @@
 import { cryptoRng, roll, type RollMode, type RollResult, type Rng } from "@/features/dice/dice-engine";
 import type { CharacterSheet } from "@/types/character";
 import type { SystemTemplate } from "@/types/system";
+import { isDnd, saveProficient } from "@/features/systems/dnd5e/rules";
 import { attributeModifier, proficiencyBonus } from "./sheet";
 
 export interface CheckRequest {
   attributeKey?: string;
   skillKey?: string;
+  /** With `attributeKey`: a saving throw (D&D 5e adds proficiency when the class is trained in it). */
+  save?: boolean;
   mode?: RollMode;
 }
 
@@ -31,7 +34,7 @@ function dice(count: number, sides: number, rng: Rng) {
   return Array.from({ length: Math.max(0, Math.min(MAX_POOL, Math.floor(count) || 0)) }, () => rng(sides));
 }
 
-function checkInputs(system: SystemTemplate, sheet: CharacterSheet, req: Pick<CheckRequest, "attributeKey" | "skillKey">) {
+function checkInputs(system: SystemTemplate, sheet: CharacterSheet, req: Pick<CheckRequest, "attributeKey" | "skillKey" | "save">) {
   const skillDef = req.skillKey ? system.skills.find((s) => s.key === req.skillKey) : undefined;
   const sheetSkill = req.skillKey ? sheet.skills[req.skillKey] : undefined;
   // Percentile/roll-under skills are their own target; other mechanics add an attribute.
@@ -41,7 +44,7 @@ function checkInputs(system: SystemTemplate, sheet: CharacterSheet, req: Pick<Ch
   const attrDef = system.attributes.find((a) => a.key === attrKey);
   const attrValue = attrDef ? (sheet.attributes[attrDef.key] ?? attrDef.defaultValue) : 0;
   const skill = req.skillKey ? (sheet.skills[req.skillKey] ?? { trained: false, bonus: 0 }) : null;
-  const label = skillDef ? `${skillDef.label}${attrDef ? ` (${attrDef.abbreviation})` : ""}` : (attrDef?.label ?? "Teste");
+  const label = skillDef ? `${skillDef.label}${attrDef ? ` (${attrDef.abbreviation})` : ""}` : req.save && attrDef ? `Resistência de ${attrDef.label}` : (attrDef?.label ?? "Teste");
   return { attrDef, attrValue, skill, label };
 }
 
@@ -50,12 +53,15 @@ function checkInputs(system: SystemTemplate, sheet: CharacterSheet, req: Pick<Ch
  * modifier + proficiency, skill %, pool size, target… `dice` is the d20 count of keep-highest pools.
  * Attacks reuse it, so a weapon skill counts the same as on a check.
  */
-export function checkValue(system: SystemTemplate, sheet: CharacterSheet, level: number | null, req: Pick<CheckRequest, "attributeKey" | "skillKey">): { value: number; dice?: number } {
+export function checkValue(system: SystemTemplate, sheet: CharacterSheet, level: number | null, req: Pick<CheckRequest, "attributeKey" | "skillKey" | "save">): { value: number; dice?: number } {
   const { attrDef, attrValue, skill } = checkInputs(system, sheet, req);
   const bonus = skill?.bonus ?? 0;
   switch (system.dice.mechanic) {
-    case "d20-plus-modifier":
-      return { value: (attrDef ? attributeModifier(attrDef, attrValue) : 0) + (skill?.trained ? proficiencyBonus(system, level) : 0) + bonus };
+    case "d20-plus-modifier": {
+      // D&D 5e saving throws: proficiency when the class is trained in that ability.
+      const savePro = !skill && req.save && attrDef && isDnd(system) && saveProficient(sheet, attrDef.key);
+      return { value: (attrDef ? attributeModifier(attrDef, attrValue) : 0) + (skill?.trained || savePro ? proficiencyBonus(system, level) : 0) + bonus };
+    }
     case "d100-roll-under":
       return { value: skill ? skill.bonus : attrValue };
     case "d10-dice-pool":

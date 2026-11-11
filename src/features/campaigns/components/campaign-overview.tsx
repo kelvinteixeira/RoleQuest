@@ -233,7 +233,6 @@ function OverviewContent({ data }: { data: Overview }) {
               <p className="text-xs font-medium uppercase tracking-wider text-fg-subtle">Regras da mesa</p>
               <ul className="mt-3 flex flex-col gap-2 text-sm text-fg-muted">
                 <Rule on={campaign.playerPolicy.playersCanEditSheets}>Jogadores editam as próprias fichas</Rule>
-                <Rule on={campaign.playerPolicy.playersCanMoveOwnToken}>Jogadores movem o próprio token</Rule>
                 <Rule on={campaign.playerPolicy.allowPrivateMessages}>Mensagens privadas com o mestre</Rule>
                 <Rule on={campaign.playerPolicy.rollsPublicByDefault}>Rolagens públicas por padrão</Rule>
               </ul>

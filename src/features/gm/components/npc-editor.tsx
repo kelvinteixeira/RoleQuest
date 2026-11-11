@@ -8,7 +8,7 @@ import { Badge, Card } from "@/components/ui/primitives";
 import { Switch } from "@/components/ui/switch";
 import { EmptyState } from "@/components/feedback/states";
 import { cn } from "@/lib/cn";
-import { CHARACTER_GROUP_LABEL, CHARACTER_MODELS, type CharacterModel } from "@/features/virtual-tabletop/model/character-models";
+import { ALL_CHARACTER_MODELS as CHARACTER_MODELS, CHARACTER_GROUP_LABEL, type CharacterModel } from "@/features/virtual-tabletop/model/character-models";
 import type { NpcStatBlock } from "@/features/combat/model/types";
 import type { Npc, NpcAttitude, NpcInput } from "@/types/gm";
 import { ATTITUDE_LABEL, blankNpc, newFact, validateNpc } from "../model/npc";

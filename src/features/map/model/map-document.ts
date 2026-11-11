@@ -348,6 +348,8 @@ export interface MapSpawn {
   attitude: NpcAttitude;
   /** Campaign NPC it came from; its current sheet wins when the token is created. */
   npcId?: string;
+  /** Squares per side for large creatures (the square given is the north-west one). */
+  size?: number;
   stats: NpcStatBlock;
 }
 

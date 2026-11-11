@@ -5,6 +5,8 @@
  * same GM in another tab) get everything but the log.
  */
 import { trapOf } from "@/features/map/model/map-document";
+import { sizeOf } from "../model/character-models";
+import { footprint } from "../model/map";
 import type { MapDocument } from "@/features/map/model/map-document";
 import { partyVision } from "../model/room-engine";
 import type { ChatMessage, LoggedEvent, RoomEvent, RoomState, RoomToken } from "../model/types";
@@ -60,7 +62,8 @@ export function tokensVisibleTo(state: RoomState, viewer: Viewer): RoomToken[] {
   if (viewer.role === "game_master") return state.tokens;
   const sight = state.fog.enabled ? partyVision(state) : null;
   return state.tokens
-    .filter((t) => t.kind === "pc" || !sight || sight.has(t.y * state.map.cols + t.x))
+    // A large creature shows as soon as the party sees any square of it.
+    .filter((t) => t.kind === "pc" || !sight || footprint(t, sizeOf(t)).some((c) => sight.has(c.y * state.map.cols + c.x)))
     .map((t) => {
       if (viewer.tokenIds.includes(t.id)) return t;
       // Stat blocks and bot personalities stay with the GM; so do the numbers of creatures.

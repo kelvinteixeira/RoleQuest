@@ -32,6 +32,11 @@ export interface RoomToken {
   npc?: NpcStatBlock;
   /** Light carried (torch, lantern), radius in squares. */
   light?: number;
+  /**
+   * Squares per side (2 = large, 3 = huge, 4 = colossal); `x`,`y` is the
+   * north-west square of that block. Missing: the body's default (see `sizeOf`).
+   */
+  size?: number;
 }
 
 /** The room plays on a square-tile map document (terrain, elevation, props). */

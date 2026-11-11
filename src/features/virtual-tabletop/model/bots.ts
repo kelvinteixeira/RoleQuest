@@ -6,6 +6,7 @@
 import { createId } from "@/lib/id";
 import type { MapDocument } from "@/features/map/model/map-document";
 import { ENEMY_SPAWNS, freeCellNear, gridDistance, pathToAdjacent, PLAYER_SPAWNS } from "./map";
+import { sizeOf } from "./character-models";
 import { adaptNpcStats, healFormula } from "@/features/combat/model/rules";
 import type { CombatRules, NpcStatBlock } from "@/features/combat/model/types";
 import { attack, authorOf, isDown, rollEvent, say, whisper, announce, walk } from "./room-engine";
@@ -195,13 +196,14 @@ export function decideTurn(state: RoomState, actor: RoomToken): BotStep[] {
   if (!weapon) return [{ delay: 400, events: chatter(lines.idle, 0.3) }];
   const targets = opponentsOf(state, actor).sort((a, b) => gridDistance(a, actor) - gridDistance(b, actor));
   for (const target of targets) {
+    const reach = (cell: { x: number; y: number }) => gridDistance({ ...cell, size: sizeOf(actor) }, target);
     let end = { x: actor.x, y: actor.y };
-    if (gridDistance(end, target) > weapon.range) {
+    if (reach(end) > weapon.range) {
       const path = pathToAdjacent(state.map, state.tokens, actor, target);
       if (path === null) continue;
       // Walk only until the target is in reach (or the speed runs out).
       const stride = path.slice(0, actor.stats.speed);
-      const inReach = stride.findIndex((cell) => gridDistance(cell, target) <= weapon.range);
+      const inReach = stride.findIndex((cell) => reach(cell) <= weapon.range);
       const move = inReach === -1 ? stride : stride.slice(0, inReach + 1);
       // A trap on the way stops the walk (and may leave the target out of reach).
       const walked = walk(state, actor, move);
@@ -212,7 +214,7 @@ export function decideTurn(state: RoomState, actor: RoomToken): BotStep[] {
         if (hurt?.type === "token.hp" && actor.hp.current + hurt.delta <= 0) return steps;
       }
     }
-    if (gridDistance(end, target) <= weapon.range) {
+    if (reach(end) <= weapon.range) {
       const outcome = attack(state, { ...actor, ...end }, target, { attackId: weapon.id });
       steps.push({ delay: 700, events: outcome.events });
       const reaction = outcome.downed ? lines.kill : outcome.hit ? lines.hit : lines.miss;

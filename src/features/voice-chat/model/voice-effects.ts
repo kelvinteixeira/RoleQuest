@@ -40,6 +40,25 @@ export function driveCurve(amount: number, samples = 1024): Float32Array<ArrayBu
   return curve;
 }
 
+/** The pitch shifter's AudioWorklet module (public/worklets/pitch-shifter.js). */
+export const PITCH_WORKLET_URL = "/worklets/pitch-shifter.js";
+const PITCH_PROCESSOR = "rq-pitch-shifter";
+
+/** Contexts whose audio thread already has the pitch shifter. */
+const withWorklet = new WeakSet<BaseAudioContext>();
+
+/** Loads the pitch shifter into a context; false where worklets are missing or the file fails to load. */
+export async function loadPitchWorklet(c: BaseAudioContext): Promise<boolean> {
+  if (withWorklet.has(c)) return true;
+  try {
+    await c.audioWorklet.addModule(PITCH_WORKLET_URL);
+    withWorklet.add(c);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 /** A rising sawtooth from -1 to 1 (`shifted`: half a period later), band-limited to 48 harmonics. */
 function sawWave(c: BaseAudioContext, shifted: boolean): PeriodicWave {
   const harmonics = 48;
@@ -85,7 +104,10 @@ class Builder {
     return o;
   }
 
-  /** Shifts pitch by `ratio` (0.5 = an octave down) with two crossfading delay lines. */
+  /**
+   * Shifts pitch by `ratio` (0.5 = an octave down). With the worklet loaded it
+   * uses aligned grains (clean, steady); otherwise two crossfading delay lines.
+   */
   pitch(ratio: number, grain = 0.07): { input: AudioNode; output: AudioNode } {
     const input = this.gain();
     const output = this.gain();
@@ -94,6 +116,20 @@ class Builder {
       return { input, output };
     }
     const { c } = this;
+    if (withWorklet.has(c)) {
+      const node = this.keep(
+        new AudioWorkletNode(c, PITCH_PROCESSOR, {
+          numberOfInputs: 1,
+          numberOfOutputs: 1,
+          channelCount: 1,
+          channelCountMode: "explicit",
+          outputChannelCount: [1],
+          processorOptions: { ratio },
+        }),
+      );
+      input.connect(node).connect(output);
+      return { input, output };
+    }
     const { depth, rising } = pitchSweep(ratio, grain);
     // Sweeps and crossfades come from oscillators running in lockstep (looping
     // buffers driving AudioParams went silent for some grain lengths in Chromium).
@@ -123,7 +159,7 @@ class Builder {
   drive(amount: number) {
     const s = this.keep(this.c.createWaveShaper());
     s.curve = driveCurve(amount);
-    s.oversample = "2x";
+    s.oversample = "4x";
     return s;
   }
 
@@ -289,12 +325,29 @@ export class VoiceChanger {
   private readonly bus: GainNode;
   private readonly limiter: DynamicsCompressorNode;
   private readonly monitor: GainNode;
+  private readonly clean: AudioNode;
   private chain: Chain;
   private current: VoiceEffectId = "none";
+  private closed = false;
 
   constructor(input: MediaStream, effect: VoiceEffectId = "none") {
     this.ctx = new AudioContext({ latencyHint: "interactive" });
     this.source = this.ctx.createMediaStreamSource(input);
+    // Before any voice: cut rumble and breath pops, and even out the level so
+    // distortion and growls respond the same to a whisper and a shout.
+    const rumble = this.ctx.createBiquadFilter();
+    rumble.type = "highpass";
+    rumble.frequency.value = 85;
+    const level = this.ctx.createDynamicsCompressor();
+    level.threshold.value = -28;
+    level.knee.value = 12;
+    level.ratio.value = 3;
+    level.attack.value = 0.005;
+    level.release.value = 0.2;
+    const makeup = this.ctx.createGain();
+    makeup.gain.value = 1.5;
+    this.source.connect(rumble).connect(level).connect(makeup);
+    this.clean = makeup;
     this.destination = this.ctx.createMediaStreamDestination();
     this.bus = this.ctx.createGain();
     // A limiter after every voice: big growls and halls never clip on the way out.
@@ -311,6 +364,14 @@ export class VoiceChanger {
     this.output = this.destination.stream;
     this.chain = this.wire(effect);
     void this.ctx.resume().catch(() => undefined);
+    // The better pitch shifter arrives a moment later: rebuild the voice with it.
+    void loadPitchWorklet(this.ctx).then((ok) => {
+      if (!ok || this.closed) return;
+      const old = this.chain;
+      this.chain = this.wire(this.current);
+      old.output.disconnect();
+      this.unwire(old);
+    });
   }
 
   get effect(): VoiceEffectId {
@@ -319,17 +380,20 @@ export class VoiceChanger {
 
   private wire(id: VoiceEffectId): Chain {
     const chain = buildVoiceEffect(this.ctx, id);
-    this.source.connect(chain.input);
+    // The natural voice goes out untouched; characters get the conditioned signal.
+    (id === "none" ? this.source : this.clean).connect(chain.input);
     chain.output.connect(this.bus);
     this.current = id;
     return chain;
   }
 
   private unwire(chain: Chain) {
-    try {
-      this.source.disconnect(chain.input);
-    } catch {
-      // Already apart.
+    for (const from of [this.source, this.clean]) {
+      try {
+        from.disconnect(chain.input);
+      } catch {
+        // Not connected to this chain.
+      }
     }
     for (const s of chain.sources) {
       try {
@@ -358,6 +422,7 @@ export class VoiceChanger {
   }
 
   close() {
+    this.closed = true;
     this.unwire(this.chain);
     this.source.disconnect();
     void this.ctx.close().catch(() => undefined);

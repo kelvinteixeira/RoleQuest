@@ -1,5 +1,5 @@
 // Applies every migration in supabase/migrations to an in-memory Postgres
-// (PGlite) with a minimal stand-in for Supabase's auth schema, then plays
+// (PGlite) with minimal stand-ins for Supabase's auth and realtime schemas, then plays
 // access scenarios as different users (RLS, guard triggers, functions),
 // including attempts to get around each rule.
 // Usage: npm run db:check
@@ -18,6 +18,13 @@ await db.exec(`
   create function auth.jwt() returns jsonb language sql stable as $$ select jsonb_build_object('email', current_setting('request.jwt.claim.email', true)) $$;
   create role anon; create role authenticated;
   grant usage on schema auth to authenticated, anon;
+  -- Realtime Authorization: Supabase checks policies on realtime.messages with the channel's topic set.
+  create schema realtime;
+  create table realtime.messages (id bigint generated always as identity primary key, topic text not null, extension text not null, payload jsonb);
+  alter table realtime.messages enable row level security;
+  create function realtime.topic() returns text language sql stable as $$ select nullif(current_setting('realtime.topic', true), '') $$;
+  grant usage on schema realtime to authenticated, anon;
+  grant select, insert on realtime.messages to authenticated;
 `);
 
 const dir = join(process.cwd(), "supabase", "migrations");
@@ -330,6 +337,30 @@ await as(p2, "bia@mesa.com", async () => {
 await as(out, "fora@mesa.com", async () => {
   ok("outsiders see no tracks", (await db.query(`select id from public.campaign_audio_tracks`)).rows.length === 0);
 });
+
+// Voice chat: only members of a campaign may join its signalling channel.
+const voice = async (topic) => {
+  await db.query(`select set_config('realtime.topic', $1, false)`, [topic]);
+  const send = await fails(() => db.query(`insert into realtime.messages (topic, extension, payload) values ($1, 'broadcast', '{}')`, [topic]));
+  const heard = (await db.query(`select id from realtime.messages where topic = $1`, [topic])).rows.length;
+  return { sent: !send, heard };
+};
+await as(gm, "mestre@mesa.com", async () => {
+  const v = await voice(`voice:${tid}`);
+  ok("GM joins the campaign's voice channel", v.sent && v.heard === 1);
+});
+await as(p2, "bia@mesa.com", async () => {
+  const v = await voice(`voice:${tid}`);
+  ok("members talk and hear on the voice channel", v.sent && v.heard === 2);
+  const other = await voice(`room:${tid}`);
+  ok("the voice policies open no other channel", !other.sent && other.heard === 0);
+});
+await as(out, "fora@mesa.com", async () => {
+  const v = await voice(`voice:${tid}`);
+  ok("outsiders can't send on or listen to the voice channel", !v.sent && v.heard === 0);
+});
+await db.exec(`reset role`);
+await db.query(`select set_config('realtime.topic', '', false)`);
 
 // Signed out: nothing.
 await db.exec(`reset role`);

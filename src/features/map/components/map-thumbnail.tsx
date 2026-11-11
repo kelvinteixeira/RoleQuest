@@ -2,7 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import { cn } from "@/lib/cn";
-import { cellIndex, PROP_BY_ID, TERRAINS, type MapDocument } from "../model/map-document";
+import { cellIndex, PROP_BY_ID, terrainDef, type MapDocument } from "../model/map-document";
 import { backgroundRows } from "../model/background";
 import { useMapImage } from "../hooks/use-map-image";
 
@@ -20,7 +20,7 @@ export function MapThumbnail({ doc, className }: { doc: MapDocument; className?:
     ctx.canvas.height = doc.rows * cell;
     for (let y = 0; y < doc.rows; y++) {
       for (let x = 0; x < doc.cols; x++) {
-        const t = TERRAINS[doc.terrain[cellIndex(doc, x, y)]];
+        const t = terrainDef(doc.terrain[cellIndex(doc, x, y)]);
         ctx.fillStyle = t?.kind === "water" ? "#3f8fb5" : (t?.color ?? "#000");
         ctx.fillRect(x * cell, y * cell, cell, cell);
       }

@@ -62,9 +62,15 @@ export function ensureSheet(character: Character, system: SystemTemplate): Chara
     for (const r of character.resources) if (defaults.resources[r.key]) defaults.resources[r.key] = { current: r.current, max: r.max };
     return defaults;
   }
+  // Sheets from before rules modules kept D&D choices in `dnd`: they move to `build`.
+  const { dnd: legacy, ...current } = sheet;
+  const migrated: Partial<CharacterSheet> = legacy && !sheet.build
+    ? { build: { system: "dnd5e", data: { race: legacy.race, class: legacy.class, background: legacy.background, armor: legacy.armor, shield: legacy.shield, raceBonus: legacy.raceBonus } }, autoDerived: sheet.autoDerived ?? legacy.auto }
+    : {};
   return {
     ...defaults,
-    ...sheet,
+    ...current,
+    ...migrated,
     attributes: { ...defaults.attributes, ...sheet.attributes },
     resources: { ...defaults.resources, ...sheet.resources },
     skills: { ...defaults.skills, ...sheet.skills },

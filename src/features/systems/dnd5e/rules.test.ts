@@ -78,7 +78,7 @@ describe("D&D 5e derived values", () => {
     expect(leveled.resources.hp).toEqual({ current: 54, max: 54 });
     expect(leveled.resources.hit_dice.max).toBe(5);
     expect(syncDerived(leveled, 5)).toBe(leveled);
-    const manual = { ...sheet, dnd: { ...sheet.dnd!, auto: false } };
+    const manual = { ...sheet, autoDerived: false };
     expect(syncDerived(manual, 5)).toBe(manual);
   });
 

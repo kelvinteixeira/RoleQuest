@@ -3,11 +3,11 @@
 import { AlertTriangle, BookOpen, Shield, Sparkles } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/cn";
-import { proficiencyBonus } from "../model/sheet";
-import { deriveInitiative } from "@/features/combat/model/profile";
-import { armorClass, changeClass, changeRace, emptyBuild, passivePerception, saveBonus, saveProficient, spellcasting } from "@/features/systems/dnd5e/rules";
-import { ABILITIES, ABILITY_ABBR, ABILITY_LABEL, ARMOR_CATEGORY_LABEL, ARMORS, BACKGROUNDS, CLASSES, classByKey, RACES, raceByKey, type Trait } from "@/features/systems/dnd5e/srd";
-import { RollButton, SheetSection, type SectionProps } from "./sheet-sections";
+import { RollButton, SheetSection } from "@/features/character-sheet/components/sheet-sections";
+import { autoDerived } from "@/features/systems/rules/build";
+import type { PanelProps } from "@/features/systems/rules/types";
+import { armorClass, changeClass, changeRace, dndOf, dndRules, emptyBuild, spellcasting, withDnd, type DndBuild } from "./rules";
+import { ABILITY_ABBR, ARMOR_CATEGORY_LABEL, ARMORS, BACKGROUNDS, CLASSES, classByKey, RACES, raceByKey, type Trait } from "./srd";
 
 const signed = (n: number) => (n >= 0 ? `+${n}` : `${n}`);
 const select =
@@ -17,14 +17,13 @@ const select =
  * D&D 5e (SRD 5.1): race, class, background and armor, and what follows from
  * them — armor class, saving throws, passive perception, hit die and spellcasting.
  */
-export function DndSection({ system, sheet, readOnly, update, onCheck, level }: SectionProps & { level: number | null }) {
-  const build = sheet.dnd ?? emptyBuild();
+export function DndPanel({ system, sheet, readOnly, update, onCheck, level }: PanelProps) {
+  const build = dndOf(sheet) ?? emptyBuild();
   const cls = classByKey(build.class);
   const race = raceByKey(build.race);
   const ac = armorClass(sheet);
   const casting = spellcasting(system, sheet, level);
-  const prof = proficiencyBonus(system, level);
-  const setBuild = (patch: Partial<typeof build>) => update((s) => ({ ...s, dnd: { ...(s.dnd ?? emptyBuild()), ...patch } }));
+  const setBuild = (patch: Partial<DndBuild>) => update((s) => withDnd(s, patch));
 
   return (
     <div className="flex flex-col gap-4">
@@ -63,12 +62,9 @@ export function DndSection({ system, sheet, readOnly, update, onCheck, level }: 
         </div>
 
         <div className="mt-3 grid grid-cols-3 gap-2 sm:grid-cols-6">
-          <Stat label="CA" value={ac.value} hint={ac.explain} />
-          <Stat label="Iniciativa" value={signed(deriveInitiative(system, sheet).value)} />
-          <Stat label="Desloc." value={`${sheet.combat.speed * 5} ft`} hint={race ? `${race.label}: ${race.speed} ft` : undefined} />
-          <Stat label="Proficiência" value={signed(prof)} />
-          <Stat label="Perc. passiva" value={passivePerception(system, sheet, level)} />
-          <Stat label="Dado de vida" value={cls ? `${Math.max(1, level ?? 1)}d${cls.hitDie}` : "—"} />
+          {dndRules.derived(system, sheet, level).map((d) => (
+            <Stat key={d.key} label={d.label} value={d.value} hint={d.hint} />
+          ))}
         </div>
 
         <div className="mt-3 flex flex-wrap items-end gap-3">
@@ -96,9 +92,9 @@ export function DndSection({ system, sheet, readOnly, update, onCheck, level }: 
 
         <div className="mt-3 border-t border-line pt-3">
           <Switch
-            checked={build.auto}
+            checked={autoDerived(sheet)}
             disabled={readOnly}
-            onChange={(auto) => setBuild({ auto })}
+            onChange={(on) => update((s) => ({ ...s, autoDerived: on }))}
             label="Cálculo automático"
             description="PV máximos, dados de vida e espaços de magia seguem classe, nível e Constituição."
           />
@@ -107,20 +103,17 @@ export function DndSection({ system, sheet, readOnly, update, onCheck, level }: 
 
       <SheetSection title="Testes de resistência">
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-          {ABILITIES.map((a) => {
-            const pro = saveProficient(sheet, a);
-            return (
-              <div key={a} className="flex items-center gap-2 rounded-lg border border-line bg-surface-2/40 p-2">
-                <span className={cn("size-2 shrink-0 rounded-full", pro ? "bg-accent" : "border border-line")} title={pro ? "Proficiente (classe)" : "Sem proficiência"} />
-                <div className="min-w-0 flex-1">
-                  <p className="font-mono text-xs font-semibold text-accent">{ABILITY_ABBR[a]}</p>
-                  <p className="truncate text-xs text-fg-muted">{ABILITY_LABEL[a]}</p>
-                </div>
-                <span className="font-mono text-sm tabular-nums">{signed(saveBonus(system, sheet, level, a))}</span>
-                <RollButton label={`resistência de ${ABILITY_LABEL[a]}`} onClick={() => onCheck({ attributeKey: a, save: true })} />
+          {dndRules.saves!(system, sheet, level).map((save) => (
+            <div key={save.key} className="flex items-center gap-2 rounded-lg border border-line bg-surface-2/40 p-2">
+              <span className={cn("size-2 shrink-0 rounded-full", save.proficient ? "bg-accent" : "border border-line")} title={save.proficient ? "Proficiente (classe)" : "Sem proficiência"} />
+              <div className="min-w-0 flex-1">
+                <p className="font-mono text-xs font-semibold text-accent">{ABILITY_ABBR[save.key as keyof typeof ABILITY_ABBR]}</p>
+                <p className="truncate text-xs text-fg-muted">{save.label}</p>
               </div>
-            );
-          })}
+              <span className="font-mono text-sm tabular-nums">{signed(save.value)}</span>
+              <RollButton label={`resistência de ${save.label}`} onClick={() => onCheck(save.request)} />
+            </div>
+          ))}
         </div>
         {!cls && <p className="mt-2 text-xs text-fg-subtle">Escolha a classe para marcar as resistências proficientes.</p>}
       </SheetSection>

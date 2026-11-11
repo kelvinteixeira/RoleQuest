@@ -17,8 +17,8 @@ import { applyClass, levelPerks } from "../model/sheet";
 import { useCharacterSheet, type SaveStatus } from "../hooks/use-character-sheet";
 import { AbilitiesSection, AttributesSection, CustomFieldsSection, InventorySection, SkillsSection, StorySection, type SectionProps } from "./sheet-sections";
 import { CombatSection } from "./combat-section";
-import { DndSection } from "./dnd-section";
-import { isDnd, syncDerived } from "@/features/systems/dnd5e/rules";
+import { syncSheet } from "@/features/systems/rules/registry";
+import { rulesUiFor } from "@/features/systems/rules/ui";
 
 type Tab = "main" | "combat" | "skills" | "abilities" | "inventory" | "custom" | "story";
 
@@ -74,12 +74,14 @@ export function SheetEditor({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [liveHp, loaded]);
 
-  // D&D 5e: max HP, hit dice, spell slots and speed follow class, level and CON (when automatic).
+  // What follows from the system's rules (max HP, resources, speed) keeps up with level and attributes.
   const level = data?.character.level ?? null;
-  const dndSheet = data && isDnd(data.system) && data.canEdit ? data.character.sheet : null;
+  const system0 = data?.system;
+  const editable = data?.canEdit ? data.character.sheet : null;
   useEffect(() => {
-    if (dndSheet && syncDerived(dndSheet, level) !== dndSheet) updateSheet((s) => syncDerived(s, level));
-  }, [dndSheet, level, updateSheet]);
+    if (!system0 || !editable) return;
+    if (syncSheet(system0, editable, level) !== editable) updateSheet((s) => syncSheet(system0, s, level));
+  }, [system0, editable, level, updateSheet]);
 
   if (error && !data) return <ErrorState error={error} onRetry={reload} />;
   if (!data) return <LoadingState label="Abrindo ficha…" />;
@@ -95,6 +97,7 @@ export function SheetEditor({
   }
 
   const props: SectionProps = { system, sheet: character.sheet, readOnly, update: updateSheet, onCheck: check };
+  const { Panel } = rulesUiFor(system);
 
   return (
     <div className="flex flex-col gap-5">
@@ -188,7 +191,7 @@ export function SheetEditor({
           />
           {tab === "main" && (
             <div className="flex flex-col gap-4">
-              {isDnd(system) && <DndSection {...props} level={character.level} />}
+              {Panel && <Panel {...props} level={character.level} />}
               <AttributesSection {...props} />
             </div>
           )}

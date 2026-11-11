@@ -58,18 +58,23 @@ export interface SheetCombat {
 }
 
 /**
- * D&D 5e choices (SRD 5.1 content, see features/systems/dnd5e): they drive
- * saving throws, armor class, hit points, speed and spellcasting.
+ * What a system's rules module keeps on the sheet (D&D 5e: race, class,
+ * background, armor). `data` belongs to the module named by `system`
+ * (see features/systems/rules); other modules leave it alone.
  */
-export interface DndBuild {
+export interface SheetBuild {
+  system: string;
+  data: unknown;
+}
+
+/** @deprecated Sheets saved before `build`; `ensureSheet` moves it to `build` (D&D 5e). */
+export interface LegacyDndBuild {
   race: string;
   class: string;
   background: string;
   armor: string;
   shield: boolean;
-  /** Ability increases the race gave (undone exactly when the race changes). */
   raceBonus: Record<string, number>;
-  /** Max HP, hit dice and spell slots follow class, level and CON (off: the player sets them). */
   auto: boolean;
 }
 
@@ -95,8 +100,12 @@ export interface CharacterSheet {
   classKey?: string;
   /** Resource bonus the class gave when chosen (undone exactly on a switch). */
   classBonus?: Record<string, number>;
-  /** D&D 5e: race, class, background and armor. */
-  dnd?: DndBuild;
+  /** Choices of the system's rules module (see `SheetBuild`). */
+  build?: SheetBuild;
+  /** Values that follow the rules (max HP, resources, speed) update by themselves; false: the player sets them. Default on. */
+  autoDerived?: boolean;
+  /** @deprecated Read once by `ensureSheet`, which moves it to `build`. */
+  dnd?: LegacyDndBuild;
 }
 
 /**

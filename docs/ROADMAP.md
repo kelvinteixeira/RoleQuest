@@ -89,6 +89,12 @@ Antecipada para destravar a Fase 4. Guia de configuração em [SUPABASE.md](SUPA
 - ✅ Etapa 3a — mídia: imagens de mapa no Supabase Storage (todos os jogadores veem o desenho; imagens antigas sobem sozinhas quando o mestre abre a mesa); central de áudio sincronizada pela mesa ao vivo: ambientes sintetizados que se misturam e trilhas generativas (hoje 18 e 16; ver Fase 4), faixas próprias enviadas pelo mestre, volume da mesa e volume de cada pessoa
 - ✅ Etapa 3b — voz: canal de sinalização privado por campanha no Realtime (só membros entram); a chamada é WebRTC direto, sem LiveKit. `supabase/setup.sql` e `supabase/pending.sql` são gerados por `node scripts/build-sql.mjs`
 
+## Fase 8 — Regras por sistema 🟡
+Plano completo em [SYSTEM-RULES.md](SYSTEM-RULES.md).
+- ✅ D&D 5e: conteúdo do SRD 5.1, ficha que se calcula (resistências, CA por armadura, PV por classe, conjuração) e criação guiada
+- ✅ Fundação comum: interface `SystemRules`, registro por sistema, dados da ficha por sistema (`sheet.build`), peças de criação reutilizáveis, classes com recursos que crescem por nível (editor de sistemas); D&D 5e migrado
+- ⬜ Módulos: Tormenta20, Ordem Paranormal, 3D&T Victory, Call of Cthulhu, Vampiro e Lobisomem, Cyberpunk RED, Pathfinder 2e, GURPS
+
 ## Como verificar cada entrega
 ```bash
 npm run typecheck

@@ -6,7 +6,7 @@
 import { cryptoRng, roll, type RollMode, type RollResult, type Rng } from "@/features/dice/dice-engine";
 import type { CharacterSheet } from "@/types/character";
 import type { SystemTemplate } from "@/types/system";
-import { isDnd, saveProficient } from "@/features/systems/dnd5e/rules";
+import { rulesFor } from "@/features/systems/rules/registry";
 import { attributeModifier, proficiencyBonus } from "./sheet";
 
 export interface CheckRequest {
@@ -58,8 +58,8 @@ export function checkValue(system: SystemTemplate, sheet: CharacterSheet, level:
   const bonus = skill?.bonus ?? 0;
   switch (system.dice.mechanic) {
     case "d20-plus-modifier": {
-      // D&D 5e saving throws: proficiency when the class is trained in that ability.
-      const savePro = !skill && req.save && attrDef && isDnd(system) && saveProficient(sheet, attrDef.key);
+      // Saving throws: proficiency when the system's rules say so (D&D 5e: the class's two saves).
+      const savePro = !skill && req.save && attrDef && !!rulesFor(system).saves?.(system, sheet, level).some((s) => s.proficient && s.request.attributeKey === attrDef.key);
       return { value: (attrDef ? attributeModifier(attrDef, attrValue) : 0) + (skill?.trained || savePro ? proficiencyBonus(system, level) : 0) + bonus };
     }
     case "d100-roll-under":

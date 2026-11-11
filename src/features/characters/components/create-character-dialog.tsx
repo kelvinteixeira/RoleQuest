@@ -15,8 +15,7 @@ import { systemService } from "@/services/system.service";
 import { toast } from "@/stores/toast.store";
 import { useCurrentUser } from "@/features/authentication/hooks/use-auth";
 import type { SystemId } from "@/types/system";
-import { buildSheet, conceptOf, isDnd } from "@/features/systems/dnd5e/rules";
-import { choicesOf, DND_STEPS, DndCreator, initialCreator, stepProblem, type CreatorState } from "./dnd-creator";
+import { rulesUiFor } from "@/features/systems/rules/ui";
 
 /**
  * Name, concept, system and (optionally) campaign; the sheet starts from the system template.
@@ -53,18 +52,21 @@ export function CreateCharacterDialog({
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [pending, setPending] = useState(false);
-  // D&D 5e gets a guided creation (race, class, scores, skills, equipment) after the basics: step 0.
+  // Systems with a guided creation continue after the basics (step 0); its state belongs to the flow.
   const [step, setStep] = useState(0);
-  const [creator, setCreator] = useState<CreatorState>(initialCreator);
+  const [guide, setGuide] = useState<{ systemId: string; state: unknown } | null>(null);
   const patch = (p: Partial<CharacterDraft>) => setDraft((d) => ({ ...d, ...p }));
 
   const listed = options.data?.campaigns ?? [];
   const campaigns = fixedCampaign && !listed.some((c) => c.id === fixedCampaign.id) ? [...listed, fixedCampaign] : listed;
 
   const system = options.data?.systems.find((s) => s.id === draft.systemId);
-  const guided = !!system && isDnd(system);
-  const lastStep = guided ? DND_STEPS.length : 0;
-  const problem = step > 0 ? stepProblem(step - 1, creator) : null;
+  const flow = system ? rulesUiFor(system).creation : undefined;
+  const guided = !!flow;
+  const lastStep = flow ? flow.steps.length : 0;
+  // A new system starts its own guide from scratch.
+  const guideState = flow && system && guide?.systemId === system.id ? guide.state : flow && system ? flow.initial(system) : null;
+  const problem = step > 0 && flow && system ? flow.problem(step - 1, guideState, system) : null;
 
   async function onSubmit(e: FormEvent, skipGuide = false) {
     e.preventDefault();
@@ -73,14 +75,14 @@ export function CreateCharacterDialog({
     if (Object.keys(fieldErrors).length) return setStep(0);
     if (!skipGuide && step < lastStep) {
       if (problem) return void toast.info(problem);
+      if (step === 0 && system && guide?.systemId !== system.id) setGuide({ systemId: system.id, state: guideState });
       return setStep(step + 1);
     }
-    const useGuide = guided && !skipGuide && !!system;
+    const built = !skipGuide && flow && system ? flow.build(system, guideState, Math.max(1, draft.level ?? 1)) : null;
     setPending(true);
     try {
-      const choices = choicesOf(creator);
-      const character = await characterService.create(useGuide && !draft.concept.trim() ? { ...draft, concept: conceptOf(choices) } : draft, user);
-      if (useGuide) await characterService.save(character.id, { sheet: buildSheet(system, choices, Math.max(1, draft.level ?? 1)) }, user);
+      const character = await characterService.create(built && !draft.concept.trim() ? { ...draft, concept: built.concept } : draft, user);
+      if (built) await characterService.save(character.id, { sheet: built.sheet }, user);
       toast.success("Personagem criado", character.name);
       onClose();
       if (onCreated) onCreated(character);
@@ -98,13 +100,9 @@ export function CreateCharacterDialog({
       open={open}
       onClose={onClose}
       size={step > 0 ? "lg" : "md"}
-      title={step > 0 ? `${DND_STEPS[step - 1]} · ${draft.name.trim() || "Novo personagem"}` : "Novo personagem"}
+      title={step > 0 && flow ? `${flow.steps[step - 1]} · ${draft.name.trim() || "Novo personagem"}` : "Novo personagem"}
       description={
-        step > 0
-          ? `Passo ${step} de ${lastStep} · D&D 5e (SRD 5.1)`
-          : guided
-            ? "Depois do básico, um guia monta a ficha de D&D: raça, classe, atributos, perícias e equipamento."
-            : "A ficha começa com o modelo do sistema e pode ser personalizada depois."
+        step > 0 && flow ? `Passo ${step} de ${lastStep} · ${flow.label}` : flow ? flow.summary : "A ficha começa com o modelo do sistema e pode ser personalizada depois."
       }
       footer={
         <>
@@ -128,14 +126,14 @@ export function CreateCharacterDialog({
         </>
       }
     >
-      {step > 0 && system ? (
+      {step > 0 && system && flow ? (
         <form id="create-character" onSubmit={onSubmit} noValidate>
           <div className="mb-4 flex gap-1" aria-hidden>
-            {DND_STEPS.map((label, i) => (
+            {flow.steps.map((label, i) => (
               <span key={label} className={cn("h-1 flex-1 rounded-full", i < step ? "bg-accent" : "bg-line")} />
             ))}
           </div>
-          <DndCreator system={system} step={step - 1} state={creator} onChange={setCreator} level={Math.max(1, draft.level ?? 1)} />
+          <flow.Step system={system} step={step - 1} state={guideState} onChange={(state) => setGuide({ systemId: system.id, state })} level={Math.max(1, draft.level ?? 1)} />
           {problem && <p className="mt-3 text-xs text-fg-subtle">{problem}</p>}
         </form>
       ) : (

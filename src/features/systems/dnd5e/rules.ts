@@ -1,12 +1,14 @@
 /**
  * D&D 5e rules on top of a character sheet: saving throws, armor class, hit
  * points, speed, passive perception and spellcasting, from the SRD choices
- * kept in `sheet.dnd`. Pure functions; the sheet stays the source of truth.
+ * kept in `sheet.build` (system "dnd5e"). Pure functions; the sheet stays the source of truth.
  */
 import { createId } from "@/lib/id";
-import type { CharacterSheet, DndBuild, SheetAttack } from "@/types/character";
+import type { CharacterSheet, SheetAttack } from "@/types/character";
 import type { SystemTemplate } from "@/types/system";
 import { createSheet, newAbility, proficiencyBonus } from "@/features/character-sheet/model/sheet";
+import { autoDerived, buildOf, setResourceMax, withBuild } from "@/features/systems/rules/build";
+import type { SystemRules } from "@/features/systems/rules/types";
 import { ABILITIES, ABILITY_LABEL, armorByKey, backgroundByKey, classByKey, raceByKey, spellSlots, type Ability, type SkillKey } from "./srd";
 
 /** The template and its custom copies. */
@@ -19,14 +21,30 @@ export const scoreModifier = (score: number) => Math.floor((score - 10) / 2);
 const score = (sheet: CharacterSheet, ability: Ability) => sheet.attributes[ability] ?? 10;
 const mod = (sheet: CharacterSheet, ability: Ability) => scoreModifier(score(sheet, ability));
 
-export function emptyBuild(): DndBuild {
-  return { race: "", class: "", background: "", armor: "nenhuma", shield: false, raceBonus: {}, auto: true };
+/** D&D choices kept in `sheet.build` (system "dnd5e"). */
+export interface DndBuild {
+  race: string;
+  class: string;
+  background: string;
+  armor: string;
+  shield: boolean;
+  /** Ability increases the race gave (undone exactly when the race changes). */
+  raceBonus: Record<string, number>;
 }
+
+export const DND = "dnd5e";
+
+export function emptyBuild(): DndBuild {
+  return { race: "", class: "", background: "", armor: "nenhuma", shield: false, raceBonus: {} };
+}
+
+export const dndOf = (sheet: CharacterSheet): DndBuild | undefined => buildOf<DndBuild>(sheet, DND);
+export const withDnd = (sheet: CharacterSheet, patch: Partial<DndBuild>): CharacterSheet => withBuild(sheet, DND, { ...(dndOf(sheet) ?? emptyBuild()), ...patch });
 
 /* ---------- Saving throws ---------- */
 
 export function saveProficient(sheet: CharacterSheet, ability: string): boolean {
-  return !!classByKey(sheet.dnd?.class)?.saves.includes(ability as Ability);
+  return !!classByKey(dndOf(sheet)?.class)?.saves.includes(ability as Ability);
 }
 
 export function saveBonus(system: SystemTemplate, sheet: CharacterSheet, level: number | null, ability: Ability): number {
@@ -44,7 +62,7 @@ export interface ArmorClass {
 }
 
 export function armorClass(sheet: CharacterSheet): ArmorClass {
-  const build = sheet.dnd ?? emptyBuild();
+  const build = dndOf(sheet) ?? emptyBuild();
   const armor = armorByKey(build.armor);
   const cls = classByKey(build.class);
   const dex = mod(sheet, "dex");
@@ -69,18 +87,18 @@ export function armorClass(sheet: CharacterSheet): ArmorClass {
 
 /** Max HP: full hit die at level 1, the average (rounded up) after, plus CON each level (at least 1 per level). */
 export function hitPointMax(sheet: CharacterSheet, level: number | null): number | null {
-  const cls = classByKey(sheet.dnd?.class);
+  const cls = classByKey(dndOf(sheet)?.class);
   if (!cls) return null;
   const lvl = Math.max(1, level ?? 1);
   const con = mod(sheet, "con");
-  const extra = raceByKey(sheet.dnd?.race)?.hpPerLevel ?? 0;
+  const extra = raceByKey(dndOf(sheet)?.race)?.hpPerLevel ?? 0;
   const perLevel = (die: number) => Math.max(1, die + con + extra);
   return perLevel(cls.hitDie) + (lvl - 1) * perLevel(cls.hitDie / 2 + 1);
 }
 
 /** Squares per round (5 ft each). */
 export function speedSquares(sheet: CharacterSheet): number | null {
-  const race = raceByKey(sheet.dnd?.race);
+  const race = raceByKey(dndOf(sheet)?.race);
   return race ? Math.round(race.speed / 5) : null;
 }
 
@@ -101,7 +119,7 @@ export interface Spellcasting {
 }
 
 export function spellcasting(system: SystemTemplate, sheet: CharacterSheet, level: number | null): Spellcasting | null {
-  const casting = classByKey(sheet.dnd?.class)?.spellcasting;
+  const casting = classByKey(dndOf(sheet)?.class)?.spellcasting;
   if (!casting) return null;
   const prof = proficiencyBonus(system, level);
   const m = mod(sheet, casting.ability);
@@ -117,19 +135,19 @@ function fixedRaceBonus(raceKey: string): Record<string, number> {
 
 /** Switches race: the old race's increases come off, the new ones go on; speed follows. */
 export function changeRace(sheet: CharacterSheet, raceKey: string, bonus: Record<string, number> = fixedRaceBonus(raceKey)): CharacterSheet {
-  const build = sheet.dnd ?? emptyBuild();
+  const build = dndOf(sheet) ?? emptyBuild();
   const attributes = { ...sheet.attributes };
   for (const key of new Set([...Object.keys(build.raceBonus), ...Object.keys(bonus)])) {
     const delta = (bonus[key] ?? 0) - (build.raceBonus[key] ?? 0);
     if (delta) attributes[key] = Math.max(1, Math.min(30, (attributes[key] ?? 10) + delta));
   }
-  const next = { ...sheet, attributes, dnd: { ...build, race: raceKey, raceBonus: { ...bonus } } };
+  const next = withDnd({ ...sheet, attributes }, { race: raceKey, raceBonus: { ...bonus } });
   const speed = speedSquares(next);
   return speed ? { ...next, combat: { ...next.combat, speed } } : next;
 }
 
 export function changeClass(sheet: CharacterSheet, classKey: string): CharacterSheet {
-  return { ...sheet, dnd: { ...(sheet.dnd ?? emptyBuild()), class: classKey } };
+  return withDnd(sheet, { class: classKey });
 }
 
 /**
@@ -138,14 +156,11 @@ export function changeClass(sheet: CharacterSheet, classKey: string): CharacterS
  * an armor class left on "automático". Returns the same sheet when nothing changes.
  */
 export function syncDerived(sheet: CharacterSheet, level: number | null): CharacterSheet {
-  const build = sheet.dnd;
-  if (!build?.auto) return sheet;
+  const build = dndOf(sheet);
+  if (!build || !autoDerived(sheet)) return sheet;
   let next = sheet;
   const setResource = (key: string, max: number) => {
-    const res = next.resources[key];
-    if (!res || res.max === max) return;
-    const current = Math.max(0, Math.min(max, res.current + (max - res.max)));
-    next = { ...next, resources: { ...next.resources, [key]: { current, max } } };
+    next = setResourceMax(next, key, max);
   };
   const hp = hitPointMax(sheet, level);
   if (hp !== null) setResource("hp", hp);
@@ -202,7 +217,7 @@ export function buildSheet(system: SystemTemplate, choices: DndChoices, level = 
   const base = createSheet(system);
   const attributes = { ...base.attributes };
   for (const a of ABILITIES) attributes[a] = choices.baseScores[a];
-  let sheet: CharacterSheet = { ...base, attributes, dnd: { ...emptyBuild(), class: choices.class, background: choices.background, armor: choices.armor, shield: choices.shield } };
+  let sheet: CharacterSheet = withDnd({ ...base, attributes }, { class: choices.class, background: choices.background, armor: choices.armor, shield: choices.shield });
   sheet = changeRace(sheet, choices.race, raceBonusOf(choices.race, choices.raceChoices));
 
   const skills = { ...sheet.skills };
@@ -236,3 +251,27 @@ export function conceptOf(choices: Pick<DndChoices, "race" | "class">): string {
 }
 
 export const saveLabel = (ability: Ability) => `Resistência de ${ABILITY_LABEL[ability]}`;
+
+/* ---------- The module ---------- */
+
+export const dndRules: SystemRules = {
+  systemId: "dnd5e",
+  derived(system, sheet, level) {
+    const ac = armorClass(sheet);
+    const cls = classByKey(dndOf(sheet)?.class);
+    const race = raceByKey(dndOf(sheet)?.race);
+    const signed = (n: number) => (n >= 0 ? `+${n}` : `${n}`);
+    return [
+      { key: "ac", label: "CA", value: ac.value, hint: ac.explain },
+      { key: "initiative", label: "Iniciativa", value: signed(mod(sheet, "dex")) },
+      { key: "speed", label: "Desloc.", value: `${sheet.combat.speed * 5} ft`, hint: race ? `${race.label}: ${race.speed} ft` : undefined },
+      { key: "proficiency", label: "Proficiência", value: signed(proficiencyBonus(system, level)) },
+      { key: "passive", label: "Perc. passiva", value: passivePerception(system, sheet, level) },
+      { key: "hitdie", label: "Dado de vida", value: cls ? `${Math.max(1, level ?? 1)}d${cls.hitDie}` : "—" },
+    ];
+  },
+  sync: (_system, sheet, level) => syncDerived(sheet, level),
+  defense: (_system, sheet) => (dndOf(sheet) ? armorClass(sheet).value : null),
+  saves: (system, sheet, level) =>
+    ABILITIES.map((a) => ({ key: a, label: ABILITY_LABEL[a], request: { attributeKey: a, save: true }, proficient: saveProficient(sheet, a), value: saveBonus(system, sheet, level, a) })),
+};

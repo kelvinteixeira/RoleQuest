@@ -11,7 +11,7 @@ import {
   lightOf,
   PROP_BY_ID,
   PROPS,
-  TERRAINS,
+  terrainDef,
   trapOf,
   type Ambient,
   type MapDocument,
@@ -41,7 +41,7 @@ export function cellToWorld(doc: Pick<MapDocument, "cols" | "rows">, x: number, 
 /** Height of the walkable/visible top of a cell. */
 export function cellTop(doc: MapDocument, x: number, y: number): number {
   const i = cellIndex(doc, x, y);
-  const def = TERRAINS[doc.terrain[i]];
+  const def = terrainDef(doc.terrain[i]);
   const level = doc.elevation[i] * LEVEL;
   if (def.kind === "water") return WATER_LINE - (def.depth ?? 0.2);
   if (def.kind === "raised") return level + RAISED_HEIGHT + (def.flat ? 0 : cellNoise(x, y, 5) * 0.3);
@@ -50,7 +50,7 @@ export function cellTop(doc: MapDocument, x: number, y: number): number {
 
 /** Where a token or prop stands: the water surface for water cells. */
 export function cellStandY(doc: MapDocument, x: number, y: number): number {
-  const def = TERRAINS[doc.terrain[cellIndex(doc, x, y)]];
+  const def = terrainDef(doc.terrain[cellIndex(doc, x, y)]);
   return def.kind === "water" ? WATER_LINE : cellTop(doc, x, y);
 }
 
@@ -88,7 +88,7 @@ function Terrain({
     for (let y = 0; y < doc.rows; y++) {
       for (let x = 0; x < doc.cols; x++) {
         const i = cellIndex(doc, x, y);
-        const def = TERRAINS[doc.terrain[i]];
+        const def = terrainDef(doc.terrain[i]);
         const [wx, wz] = cellToWorld(doc, x, y);
         const top = cellTop(doc, x, y);
         const bodyH = top - TOP_THICKNESS - BASE_Y;
@@ -168,7 +168,7 @@ function Water({ doc }: { doc: MapDocument }) {
   useFrame((_, delta) => {
     if (material.current) material.current.uniforms.uTime.value += delta;
   });
-  const hasWater = doc.terrain.some((t) => TERRAINS[t].kind === "water");
+  const hasWater = doc.terrain.some((t) => terrainDef(t).kind === "water");
   if (!hasWater) return null;
   // One plane for the whole map: solid tiles rise above the water line and hide it.
   return (

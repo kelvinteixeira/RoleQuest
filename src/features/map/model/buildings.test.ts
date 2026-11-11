@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { BLUEPRINTS, buildStructure } from "./buildings";
-import { canCross, closedSides, createBlankMap, isBlocked, propsAt, terrainAt, type MapDocument } from "./map-document";
+import { canCross, closedSides, createBlankMap, isBlocked, propsAt, terrainAt, terrainDef, type MapDocument } from "./map-document";
 import { castleMap, villageMap } from "./templates";
 
 const propIds = (m: MapDocument) => m.props.map((p) => p.propId);
@@ -113,5 +113,17 @@ describe("fences on the lines of the grid", () => {
     expect(canCross(m, { x: 5, y: 8 }, { x: 5, y: 9 })).toBe(true);
     // Free to walk along the fence inside.
     expect(canCross(m, { x: 2, y: 4 }, { x: 2, y: 5 })).toBe(true);
+  });
+});
+
+describe("terrains this build does not know", () => {
+  it("are treated as grass instead of breaking the map", () => {
+    const m = createBlankMap(4, 4);
+    const odd = { ...m, terrain: m.terrain.map((t, i) => (i === 5 ? ("lava-from-the-future" as typeof t) : t)) };
+    expect(terrainAt(odd, 1, 1).id).toBe("grass");
+    expect(isBlocked(odd, 1, 1)).toBe(false);
+    expect(terrainDef(undefined).id).toBe("grass");
+    expect(terrainDef("constructor").id).toBe("grass");
+    expect(terrainDef("stone-wall").kind).toBe("raised");
   });
 });

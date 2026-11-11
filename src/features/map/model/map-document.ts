@@ -399,8 +399,17 @@ export function createBlankMap(cols = 30, rows = 20, base: TerrainId = "grass", 
   };
 }
 
+/**
+ * The terrain behind an id. A map may carry a terrain this build does not know
+ * (a member whose tab predates a deploy, a map saved by a newer version):
+ * it is drawn and walked as grass instead of breaking the table.
+ */
+export function terrainDef(id: string | undefined): TerrainDef {
+  return (id !== undefined && Object.hasOwn(TERRAINS, id) ? TERRAINS[id as TerrainId] : undefined) ?? TERRAINS.grass;
+}
+
 export function terrainAt(doc: MapDocument, x: number, y: number): TerrainDef {
-  return TERRAINS[doc.terrain[cellIndex(doc, x, y)]];
+  return terrainDef(doc.terrain[cellIndex(doc, x, y)]);
 }
 
 export function propsAt(doc: MapDocument, x: number, y: number): PlacedProp[] {
@@ -475,7 +484,7 @@ function opacityOf(doc: MapDocument): Uint8Array {
   let opaque = opacityCache.get(doc);
   if (!opaque) {
     opaque = new Uint8Array(doc.cols * doc.rows);
-    for (let i = 0; i < opaque.length; i++) if (TERRAINS[doc.terrain[i]]?.kind === "raised") opaque[i] = 1;
+    for (let i = 0; i < opaque.length; i++) if (terrainDef(doc.terrain[i]).kind === "raised") opaque[i] = 1;
     for (const p of doc.props) {
       if (!inBounds(doc, p.x, p.y)) continue;
       const def = PROP_BY_ID.get(p.propId);

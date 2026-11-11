@@ -43,9 +43,19 @@ Legenda: ✅ entregue · 🟡 parcial · ⬜ pendente
 - ✅ Camadas no editor (imagem de fundo, terreno, objetos, anotações do mestre) com ocultar e travar; ferramenta "Anotar" e anotações visíveis só para o mestre na mesa
 - ✅ Regras de combate por sistema a partir das fichas: aba Combate na ficha (defesa, armadura, deslocamento, ataques com alcance), ataque e defesa pela mecânica de cada sistema, iniciativa por sistema, inimigos e bots convertidos para a escala do sistema; PV sincronizados entre mesa e ficha; personagens de demonstração com fichas preenchidas
 - ✅ Dados 3D (rolam sobre a mesa a cada rolagem e mostram os valores) e efeitos sonoros sintetizados (dados, golpes, cura, portas, grades, armadilhas, fogo, passos, início de combate), com botão de silenciar
+- ✅ Construções no editor: arrastar um lote gera casa, taverna, templo, torre, castelo (com fortaleza e sala do trono), ruínas, praça ou fazenda, com piso, paredes, porta e mobília; terrenos novos (assoalho, calçamento, tapete, neve, parede de madeira, muralha de pedra); mapas prontos "Vilarejo da encruzilhada" e "Castelo do vale"
+- ✅ Mobília e itens de vila (17 peças: barril, mesa, cama, trono, poço, barraca de feira…) e objetos colocados um por clique, com giro antes de colocar; árvores, rochas e plantas mantêm o modo "Espalhar vários"
+- ✅ Cercas nas linhas da grade (e peça de canto): a casa fica livre e o token não atravessa o lado cercado
+- ✅ Personagens no mapa: NPCs da campanha, pessoas e criaturas posicionados no editor (só o mestre vê) viram tokens ao aplicar o mapa; reaplicar não traz de volta quem já entrou
+- ✅ Bestiário: 39 monstros prontos, do slime ao dragão ancião, com 32 modelos animados CC0; no editor (Personagens → Monstros) e na mesa (aba Mestre → Bestiário)
+- ✅ Criaturas grandes ocupam 2×2, 3×3 ou 4×4 casas: ninguém entra no espaço delas, não passam em vão estreito, alcance e distância medidos pela borda
 
-## Fase 4 — Comunicação ⬜
-Chat geral/privado/sistema/anotações, voz WebRTC (LiveKit), presença, sincronização em tempo real, central de áudio. Depende das etapas 2 e 3 da Fase 7.
+## Fase 4 — Comunicação ✅
+- ✅ Chat geral, privado e do sistema; anotações do mestre (entregues nas Fases 3 e 5)
+- ✅ Presença e sincronização em tempo real (Fase 7, etapa 2)
+- ✅ Central de áudio sincronizada: 16 trilhas generativas em quatro climas (calma, aventura, tensão e sombra, batalha) com reverb e instrumentos sintetizados; 18 ambientes em estéreo que se misturam (clima, natureza, lugares, ação e mistério); faixas próprias do mestre
+- ✅ Voz na mesa por WebRTC direto entre os navegadores (sem servidor de mídia; TURN opcional), com silenciar e indicador de quem fala
+- ✅ Vozes de personagem para o mestre: 11 filtros (gigante, goblin, fada, ancião, demônio, dragão, espectro, constructo, divindade, mensagem distante) trocados na hora, com mudança de tom por grãos alinhados em AudioWorklet e monitor para se ouvir
 
 ## Fase 5 — Ferramentas avançadas do mestre ✅
 - ✅ NPCs por campanha (`/campaign/[id]/gm`): descrição pública, notas secretas, fatos a revelar, atitude, aparência e bloco de combate que se adapta ao sistema
@@ -64,12 +74,12 @@ Os melhores momentos da campanha viram um episódio em vídeo que mistura cinema
 - ✅ Sem chaves, roteiro por regras e imagens de exemplo (tudo funciona para testar)
 - ⬜ Formato HQ para baixar (páginas em PNG/PDF), narração por voz e trilha sonora, compartilhar episódios com os jogadores
 
-## Fase 7 — Supabase 🟡
+## Fase 7 — Supabase ✅
 Antecipada para destravar a Fase 4. Guia de configuração em [SUPABASE.md](SUPABASE.md).
 - ✅ Etapa 1 — fundação: esquema Postgres com RLS espelhando `lib/permissions.ts`, gatilhos de proteção (dono da campanha, papéis, personagem vinculado) e funções (`join_campaign`, `invite_preview`, `new_invite_link`, `campaign_characters`, `known_npcs`, `username_taken`); Supabase Auth com e-mail e senha; repositórios Supabase para todos os contratos; troca por `NEXT_PUBLIC_DATA_SOURCE`; `npm run db:check` valida o esquema e 53 cenários de acesso (incluindo tentativas de burlar as regras) num Postgres em memória; redefinição de senha pelo link do e-mail (`/reset-password`); convites por link no lugar dos convites por e-mail (nenhum e-mail enviado)
 - ✅ Etapa 2 — mesa em tempo real: um cliente do mestre conduz a mesa (aplica tudo, salva no banco e escreve a visão de cada participante); jogadores recebem só o que podem ver (inimigos fora da visão do grupo, armadilhas ocultas, notas do mestre, rolagens secretas e sussurros alheios ficam com o mestre) e mandam pedidos que o mestre valida (mover o próprio personagem na sua vez, falar, sussurrar ao mestre, rolar, atacar, abrir portas, testes da ficha); dados sempre rolados pelo mestre; presença de quem está na mesa; co-mestre acompanha e pode assumir; tokens andam casa a casa pelo caminho; banner de turno ("Sua vez!"); dados 3D com arremesso, quiques, crítico dourado com faíscas e falha crítica; `db:check` com 88 cenários
-- ✅ Etapa 3a — mídia: imagens de mapa no Supabase Storage (todos os jogadores veem o desenho; imagens antigas sobem sozinhas quando o mestre abre a mesa); central de áudio sincronizada pela mesa ao vivo: 8 ambientes sintetizados que se misturam (chuva, tempestade, vento, fogueira, floresta, masmorra, taverna, mar), 6 trilhas generativas (exploração, tensão, combate, mistério, taverna, vitória), faixas próprias enviadas pelo mestre, volume da mesa e volume de cada pessoa
-- ⬜ Etapa 3b — voz LiveKit
+- ✅ Etapa 3a — mídia: imagens de mapa no Supabase Storage (todos os jogadores veem o desenho; imagens antigas sobem sozinhas quando o mestre abre a mesa); central de áudio sincronizada pela mesa ao vivo: ambientes sintetizados que se misturam e trilhas generativas (hoje 18 e 16; ver Fase 4), faixas próprias enviadas pelo mestre, volume da mesa e volume de cada pessoa
+- ✅ Etapa 3b — voz: canal de sinalização privado por campanha no Realtime (só membros entram); a chamada é WebRTC direto, sem LiveKit. `supabase/setup.sql` e `supabase/pending.sql` são gerados por `node scripts/build-sql.mjs`
 
 ## Como verificar cada entrega
 ```bash

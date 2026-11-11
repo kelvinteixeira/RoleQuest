@@ -105,4 +105,4 @@ A migração `20261108000000_map_images_and_audio.sql` cria dois buckets privado
 
 ## O que ainda fica no navegador
 
-- A voz (LiveKit) é a próxima etapa.
+- A voz usa WebRTC direto entre os navegadores; o Supabase só faz a sinalização (migração `20261110000000_voice_chat.sql`, já incluída em `setup.sql`). Para redes que bloqueiam conexões diretas, configure um TURN no `.env` (veja `.env.example`).

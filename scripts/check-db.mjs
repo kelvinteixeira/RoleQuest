@@ -285,6 +285,48 @@ await as(out, "fora@mesa.com", async () => {
   ok("outsiders can't send intents", !!send, send?.slice(0, 60));
 });
 
+// ---------- Sessions: marking one as played ----------
+// "Encerrar sessão" at the table: the GM marks the scheduled session as completed.
+const sid = await as(gm, "mestre@mesa.com", async () => {
+  const id = (await db.query(`insert into public.game_sessions (campaign_id, number, title, scheduled_at) values ($1, 1, 'A Ponte', now()) returning id`, [tid])).rows[0].id;
+  ok("the GM schedules a session", !!id);
+  return id;
+});
+const sessionStatus = async () => {
+  await db.exec(`reset role`);
+  return (await db.query(`select status from public.game_sessions where id = $1`, [sid])).rows[0].status;
+};
+const completeAs = async (id, email) => {
+  const err = await fails(async () => {
+    const r = await as(id, email, () => db.query(`update public.game_sessions set status = 'completed' where id = $1 returning id`, [sid]));
+    if (r.rows.length === 0) throw new Error("no rows updated (RLS)");
+  });
+  return { err, status: await sessionStatus() };
+};
+{
+  const r = await completeAs(p2, "bia@mesa.com");
+  ok("a player can't mark the session as played", !!r.err && r.status === "scheduled", r.err?.slice(0, 60));
+}
+{
+  const r = await completeAs(out, "fora@mesa.com");
+  ok("an outsider can't mark the session as played", !!r.err && r.status === "scheduled", r.err?.slice(0, 60));
+}
+await as(p2, "bia@mesa.com", async () => {
+  ok("players see the campaign's sessions", (await db.query(`select id from public.game_sessions where id = $1`, [sid])).rows.length === 1);
+  const add = await fails(() => db.query(`insert into public.game_sessions (campaign_id, number, title, scheduled_at) values ($1, 2, 'falsa', now())`, [tid]));
+  ok("players can't schedule sessions", !!add, add?.slice(0, 60));
+});
+{
+  const r = await completeAs(gm, "mestre@mesa.com");
+  ok("the GM marks the session as played", !r.err && r.status === "completed", r.err?.slice(0, 60));
+}
+await db.exec(`reset role`);
+const spyCampaign = (await db.query(`select id from public.campaigns where owner_id = $1`, [out])).rows[0].id;
+await as(gm, "mestre@mesa.com", async () => {
+  const moved = await fails(() => db.query(`update public.game_sessions set campaign_id = $2 where id = $1`, [sid, spyCampaign]));
+  ok("a GM can't move a session into someone else's campaign", !!moved, moved?.slice(0, 60));
+});
+
 // ---------- Chronicles Studio ----------
 const episode = await as(gm, "mestre@mesa.com", async () => {
   const id = (await db.query(`insert into public.chronicle_episodes (campaign_id, title, script, created_by) values ($1, 'A Ponte', '{"scenes": []}', $2) returning id`, [tid, gm])).rows[0].id;
@@ -310,6 +352,37 @@ await as(gm, "mestre@mesa.com", async () => {
 await as(out, "fora@mesa.com", async () => {
   const spend = await fails(() => db.query(`select public.spend_chronicle_quota($1, 'image')`, [tid]));
   ok("only the campaign's GMs spend its AI allowance", !!spend, spend?.slice(0, 60));
+});
+
+// Sharing: a published episode (and the files it uses) is visible to the campaign's players, read-only.
+const file = (ep, name) => `${tid}/${ep}/${name}`;
+const draft = await as(gm, "mestre@mesa.com", async () => {
+  const id = (await db.query(`insert into public.chronicle_episodes (campaign_id, title, images, created_by) values ($1, 'Rascunho', jsonb_build_object('sc', $1 || '/rascunho/sc.png'), $2) returning id`, [tid, gm])).rows[0].id;
+  await db.query(`update public.chronicle_episodes set images = jsonb_build_object('sc1', $2::text), voices = jsonb_build_object('sc1', jsonb_build_object('ref', $3::text, 'text', 'Era uma vez', 'seconds', 2)), published_at = now() where id = $1`, [episode, file(episode, "sc1.png"), file(episode, "voice_sc1.wav")]);
+  let voiced = 0;
+  for (let i = 0; i < 202; i++) if ((await db.query(`select public.spend_chronicle_quota($1, 'voice') as ok`, [tid])).rows[0].ok) voiced++;
+  ok("the narration allowance stops at 200 clips a day", voiced === 200, String(voiced));
+  return id;
+});
+await as(p2, "bia@mesa.com", async () => {
+  const seen = (await db.query(`select id from public.chronicle_episodes`)).rows.map((r) => r.id);
+  ok("players see the episodes the GM shared, and only those", seen.length === 1 && seen[0] === episode, seen.join(","));
+  const see = async (path) => (await db.query(`select public.can_see_chronicle_file($1) as ok`, [path])).rows[0].ok;
+  ok("players see the images and narration of a shared episode", (await see(file(episode, "sc1.png"))) && (await see(file(episode, "voice_sc1.wav"))));
+  ok("players can't fetch files of an unshared episode", (await see(`${tid}/rascunho/sc.png`)) === false);
+  ok("players can't fetch other files of the campaign's folder", (await see(file(episode, "char_isolde.png"))) === false);
+  await db.query(`update public.chronicle_episodes set published_at = null, title = 'Hackeado' where id = $1`, [episode]);
+  await db.query(`update public.chronicle_episodes set published_at = now() where id = $1`, [draft]);
+});
+await as(gm, "mestre@mesa.com", async () => {
+  const rows = (await db.query(`select id, title, published_at from public.chronicle_episodes where id in ($1, $2)`, [episode, draft])).rows;
+  const shared = rows.find((r) => r.id === episode);
+  ok("players can't unshare, edit or share episodes", !!shared?.published_at && shared.title === "A Ponte" && !rows.find((r) => r.id === draft)?.published_at);
+  ok("GMs see every file of their campaign", (await db.query(`select public.can_see_chronicle_file($1) as ok`, [`${tid}/rascunho/sc.png`])).rows[0].ok === true);
+});
+await as(out, "fora@mesa.com", async () => {
+  ok("outsiders see no shared episodes", (await db.query(`select id from public.chronicle_episodes`)).rows.length === 0);
+  ok("outsiders can't fetch a shared episode's files", (await db.query(`select public.can_see_chronicle_file($1) as ok`, [file(episode, "sc1.png")])).rows[0].ok === false);
 });
 
 // ---------- Audio library ----------

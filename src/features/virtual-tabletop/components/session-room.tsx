@@ -8,11 +8,13 @@ import { ArrowLeft, Bot, DoorOpen, Save, CloudFog, Crown, Dices, MapPinned, Mess
 import { toHexColor } from "@/lib/color";
 import { usePreferencesStore } from "@/stores/preferences.store";
 import { toast } from "@/stores/toast.store";
+import { toUserMessage } from "@/lib/errors";
 import { DiceTray, type TrayRoll } from "@/features/dice/components/dice-tray";
 import { useRoomSounds } from "../hooks/use-room-sounds";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/field";
 import { Badge } from "@/components/ui/primitives";
+import { Switch } from "@/components/ui/switch";
 import { Modal } from "@/components/ui/modal";
 import { Tabs } from "@/components/ui/tabs";
 import { ErrorState, LoadingState } from "@/components/feedback/states";
@@ -82,6 +84,7 @@ function Room({ overview, reloadOverview }: { overview: CampaignOverview; reload
   const [confirmReset, setConfirmReset] = useState(false);
   const [endOpen, setEndOpen] = useState(false);
   const [ending, setEnding] = useState(false);
+  const [markPlayed, setMarkPlayed] = useState(true);
   const router = useRouter();
   const [editing, setEditing] = useState(false);
   const isGM = overview.role === "game_master";
@@ -175,6 +178,8 @@ function Room({ overview, reloadOverview }: { overview: CampaignOverview; reload
   const bots = room.tokens.filter((t) => t.controller === "bot");
   const hasParty = room.tokens.some((t) => t.kind !== "enemy");
   const next = overview.upcomingSessions[0];
+  // The session being played: one under way, else the next scheduled one.
+  const playing = overview.currentSession ?? next ?? null;
   const canMove = restricted ? (token: { id: string }) => policy.playersCanMoveOwnToken && ownTokenIds.includes(token.id) : undefined;
   const access = !restricted ? "gm" : selected && ownTokenIds.includes(selected.id) ? "own" : "view";
   const requestCheck = actions.requestCheck;
@@ -198,10 +203,26 @@ function Room({ overview, reloadOverview }: { overview: CampaignOverview; reload
     }
     setBotsRunning(false);
     const ok = await sync.saveNow();
+    if (!ok) {
+      setEnding(false);
+      return toast.error("Não deu para salvar a mesa", "Verifique a conexão e tente de novo. Nada foi perdido nesta aba.");
+    }
+    // Only once the table is safely saved: the session goes to the campaign's history.
+    let played = false;
+    if (playing && markPlayed) {
+      try {
+        await campaignService.completeSession(campaignId, playing.id, user);
+        played = true;
+      } catch (error) {
+        toast.error(`A mesa foi salva, mas a sessão ${playing.number} não foi marcada como jogada`, toUserMessage(error));
+      }
+    }
     setEnding(false);
-    if (!ok) return toast.error("Não deu para salvar a mesa", "Verifique a conexão e tente de novo. Nada foi perdido nesta aba.");
     setEndOpen(false);
-    toast.success("Sessão encerrada e salva", "Mapa, itens, monstros, névoa e combate voltam assim na próxima sessão.");
+    toast.success(
+      played ? `Sessão ${playing!.number} jogada, mesa salva` : "Sessão encerrada e salva",
+      "Mapa, itens, monstros, névoa e combate voltam assim na próxima sessão.",
+    );
     router.push(`/campaign/${campaignId}`);
   }
 
@@ -464,6 +485,17 @@ function Room({ overview, reloadOverview }: { overview: CampaignOverview; reload
         </ul>
         {editing && <p className="mt-3 text-sm text-warning">O mapa aberto no editor será aplicado antes de salvar.</p>}
         {room.combat.active && <p className="mt-3 text-sm text-fg-muted">O combate continua na rodada {room.combat.round} quando vocês voltarem.</p>}
+        {playing && (
+          <div className="mt-4 border-t border-line pt-3">
+            <Switch
+              checked={markPlayed}
+              onChange={setMarkPlayed}
+              disabled={ending}
+              label={`Marcar a sessão ${playing.number} como jogada`}
+              description={`"${playing.title}" vai para o histórico da campanha e a próxima vira a sessão ${playing.number + 1}.`}
+            />
+          </div>
+        )}
       </Modal>
 
       <Modal

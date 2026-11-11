@@ -47,10 +47,14 @@ export interface ChronicleEpisode extends Timestamps {
   script: EpisodeScript | null;
   /** Image key (scene id or `char:<name>`) -> stored image reference. */
   images: Record<string, string>;
+  /** Recorded narration by scene id: the stored clip, the caption it reads (stale once the caption changes) and its length. */
+  voices: Record<string, { ref: string; text: string; seconds: number }>;
+  /** When the GM shared it with the campaign's players (null: GMs only). */
+  publishedAt: ISODateString | null;
   createdBy: ID | null;
 }
 
-export type ChronicleEpisodeInput = Pick<ChronicleEpisode, "campaignId" | "title" | "momentIds" | "script" | "images">;
+export type ChronicleEpisodeInput = Pick<ChronicleEpisode, "campaignId" | "title" | "momentIds" | "script" | "images" | "voices" | "publishedAt">;
 
 /** A moment of the campaign worth telling (from the journal), with how dramatic it was. */
 export interface ChronicleMoment {

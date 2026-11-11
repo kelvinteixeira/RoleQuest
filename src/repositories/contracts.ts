@@ -51,6 +51,8 @@ export interface CampaignRepository {
 export interface SessionRepository {
   listForCampaigns(campaignIds: ID[]): Promise<GameSession[]>;
   create(input: NewSessionInput): Promise<GameSession>;
+  /** Marks a session as played (GMs only); it moves to the campaign's history. */
+  complete(id: ID): Promise<GameSession>;
 }
 
 export interface InviteLinkRepository {
@@ -137,14 +139,16 @@ export interface AudioTrackRepository {
   file(ref: string): Promise<Blob | null>;
 }
 
-/** Chronicles Studio: episodes and their generated images. GMs only. */
+/** Chronicles Studio: episodes, their generated images and narration. GMs write; players read shared episodes. */
 export interface ChronicleRepository {
   listEpisodes(campaignId: ID): Promise<ChronicleEpisode[]>;
+  /** The episodes the GMs shared with the players, newest first. */
+  listShared(campaignId: ID): Promise<ChronicleEpisode[]>;
   getEpisode(id: ID): Promise<ChronicleEpisode | null>;
   createEpisode(input: ChronicleEpisodeInput, userId: ID): Promise<ChronicleEpisode>;
   updateEpisode(id: ID, patch: Partial<ChronicleEpisodeInput>): Promise<ChronicleEpisode>;
   removeEpisode(id: ID): Promise<void>;
-  /** Stores a generated image; returns the reference kept in the episode. */
+  /** Stores a generated image or narration clip; returns the reference kept in the episode. */
   putImage(campaignId: ID, episodeId: ID, key: string, blob: Blob): Promise<string>;
   /** null when the image no longer exists; throws when it can't be read right now. */
   getImage(ref: string): Promise<Blob | null>;

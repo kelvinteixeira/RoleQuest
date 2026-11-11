@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { AnimatePresence, motion } from "framer-motion";
-import { ArrowLeft, BookOpen, Clapperboard, DoorOpen, Film, PenLine, Plus, Sparkles, Wand2 } from "lucide-react";
+import { ArrowLeft, BookOpen, Clapperboard, DoorOpen, Film, PenLine, Plus, Sparkles, Users, Wand2 } from "lucide-react";
 import { Button, ButtonLink } from "@/components/ui/button";
 import { Input } from "@/components/ui/field";
 import { Badge, Card } from "@/components/ui/primitives";
@@ -84,6 +84,7 @@ export function ChroniclesStudio({ campaignId }: { campaignId: string }) {
                 >
                   <span className="flex items-center gap-1.5 text-sm font-medium">
                     <Film className="size-3.5 text-accent" /> <span className="truncate">{e.title}</span>
+                    {e.publishedAt && <Users className="ml-auto size-3.5 shrink-0 text-fg-subtle" aria-label="Compartilhado com os jogadores" />}
                   </span>
                   <span className="mt-0.5 block text-xs text-fg-subtle">
                     {e.script ? `${e.script.scenes.length} cenas · ${episodeSeconds(e.script)} s · ` : ""}
@@ -127,6 +128,7 @@ export function ChroniclesStudio({ campaignId }: { campaignId: string }) {
                   episode={open}
                   campaignName={data.overview.campaign.name}
                   imagesLive={data.ai.images}
+                  voiceLive={data.ai.voice}
                   onChange={(e) => setEpisodes(list.map((x) => (x.id === e.id ? e : x)))}
                   onDelete={async () => {
                     try {

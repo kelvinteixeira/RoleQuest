@@ -29,6 +29,8 @@ export const GeneratedScriptSchema = z.object({
 export type GeneratedScript = z.infer<typeof GeneratedScriptSchema>;
 
 export const SCENE_LIMIT = 16;
+/** Longest scene: the AI writes up to 9 s; editing or a long narration may stretch one to this. */
+export const SCENE_SECONDS_MAX = 12;
 const clip = (s: string, max: number) => s.trim().slice(0, max);
 
 /**

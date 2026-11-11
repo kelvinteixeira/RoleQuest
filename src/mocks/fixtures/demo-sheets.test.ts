@@ -58,9 +58,9 @@ describe("local database upgrade", () => {
     void _links;
     const stored = { ...withoutLinks, invites: [{ id: "inv" }], version: 1, characters: [edited, untouched] } as unknown as MockDatabase;
     const upgraded = upgradeDatabase(stored)!;
-    expect(upgraded.version).toBe(7);
+    expect(upgraded.version).toBe(8);
     expect(upgraded.audioTracks).toEqual([]);
-    expect(upgraded.episodes).toEqual([]);
+    expect(upgraded.episodes.map((e) => e.id)).toEqual(["ep_lamina_1"]);
     expect(upgraded.maps).toEqual([]);
     // Every campaign gets an invite link, like the database migration backfill.
     expect(upgraded.inviteLinks.map((l) => l.campaignId).sort()).toEqual(seed.campaigns.map((c) => c.id).sort());
@@ -69,8 +69,18 @@ describe("local database upgrade", () => {
     expect(upgraded.characters[1].sheet!.attributes.str).toBe(17);
   });
 
+  it("v7 → v8 gives old episodes narration and sharing fields, and adds the shared demo episode once", () => {
+    const old = { id: "ep_old", campaignId: "c_valdrith", title: "Velho", momentIds: [], script: null, images: {}, createdBy: null, createdAt: "2026-01-01", updatedAt: "2026-01-01" };
+    const upgraded = upgradeDatabase({ ...seed, version: 7, episodes: [old] } as unknown as MockDatabase)!;
+    expect(upgraded.version).toBe(8);
+    expect(upgraded.episodes.find((e) => e.id === "ep_old")).toMatchObject({ voices: {}, publishedAt: null });
+    expect(upgraded.episodes.filter((e) => e.publishedAt).map((e) => e.campaignId)).toEqual(["c_lamina"]);
+    const again = upgradeDatabase({ ...upgraded, version: 7 })!;
+    expect(again.episodes).toHaveLength(2);
+  });
+
   it("leaves the current version alone and gives up on unknown ones", () => {
-    const current = { ...seed, version: 7 } as MockDatabase;
+    const current = { ...seed, version: 8 } as MockDatabase;
     expect(upgradeDatabase(current)).toBe(current);
     expect(upgradeDatabase({ ...seed, version: 0 } as MockDatabase)).toBeNull();
   });

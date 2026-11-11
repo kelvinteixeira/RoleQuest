@@ -16,6 +16,7 @@
     "@google/genai": "2.30.0",
     "@react-three/drei": "^10.7.9",
     "@react-three/fiber": "^9.8.2",
+    "@remotion/media": "4.0.537",
     "@remotion/player": "4.0.537",
     "@remotion/web-renderer": "4.0.537",
     "@supabase/supabase-js": "2.118.0",

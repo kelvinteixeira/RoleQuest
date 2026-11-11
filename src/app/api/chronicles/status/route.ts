@@ -5,5 +5,5 @@ import { aiRoutesEnabled } from "@/server/chronicles/auth";
 export async function GET() {
   await connection();
   const on = aiRoutesEnabled();
-  return Response.json({ script: on && !!process.env.ANTHROPIC_API_KEY, images: on && !!process.env.GEMINI_API_KEY });
+  return Response.json({ script: on && !!process.env.ANTHROPIC_API_KEY, images: on && !!process.env.GEMINI_API_KEY, voice: on && !!process.env.GEMINI_API_KEY });
 }

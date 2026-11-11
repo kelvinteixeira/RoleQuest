@@ -179,6 +179,8 @@ Regras:
 - Rotas de servidor `app/api/chronicles/{script,image,status}`: Claude (saída estruturada validada pelo mesmo esquema) e Gemini (imagens com referências de personagem); chaves só no servidor; só mestres da campanha (token do Supabase conferido no servidor).
 - `services/chronicles.service.ts` orquestra: momentos, roteiro, retratos, quadros e salvamento a cada imagem (`ChronicleRepository`: tabela `chronicle_episodes` e bucket privado `chronicles`).
 - `features/chronicles/video/episode-video.tsx`: composição Remotion usada no player e na exportação no navegador (`@remotion/web-renderer`), presa ao que a renderização no cliente suporta (sem z-index, gradientes lineares, fontes do sistema, SVG como imagem).
+- Som: `model/audio-mix.ts` (tempos das cenas compartilhados com o vídeo, partitura por clima, janelas de fala e volume da música que abaixa sob o narrador e os balões) e `audio/synth.ts` (a trilha renderizada num `OfflineAudioContext` e guardada como WAV). Música e narração gravada tocam pelo `<Audio>` do `@remotion/media`, o único que a exportação no navegador mistura no MP4. A narração vem da rota `app/api/chronicles/voice` (Gemini TTS, opcional); sem ela, o player lê os recordatórios com a Web Speech API (só na prévia).
+- Compartilhar: `published_at` no episódio. O RLS deixa membros lerem episódios compartilhados, e `can_see_chronicle_file` libera no Storage só as imagens e narrações que eles usam. Os jogadores assistem em `/campaign/[id]/episodes` (`shared-episodes.tsx`).
 
 ### Central de áudio
 - O som da mesa é estado da sala (`room.audio`: trilha atual e camadas de ambiente), mudado por eventos `audio.music`, `audio.layer` (uma camada por vez, para dois mestres não desfazerem um ao outro) e `audio.ambience` (silêncio) — só mestres. Ele viaja nas visões como o resto, então todos tocam o mesmo: cada navegador sincroniza o próprio alto-falante (`features/audio-engine/mixer.ts`).
@@ -205,7 +207,7 @@ Regras:
 ### Chronicles Studio (Fase 6)
 - Fonte: log de eventos da sessão (`SessionEvent`) + momentos épicos marcados pelo mestre.
 - Roteiro gerado a partir dos eventos reais; IA (futura) só reorganiza/redige — **não inventa decisões ou falas dos jogadores**.
-- Episódio = timeline de cenas (`EpisodeScene`) serializável → composição Remotion. Render em servidor/worker, saída 1920×1080 e 1080×1920.
+- Episódio = timeline de cenas (`EpisodeScene`) serializável → composição Remotion, renderizada no navegador (1920×1080).
 - Captura de voz exige consentimento explícito de cada participante, registrado por sessão.
 
 ### IA narrativa (futuro)

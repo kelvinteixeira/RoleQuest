@@ -5,6 +5,7 @@
  */
 import type { Campaign, CampaignMember, GameSession, InviteLink } from "@/types/campaign";
 import type { ChronicleEpisode } from "@/types/chronicle";
+import { seedEpisodes } from "./episodes";
 import type { AudioTrack } from "@/features/audio-engine/catalog";
 import type { Character } from "@/types/character";
 import type { LibraryAsset } from "@/types/library";
@@ -558,5 +559,5 @@ export function createSeed(now: Date = new Date()): MockSeed {
   ];
 
   const inviteLinks: InviteLink[] = campaigns.map((c) => ({ campaignId: c.id, code: crypto.randomUUID().replace(/-/g, ""), createdAt: c.createdAt }));
-  return { users, campaigns, sessions, inviteLinks, episodes: [], audioTracks: [], characters: characters.map(withDemoSheet), library, customSystems: [], maps: [], ...seedGmTools(now) };
+  return { users, campaigns, sessions, inviteLinks, episodes: seedEpisodes(now), audioTracks: [], characters: characters.map(withDemoSheet), library, customSystems: [], maps: [], ...seedGmTools(now) };
 }

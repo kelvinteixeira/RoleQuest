@@ -169,6 +169,14 @@ const sessions: SessionRepository = {
     commit();
     return respond(session);
   },
+  async complete(id) {
+    const db = getDb();
+    const index = db.sessions.findIndex((s) => s.id === id);
+    if (index < 0) throw new AppError("not_found");
+    db.sessions[index] = { ...db.sessions[index], status: "completed", updatedAt: nowIso() };
+    commit();
+    return respond(db.sessions[index]);
+  },
 };
 
 /** A v4 UUID without dashes, like the database default. */
@@ -407,6 +415,9 @@ const chronicles: ChronicleRepository = {
   async listEpisodes(campaignId) {
     return respond(getDb().episodes.filter((e) => e.campaignId === campaignId).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)));
   },
+  async listShared(campaignId) {
+    return respond(getDb().episodes.filter((e) => e.campaignId === campaignId && e.publishedAt).sort((a, b) => b.publishedAt!.localeCompare(a.publishedAt!)));
+  },
   async getEpisode(id) {
     return respond(getDb().episodes.find((e) => e.id === id) ?? null);
   },
@@ -430,7 +441,7 @@ const chronicles: ChronicleRepository = {
     const episode = db.episodes.find((e) => e.id === id);
     db.episodes = db.episodes.filter((e) => e.id !== id);
     commit();
-    await Promise.all(Object.values(episode?.images ?? {}).map((ref) => mockImages.remove?.(ref)));
+    await Promise.all([...Object.values(episode?.images ?? {}), ...Object.values(episode?.voices ?? {}).map((v) => v.ref)].map((ref) => mockImages.remove?.(ref)));
     return respond(undefined);
   },
   // Images stay in this browser (IndexedDB), like imported map images.

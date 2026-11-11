@@ -46,6 +46,11 @@ export interface RoomSync {
   send: (intent: RoomIntent) => void;
   /** GMs: run the table from this client (the other host becomes a guest). */
   takeOver: () => void;
+  /**
+   * Saves the table now (map, tokens, monsters, fog, combat, chat…) and resolves once it is stored:
+   * in the backend when hosting, on this device in local mode. False when it could not be saved.
+   */
+  saveNow: () => Promise<boolean>;
 }
 
 type Member = CampaignOverview["members"][number];
@@ -130,6 +135,8 @@ export function useRoomSync(
   const [online, setOnline] = useState<RoomPresenceEntry[]>([]);
   const [epoch, setEpoch] = useState(0);
   const takeoverNext = useRef(false);
+  // The running host's immediate save (null when this client does not host).
+  const hostSave = useRef<(() => Promise<boolean>) | null>(null);
 
   // Latest props for long-lived handlers.
   const latest = useRef({ overview, options });
@@ -239,15 +246,28 @@ export function useRoomSync(
           writing = writing.then(publish).catch((e) => console.warn("Mesa: publicar", e));
         }, PUBLISH_MS);
       };
+      const saveRoom = async (): Promise<boolean> => {
+        const room = store().rooms[campaignId];
+        if (!room || !hosting) return false;
+        try {
+          const ok = await repo!.saveState(campaignId, client, room);
+          if (!ok) lost();
+          return ok;
+        } catch (e) {
+          console.warn("Mesa: falha ao salvar", e);
+          return false;
+        }
+      };
       const save = () => {
         saveTimer = null;
-        const room = store().rooms[campaignId];
-        if (!room || !hosting) return;
-        void repo!
-          .saveState(campaignId, client, room)
-          .then((ok) => !ok && lost())
-          .catch((e) => console.warn("Mesa: falha ao salvar", e));
+        void saveRoom();
       };
+      hostSave.current = () => {
+        if (saveTimer) clearTimeout(saveTimer);
+        saveTimer = null;
+        return saveRoom();
+      };
+      stops.push(() => (hostSave.current = null));
       const scheduleSave = () => {
         if (saveTimer) clearTimeout(saveTimer);
         saveTimer = setTimeout(save, SAVE_MS);
@@ -528,6 +548,11 @@ export function useRoomSync(
     takeOver: () => {
       takeoverNext.current = true;
       setEpoch((e) => e + 1);
+    },
+    saveNow: async () => {
+      // Local mode: the store writes every change to this device as it happens.
+      if (mode === "local") return !!useRoomStore.getState().rooms[campaignId];
+      return hostSave.current ? hostSave.current() : false;
     },
   };
 }

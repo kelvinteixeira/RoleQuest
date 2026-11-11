@@ -5,6 +5,14 @@
  */
 import type { RoomToken } from "./types";
 
+export interface BodyPart {
+  bone: string;
+  shape: "rock" | "muzzle" | "tail";
+  at: [number, number, number];
+  size: number;
+  color?: string;
+}
+
 export type AnimationRole = "idle" | "walk" | "attack" | "cast" | "hit" | "death" | "cheer";
 
 export interface CharacterModel {
@@ -25,6 +33,23 @@ export interface CharacterModel {
   hover?: number;
   /** Squares per side a creature with this body takes unless its token says otherwise (2 = large, 3 = huge). */
   size?: number;
+  /** New flat colours by material name, so one body can make several creatures. */
+  recolor?: Record<string, string>;
+  /** Materials that glow in this colour (eyes). */
+  glow?: Record<string, string>;
+  /** Materials to hide (pupils, a tongue…). */
+  hideMaterials?: string[];
+  /** Bones shrunk to nothing, dropping what hangs off them (wings, a club held in the fingers). */
+  collapse?: string[];
+  /** Procedural motion layered over the clips, for bodies whose own idle barely moves. */
+  motion?: "jelly" | "hop" | "bob" | "trot";
+  /** Flat-shaded facets: smooth hide reads as carved stone. */
+  faceted?: boolean;
+  /**
+   * Extra pieces fixed to bones, which then move with them: rocks on a golem's shoulders,
+   * a wolf's muzzle and tail. `at` and `size` are fractions of the body's height (x, feet-up y, front z).
+   */
+  parts?: BodyPart[];
 }
 
 const KAYKIT_BASE: CharacterModel["animations"] = {
@@ -44,6 +69,11 @@ const ROGUE_BLADES = ["Knife", "Knife_Offhand"];
 const ROGUE_RANGED = ["1H_Crossbow", "2H_Crossbow"];
 
 const base = "/assets/characters/";
+
+/* Monsters: Ultimate Monsters Bundle by Quaternius. Three rigs share their animation names. */
+const BLOB_RIG: CharacterModel["animations"] = { idle: "Idle", walk: "Walk", attack: "Bite_Front", cast: "Bite_Front", hit: "HitRecieve", death: "Death", cheer: "Dance" };
+const FLYER_RIG: CharacterModel["animations"] = { idle: "Flying_Idle", walk: "Fast_Flying", attack: "Headbutt", cast: "Punch", hit: "HitReact", death: "Death" };
+const BIPED_RIG: CharacterModel["animations"] = { idle: "Idle", walk: "Walk", attack: "Punch", cast: "Weapon", hit: "HitReact", death: "Death", cheer: "Wave" };
 
 export const CHARACTER_MODELS: readonly CharacterModel[] = [
   { id: "warrior", label: "Guerreiro", group: "hero", file: `${base}knight.glb`, height: 1, hide: KNIGHT_SPARE, animations: KAYKIT_BASE },
@@ -111,14 +141,46 @@ export const CHARACTER_MODELS: readonly CharacterModel[] = [
     hide: [],
     animations: { idle: "Bat_Flying", walk: "Bat_Flying", attack: "Bat_Attack", hit: "Bat_Attack", death: "Bat_Die" },
   },
-  { id: "wolf", label: "Lobo", group: "creature", file: `${base}wolf.glb`, height: 0.55, hide: [], animations: {} },
-  { id: "werewolf", label: "Lobisomem", group: "creature", file: `${base}wolf.glb`, height: 0.85, hide: [], animations: {}, tint: "#5a4636" },
+  {
+    id: "villager",
+    label: "Aldeão",
+    group: "hero",
+    file: `${base}rogue.glb`,
+    height: 0.95,
+    hide: [...ROGUE_BLADES, ...ROGUE_RANGED, "Throwable", "Rogue_Cape"],
+    animations: KAYKIT_BASE,
+    tint: "#d8c39a",
+  },
+  {
+    id: "innkeeper",
+    label: "Taverneiro",
+    group: "hero",
+    file: `${base}barbarian.glb`,
+    height: 1,
+    hide: ["1H_Axe_Offhand", "Barbarian_Round_Shield", "1H_Axe", "2H_Axe", "Barbarian_Hat", "Barbarian_Cape"],
+    animations: KAYKIT_BASE,
+    tint: "#f0dcc0",
+  },
+  { id: "wolf", label: "Lobo", group: "creature", file: `${base}wolf.glb`, height: 0.55, hide: [], animations: {}, motion: "trot" },
+  {
+    // A hunched, pointy-eared beast: the blue demon's body in dark fur, club dropped, eyes burning.
+    id: "werewolf",
+    label: "Lobisomem",
+    group: "creature",
+    file: `${base}monsters/blue-demon.glb`,
+    height: 1.1,
+    hide: [],
+    animations: BIPED_RIG,
+    recolor: { BlueDemon_Main: "#4b3d33", BlueDemon_Secondary: "#9c8a72" },
+    glow: { Straps: "#ffae00" },
+    hideMaterials: ["Wood"],
+    collapse: ["Middle1.L"],
+    parts: [
+      { bone: "Head", shape: "muzzle", at: [0, 0.67, 0.21], size: 0.26, color: "#3e3129" },
+      { bone: "Hips", shape: "tail", at: [0, 0.32, -0.14], size: 0.4, color: "#3a2e26" },
+    ],
+  },
 ];
-
-/* Monsters: Ultimate Monsters Bundle by Quaternius. Three rigs share their animation names. */
-const BLOB_RIG: CharacterModel["animations"] = { idle: "Idle", walk: "Walk", attack: "Bite_Front", cast: "Bite_Front", hit: "HitRecieve", death: "Death", cheer: "Dance" };
-const FLYER_RIG: CharacterModel["animations"] = { idle: "Flying_Idle", walk: "Fast_Flying", attack: "Headbutt", cast: "Punch", hit: "HitReact", death: "Death" };
-const BIPED_RIG: CharacterModel["animations"] = { idle: "Idle", walk: "Walk", attack: "Punch", cast: "Weapon", hit: "HitReact", death: "Death", cheer: "Wave" };
 
 const monster = (id: string, label: string, height: number, animations: CharacterModel["animations"], extra: Partial<CharacterModel> = {}): CharacterModel => ({
   id,
@@ -132,37 +194,64 @@ const monster = (id: string, label: string, height: number, animations: Characte
 });
 
 export const MONSTER_MODELS: readonly CharacterModel[] = [
-  monster("pink-slime", "Slime rosa", 0.5, BLOB_RIG),
-  monster("green-blob", "Gosma verde", 0.55, BLOB_RIG),
-  monster("green-spiky-blob", "Gosma espinhosa", 0.75, BLOB_RIG),
-  monster("mushnub", "Cogumelo", 0.6, BLOB_RIG),
-  monster("mushnub-evolved", "Cogumelo ancião", 0.85, BLOB_RIG),
+  monster("pink-slime", "Slime rosa", 0.5, BLOB_RIG, { motion: "jelly" }),
+  monster("green-blob", "Gosma verde", 0.55, BLOB_RIG, { motion: "jelly" }),
+  monster("green-spiky-blob", "Gosma espinhosa", 0.75, BLOB_RIG, { motion: "jelly" }),
+  monster("mushnub", "Cogumelo", 0.6, BLOB_RIG, { motion: "hop" }),
+  monster("mushnub-evolved", "Cogumelo ancião", 0.85, BLOB_RIG, { motion: "hop" }),
   monster("mushroom-king", "Rei Cogumelo", 1, BIPED_RIG, { size: 2 }),
   monster("frog", "Homem-sapo", 0.9, BIPED_RIG),
-  monster("cactoro", "Cacto vivo", 0.8, BLOB_RIG),
+  monster("cactoro", "Cacto vivo", 0.8, BLOB_RIG, { motion: "bob" }),
   monster("cactoro-big", "Cacto guerreiro", 1.05, BIPED_RIG),
   monster("armabee", "Abelha blindada", 0.6, FLYER_RIG),
   monster("armabee-evolved", "Vespa rainha", 0.8, FLYER_RIG),
-  monster("squidle", "Lula flutuante", 0.7, FLYER_RIG),
+  // Wingless and hornless in sea blue, so it no longer reads as a twin of the imp.
+  monster("squidle", "Lula flutuante", 0.7, FLYER_RIG, {
+    recolor: { Squidle_Main: "#3f7fc4", Tongue: "#e2869a" },
+    hideMaterials: ["Squidle_Horn", "Squidle_Secondary"],
+    collapse: ["Wing1.L", "Wing1.R"],
+  }),
   monster("glub", "Peixe-diabo", 0.65, FLYER_RIG),
   monster("glub-evolved", "Peixe-diabo ancião", 0.95, FLYER_RIG),
   monster("hywirl", "Elemental do vento", 0.95, FLYER_RIG),
   monster("ghost", "Fantasma", 0.95, FLYER_RIG),
   monster("ghost-skull", "Espectro caveira", 1, FLYER_RIG),
   monster("tribal", "Espírito tribal", 1, FLYER_RIG),
-  monster("wizard", "Bruxo", 0.9, BLOB_RIG),
-  monster("orc-enemy", "Orc batedor", 0.9, BLOB_RIG),
+  monster("wizard", "Bruxo", 0.9, BLOB_RIG, { motion: "bob" }),
+  monster("orc-enemy", "Orc batedor", 0.9, BLOB_RIG, { motion: "bob" }),
   monster("orc", "Orc guerreiro", 1.1, BIPED_RIG),
   monster("goleling", "Golem menor", 0.7, FLYER_RIG),
-  monster("goleling-evolved", "Golem", 0.95, FLYER_RIG, { size: 2 }),
-  monster("yeti", "Yeti filhote", 0.8, BLOB_RIG),
+  monster("goleling-evolved", "Golem alado", 0.95, FLYER_RIG, { size: 2 }),
+  {
+    // The big yeti's hulking body turned to stone: grey hide, slate hands, burning eyes, boulders on the shoulders.
+    ...monster("stone-golem", "Golem de pedra", 1.05, BIPED_RIG, { size: 2 }),
+    file: `${base}monsters/yeti-big.glb`,
+    recolor: { Yeti_Main: "#8d877d", Yeti_Secondary: "#66625a", Yeti_Teeth: "#4a4741" },
+    glow: { Eye_White: "#ff7a1a" },
+    hideMaterials: ["Eye_Black", "Tongue"],
+    faceted: true,
+    parts: [
+      { bone: "UpperArm.L", shape: "rock", at: [0.22, 0.64, -0.08], size: 0.2 },
+      { bone: "UpperArm.R", shape: "rock", at: [-0.22, 0.64, -0.08], size: 0.2 },
+      { bone: "Torso", shape: "rock", at: [0, 0.54, -0.2], size: 0.26 },
+      { bone: "LowerArm.L", shape: "rock", at: [0.36, 0.4, -0.06], size: 0.12 },
+      { bone: "LowerArm.R", shape: "rock", at: [-0.36, 0.4, -0.06], size: 0.12 },
+    ],
+  },
+  monster("yeti", "Yeti filhote", 0.8, BLOB_RIG, { motion: "bob" }),
   monster("yeti-big", "Yeti", 1, BIPED_RIG, { size: 2 }),
   monster("demon", "Diabrete", 0.7, FLYER_RIG),
   monster("demon-big", "Demônio", 1, BIPED_RIG, { size: 2 }),
   monster("blue-demon", "Demônio azul", 1, BIPED_RIG, { size: 2 }),
   monster("dino", "Dinossauro", 1.1, BIPED_RIG),
   monster("monkroose", "Fera chifruda", 1.1, BIPED_RIG),
-  monster("dragon", "Dragão jovem", 0.85, FLYER_RIG, { size: 2 }),
+  monster("dragon", "Dragãozinho", 0.7, FLYER_RIG),
+  {
+    // The adult's whole body (the small dragon is little more than a winged head), younger in green.
+    ...monster("dragon-young", "Dragão jovem", 0.85, FLYER_RIG, { size: 2 }),
+    file: `${base}monsters/dragon-evolved.glb`,
+    recolor: { Dragon_Main: "#4f9447", Dragon_Secondary: "#d9b45a", Dragon_Horn: "#e9e1cc" },
+  },
   monster("dragon-evolved", "Dragão", 0.9, FLYER_RIG, { size: 3 }),
 ];
 
@@ -183,7 +272,7 @@ export function defaultModelId(token: Pick<RoomToken, "kind" | "concept" | "name
   const rules: [RegExp, string][] = [
     [/dragão|dragao|wyrm/, "dragon-evolved"],
     [/slime|gosma|geleia/, "pink-slime"],
-    [/golem|constructo/, "goleling-evolved"],
+    [/golem|constructo/, "stone-golem"],
     [/demôni|demoni|diabo/, "demon-big"],
     [/fantasma|espectro|assombra/, "ghost"],
     [/orc|ogro|troll|goblin/, "orc"],

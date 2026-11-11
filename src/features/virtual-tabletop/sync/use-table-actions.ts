@@ -6,6 +6,7 @@ import type { CheckRequest } from "@/features/character-sheet/model/checks";
 import { toast } from "@/stores/toast.store";
 import { useRoomActions, type RoomActions } from "../hooks/use-room-actions";
 import type { Author, RoomEvent } from "../model/types";
+import { useRoomStore } from "../store/room.store";
 import type { RoomSync } from "./use-room-sync";
 
 const SHEET_INTENT_MS = 700;
@@ -20,8 +21,9 @@ export type TableActions = RoomActions & {
  * The actions the table offers to this client:
  * - host or local mode: the GM's actions, applied here;
  * - a GM following someone else's table: the same actions, forwarded to the host;
- * - a player: the few things a player does (move, talk, roll, attack, doors,
- *   sheet checks), sent to the host as intents it validates.
+ * - a player: talks, rolls, attacks and checks with their character, and pings
+ *   where they want to go; the map, scene, sound and tokens stay with the GM.
+ *   At a hosted table these go to the host as intents it validates.
  */
 export function useTableActions(campaignId: string, author: Author, sync: RoomSync, isGM: boolean): TableActions {
   const forwarding = sync.mode === "guest" && isGM;
@@ -39,27 +41,19 @@ export function useTableActions(campaignId: string, author: Author, sync: RoomSy
   const sheetTimers = useRef(new Map<string, ReturnType<typeof setTimeout>>());
 
   return useMemo(() => {
-    if (isGM || sync.mode !== "guest") return gmActions;
-    const send: RoomSync["send"] = (intent) => sendRef.current(intent);
+    if (isGM) return gmActions;
     const gmOnly = (): undefined => void toast.info("Só o mestre faz isso.");
-    const validFormula = (formula: string) => {
-      try {
-        parseFormula(formula);
-        return true;
-      } catch (error) {
-        toast.error("Fórmula de dados inválida", error instanceof DiceFormulaError ? error.message : formula);
-        return false;
-      }
-    };
+    const askGm = () => void toast.info("O mestre move os personagens", "Clique no chão para marcar aonde quer ir.");
 
-    const player: TableActions = {
+    // A player never handles the map, the scene, the sound or anyone's token: that is the GM's table.
+    const locked: TableActions = {
       ...gmActions,
-      // GM tools do nothing here (the UI hides them anyway).
       addTokens: gmOnly,
       post: () => "",
       setAmbient: gmOnly,
       setTokenLight: gmOnly,
       toggleLight: gmOnly,
+      toggleDoor: () => void toast.info("Só o mestre mexe no mapa", "Peça no chat para abrir a porta."),
       setDoorLocked: gmOnly,
       updateTrap: gmOnly,
       configureFog: gmOnly,
@@ -67,8 +61,6 @@ export function useTableActions(campaignId: string, author: Author, sync: RoomSy
       hideCells: gmOnly,
       revealAll: gmOnly,
       hideAll: gmOnly,
-      setRules: () => undefined,
-      syncSheets: async () => undefined,
       setAppearance: gmOnly,
       replaceMap: gmOnly,
       adjustHp: gmOnly,
@@ -85,10 +77,35 @@ export function useTableActions(campaignId: string, author: Author, sync: RoomSy
       setAmbience: gmOnly,
       setLayer: gmOnly,
       silence: gmOnly,
+      moveToken: askGm,
+      // Only their own ping comes off.
+      clearPing: (pingId) => {
+        const mine = useRoomStore.getState().rooms[campaignId]?.pings?.find((p) => p.id === pingId && p.author.id === author.id);
+        if (mine) gmActions.clearPing(pingId);
+      },
+    };
+    // Local mode: this browser runs the table, so what a player may do applies here.
+    if (sync.mode !== "guest") return locked;
+
+    const send: RoomSync["send"] = (intent) => sendRef.current(intent);
+    const validFormula = (formula: string) => {
+      try {
+        parseFormula(formula);
+        return true;
+      } catch (error) {
+        toast.error("Fórmula de dados inválida", error instanceof DiceFormulaError ? error.message : formula);
+        return false;
+      }
+    };
+
+    const player: TableActions = {
+      ...locked,
+      setRules: () => undefined,
+      syncSheets: async () => undefined,
       forgetSheet: () => undefined,
 
-      moveToken: (token, cell) => void send({ kind: "move", tokenId: token.id, x: cell.x, y: cell.y }),
-      toggleDoor: (propId) => void send({ kind: "door", propId }),
+      ping: (cell) => void send({ kind: "ping", x: cell.x, y: cell.y }),
+      clearPing: () => void send({ kind: "unping" }),
       attackWith: (attacker, target, attackId) => void send({ kind: "attack", attackerId: attacker.id, targetId: target.id, attackId }),
       rollDice: (formula, options = {}) => {
         const clean = formula.replace(/\s+/g, "");
@@ -119,5 +136,5 @@ export function useTableActions(campaignId: string, author: Author, sync: RoomSy
       },
     };
     return player;
-  }, [gmActions, isGM, sync.mode]);
+  }, [gmActions, isGM, sync.mode, campaignId, author.id]);
 }

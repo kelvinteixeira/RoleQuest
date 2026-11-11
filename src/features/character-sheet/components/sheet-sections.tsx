@@ -9,6 +9,8 @@ import type { CharacterSheet, CustomFieldValue } from "@/types/character";
 import type { SystemTemplate } from "@/types/system";
 import { attributeModifier, carriedWeight, newAbility, newItem, usesScoreModifier } from "../model/sheet";
 import { skillUsesAttribute, type CheckRequest } from "../model/checks";
+import { classOf, growthHint } from "@/features/systems/rules/generic";
+import { autoDerived } from "@/features/systems/rules/build";
 
 export interface SectionProps {
   system: SystemTemplate;
@@ -91,6 +93,8 @@ export const textInput =
 /* ---------- Attributes, resources, conditions ---------- */
 
 export function AttributesSection({ system, sheet, readOnly, update, onCheck }: SectionProps) {
+  const cls = classOf(system, sheet);
+  const grows = !!cls?.resourceGrowth && Object.keys(cls.resourceGrowth).length > 0;
   const groups = system.attributes.reduce<Record<string, typeof system.attributes>>((acc, a) => {
     (acc[a.group ?? "Atributos"] ??= []).push(a);
     return acc;
@@ -128,9 +132,20 @@ export function AttributesSection({ system, sheet, readOnly, update, onCheck }: 
         </SheetSection>
       ))}
 
-      <SheetSection title="Recursos">
+      <SheetSection
+        title="Recursos"
+        action={
+          grows && (
+            <label className="flex items-center gap-1.5 text-[11px] text-fg-subtle" title="Os máximos seguem a classe e o nível">
+              <input type="checkbox" disabled={readOnly} checked={autoDerived(sheet)} onChange={(e) => update((s) => ({ ...s, autoDerived: e.target.checked }))} className="accent-[var(--color-accent-solid)]" />
+              Automático pela classe
+            </label>
+          )
+        }
+      >
         <div className="flex flex-col gap-3">
           {system.resources.map((r) => {
+            const classHint = cls ? growthHint(system, cls, r.key) : null;
             const res = sheet.resources[r.key] ?? { current: r.defaultMax, max: r.defaultMax };
             const set = (patch: Partial<typeof res>) =>
               update((s) => {
@@ -143,7 +158,13 @@ export function AttributesSection({ system, sheet, readOnly, update, onCheck }: 
               <div key={r.key} className="flex items-center gap-3">
                 <div className="min-w-0 flex-1">
                   <ResourceBar label={r.label} value={res.current} max={res.max} color={r.color} />
-                  {r.derivedFrom && <p className="mt-0.5 text-[10px] text-fg-subtle">{r.derivedFrom}</p>}
+                  {classHint ? (
+                    <p className="mt-0.5 text-[10px] text-fg-subtle">
+                      {cls!.label}: {classHint}
+                    </p>
+                  ) : (
+                    r.derivedFrom && <p className="mt-0.5 text-[10px] text-fg-subtle">{r.derivedFrom}</p>
+                  )}
                 </div>
                 {!readOnly && (
                   <div className="flex items-center gap-1">

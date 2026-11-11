@@ -198,12 +198,6 @@ function Settings({ overview, reload }: { overview: CampaignOverview; reload: ()
             description="Desligado, só você altera as fichas (os jogadores ainda as veem e rolam testes)."
           />
           <Switch
-            checked={draft.playerPolicy.playersCanMoveOwnToken}
-            onChange={(v) => set({ playerPolicy: { ...draft.playerPolicy, playersCanMoveOwnToken: v } })}
-            label="Jogadores movem o próprio token"
-            description="Desligado, só o mestre move os tokens na mesa."
-          />
-          <Switch
             checked={draft.playerPolicy.allowPrivateMessages}
             onChange={(v) => set({ playerPolicy: { ...draft.playerPolicy, allowPrivateMessages: v } })}
             label="Mensagens privadas com o mestre"

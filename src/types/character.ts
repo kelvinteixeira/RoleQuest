@@ -58,6 +58,27 @@ export interface SheetCombat {
 }
 
 /**
+ * What a system's rules module keeps on the sheet (D&D 5e: race, class,
+ * background, armor). `data` belongs to the module named by `system`
+ * (see features/systems/rules); other modules leave it alone.
+ */
+export interface SheetBuild {
+  system: string;
+  data: unknown;
+}
+
+/** @deprecated Sheets saved before `build`; `ensureSheet` moves it to `build` (D&D 5e). */
+export interface LegacyDndBuild {
+  race: string;
+  class: string;
+  background: string;
+  armor: string;
+  shield: boolean;
+  raceBonus: Record<string, number>;
+  auto: boolean;
+}
+
+/**
  * Editable sheet. Keys follow the system template (attribute/resource/skill
  * keys), so a template change never loses data: unknown keys are kept.
  */
@@ -79,6 +100,12 @@ export interface CharacterSheet {
   classKey?: string;
   /** Resource bonus the class gave when chosen (undone exactly on a switch). */
   classBonus?: Record<string, number>;
+  /** Choices of the system's rules module (see `SheetBuild`). */
+  build?: SheetBuild;
+  /** Values that follow the rules (max HP, resources, speed) update by themselves; false: the player sets them. Default on. */
+  autoDerived?: boolean;
+  /** @deprecated Read once by `ensureSheet`, which moves it to `build`. */
+  dnd?: LegacyDndBuild;
 }
 
 /**

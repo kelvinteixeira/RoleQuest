@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { AnimatePresence } from "framer-motion";
-import { ArrowLeft, Bot, DoorOpen, Save, CloudFog, Crown, Dices, MapPinned, MessageSquare, Music2, Pause, Play, Radio, RotateCcw, Star, Swords, UserMinus, UserPlus, Volume2, VolumeX } from "lucide-react";
+import { ArrowLeft, Bot, DoorOpen, Save, CloudFog, Crown, Dices, MapPin, MapPinned, MessageSquare, Music2, Pause, Play, Radio, RotateCcw, ScrollText, Star, Swords, UserMinus, UserPlus, Volume2, VolumeX } from "lucide-react";
 import { toHexColor } from "@/lib/color";
 import { usePreferencesStore } from "@/stores/preferences.store";
 import { toast } from "@/stores/toast.store";
@@ -23,8 +23,10 @@ import { campaignService, type CampaignOverview } from "@/services/campaign.serv
 import { useCurrentUser } from "@/features/authentication/hooks/use-auth";
 import { LogoMark } from "@/components/brand/logo";
 import { rulesFor } from "@/features/combat/model/rules";
-import { createInitialRoom } from "../model/room-factory";
-import type { Author } from "../model/types";
+import { createInitialRoom, missingPartyTokens } from "../model/room-factory";
+import { SheetEditor } from "@/features/character-sheet/components/sheet-editor";
+import { CreateCharacterDialog } from "@/features/characters/components/create-character-dialog";
+import type { Author, RoomToken } from "../model/types";
 import { useBotDirector } from "../hooks/use-bot-director";
 import { useSheetHpWriteback } from "../hooks/use-sheet-hp-writeback";
 import { useRoom, useRoomStore, type BotSpeed } from "../store/room.store";
@@ -65,7 +67,7 @@ export function SessionRoom({ campaignId }: { campaignId: string }) {
   return <Room overview={data} reloadOverview={reload} />;
 }
 
-type PanelTab = "combat" | "chat" | "dice" | "audio" | "scene" | "gm";
+type PanelTab = "sheet" | "combat" | "chat" | "dice" | "audio" | "scene" | "gm";
 
 function Room({ overview, reloadOverview }: { overview: CampaignOverview; reloadOverview: () => Promise<void> }) {
   const user = useCurrentUser();
@@ -78,7 +80,12 @@ function Room({ overview, reloadOverview }: { overview: CampaignOverview; reload
   const speed = useRoomStore((s) => s.botSpeed);
   const autoEnemies = useRoomStore((s) => s.autoEnemies);
   const { setBotsRunning, setBotSpeed, setAutoEnemies, resetRoom } = useRoomStore.getState();
-  const [tab, setTab] = useState<PanelTab>("chat");
+  const isGM = overview.role === "game_master";
+  const me = overview.members.find((m) => m.profile.id === user.id);
+  const myCharacterId = me?.character?.id ?? null;
+  // A player opens on their sheet; the GM on the chat.
+  const [tab, setTab] = useState<PanelTab>(!isGM && myCharacterId ? "sheet" : "chat");
+  const [creating, setCreating] = useState(false);
   const [epicOpen, setEpicOpen] = useState(false);
   const [epicText, setEpicText] = useState("");
   const [confirmReset, setConfirmReset] = useState(false);
@@ -87,9 +94,6 @@ function Room({ overview, reloadOverview }: { overview: CampaignOverview; reload
   const [markPlayed, setMarkPlayed] = useState(true);
   const router = useRouter();
   const [editing, setEditing] = useState(false);
-  const isGM = overview.role === "game_master";
-  const me = overview.members.find((m) => m.profile.id === user.id);
-  const myCharacterId = me?.character?.id ?? null;
   const policy = overview.campaign.playerPolicy;
 
   // Who this client speaks as: the narrator for a GM, the character (or the person) for a player.
@@ -110,8 +114,8 @@ function Room({ overview, reloadOverview }: { overview: CampaignOverview; reload
     createRoom,
   });
   const runsTable = sync.mode === "local" || sync.mode === "host";
-  // A player at a shared table only acts through their character (local mode keeps full controls, as before).
-  const restricted = !isGM && sync.mode !== "local";
+  // A player only acts through their character: the map, scene, sound and tokens are the GM's (in every mode).
+  const restricted = !isGM;
   const actions = useTableActions(campaignId, author, sync, isGM);
   const applyMap = useApplyMap(campaignId, actions);
   useEffect(() => {
@@ -162,6 +166,13 @@ function Room({ overview, reloadOverview }: { overview: CampaignOverview; reload
   useEffect(() => {
     if (ready && runsTable) void actions.syncSheets(characters);
   }, [ready, runsTable, createdAt, actions, characters]);
+  // A character created here (local mode) joins the table at once; a hosted table does it on the host.
+  useEffect(() => {
+    if (!ready || sync.mode !== "local") return;
+    const state = useRoomStore.getState().rooms[campaignId];
+    const added = state ? missingPartyTokens(overview, state) : [];
+    if (added.length) useRoomStore.getState().dispatch(campaignId, "system", added.map((token) => ({ type: "token.added" as const, token })));
+  }, [ready, sync.mode, campaignId, overview]);
 
   const holder = sync.holderUserId ? overview.members.find((m) => m.profile.id === sync.holderUserId) : null;
   const elsewhere = isGM && sync.holderUserId === user.id;
@@ -180,7 +191,10 @@ function Room({ overview, reloadOverview }: { overview: CampaignOverview; reload
   const next = overview.upcomingSessions[0];
   // The session being played: one under way, else the next scheduled one.
   const playing = overview.currentSession ?? next ?? null;
-  const canMove = restricted ? (token: { id: string }) => policy.playersCanMoveOwnToken && ownTokenIds.includes(token.id) : undefined;
+  // Players never move tokens: they ping where they want to go and the GM moves them.
+  const canMove = restricted ? () => false : undefined;
+  const myToken = room.tokens.find((t) => ownTokenIds.includes(t.id)) ?? null;
+  const myPing = room.pings?.find((p) => p.author.id === author.id) ?? null;
   const access = !restricted ? "gm" : selected && ownTokenIds.includes(selected.id) ? "own" : "view";
   const requestCheck = actions.requestCheck;
 
@@ -252,7 +266,7 @@ function Room({ overview, reloadOverview }: { overview: CampaignOverview; reload
         )}
         <SyncBadge sync={sync} />
         {nowPlaying && (
-          <button onClick={() => setTab("audio")} className="inline-flex h-7 max-w-48 items-center gap-1.5 rounded-full border border-accent/40 bg-accent/10 px-2.5 text-[11px] text-fg hover:bg-accent/15" title="Tocando para a mesa">
+          <button onClick={() => isGM && setTab("audio")} className="inline-flex h-7 max-w-48 items-center gap-1.5 rounded-full border border-accent/40 bg-accent/10 px-2.5 text-[11px] text-fg hover:bg-accent/15" title="Tocando para a mesa">
             <Equalizer playing />
             <span className="truncate">{nowPlaying.title}</span>
           </button>
@@ -260,7 +274,7 @@ function Room({ overview, reloadOverview }: { overview: CampaignOverview; reload
         <PresenceBar present={sync.present} voice={voiceBadges} />
 
         <div className="ml-auto flex flex-wrap items-center gap-1.5">
-          {runsTable && (
+          {runsTable && isGM && (
             <>
               <div className="flex items-center gap-1 rounded-lg border border-line bg-surface-2/60 p-0.5">
                 <span className="flex items-center gap-1 px-2 text-xs text-fg-muted">
@@ -318,7 +332,7 @@ function Room({ overview, reloadOverview }: { overview: CampaignOverview; reload
           >
             {soundOn ? <Volume2 className="size-3.5" /> : <VolumeX className="size-3.5" />}
           </Button>
-          {runsTable && (
+          {runsTable && isGM && (
             <Button size="icon-sm" variant="ghost" onClick={() => setConfirmReset(true)} aria-label="Reiniciar cena" title="Reiniciar cena">
               <RotateCcw className="size-3.5" />
             </Button>
@@ -373,10 +387,14 @@ function Room({ overview, reloadOverview }: { overview: CampaignOverview; reload
             editing={editing}
             viewer={viewer}
             canMove={canMove}
+            ownTokenIds={ownTokenIds}
+            me={author.id}
+            onPing={restricted ? (cell) => actions.ping(cell, myToken?.id) : undefined}
+            onClearPing={(ping) => actions.clearPing(ping.id)}
             onMove={actions.moveToken}
             onFogPaint={(mode, cells) => (mode === "reveal" ? actions.revealCells(cells) : actions.hideCells(cells))}
           />
-          {runsTable && !hasParty && !editing && (
+          {runsTable && isGM && !hasParty && !editing && (
             <div className="absolute inset-x-4 top-4 mx-auto flex max-w-md items-center gap-3 rounded-xl border border-accent/40 bg-surface/95 p-3 shadow-xl backdrop-blur">
               <Bot className="size-5 shrink-0 text-accent" />
               <p className="flex-1 text-sm text-fg-muted">A mesa não tem jogadores. Adicione bots para testar a sessão.</p>
@@ -385,9 +403,19 @@ function Room({ overview, reloadOverview }: { overview: CampaignOverview; reload
               </Button>
             </div>
           )}
-          {restricted && ownTokenIds.length === 0 && (
-            <div className="absolute inset-x-4 top-4 mx-auto max-w-md rounded-xl border border-line bg-surface/95 p-3 text-center text-sm text-fg-muted shadow-xl backdrop-blur">
-              Você está assistindo. Vincule um personagem à campanha para jogar com ele aqui.
+          {restricted && !myCharacterId && (
+            <div className="absolute inset-x-4 top-4 mx-auto flex max-w-md items-center gap-3 rounded-xl border border-accent/40 bg-surface/95 p-3 shadow-xl backdrop-blur">
+              <ScrollText className="size-5 shrink-0 text-accent" />
+              <p className="flex-1 text-sm text-fg-muted">Você ainda não tem personagem nesta campanha. Crie o seu para entrar na mesa.</p>
+              <Button size="sm" onClick={() => setCreating(true)}>
+                Criar personagem
+              </Button>
+            </div>
+          )}
+          {restricted && myCharacterId && !editing && (
+            <div className="pointer-events-none absolute inset-x-3 bottom-14 mx-auto flex max-w-sm items-center justify-center gap-2 rounded-lg bg-canvas/80 px-3 py-1.5 text-center text-xs text-fg-muted backdrop-blur">
+              <MapPin className="size-3.5 shrink-0 text-accent" />
+              {myPing ? "Sua marcação está no mapa. O mestre move o seu personagem." : "Quer se mover? Clique no chão para marcar aonde ir. O mestre faz o movimento."}
             </div>
           )}
         </div>
@@ -413,10 +441,13 @@ function Room({ overview, reloadOverview }: { overview: CampaignOverview; reload
                 onChange={setTab}
                 className="w-full justify-between"
                 items={[
-                  { value: "combat", label: <TabLabel icon={<Swords className="size-3.5" />} text="Combate" /> },
+                  ...(!isGM ? [{ value: "sheet" as const, label: <TabLabel icon={<ScrollText className="size-3.5" />} text="Ficha" /> }] : []),
                   { value: "chat", label: <TabLabel icon={<MessageSquare className="size-3.5" />} text="Chat" />, count: room.messages.length },
                   { value: "dice", label: <TabLabel icon={<Dices className="size-3.5" />} text="Dados" /> },
-                  { value: "audio", label: <TabLabel icon={<Music2 className="size-3.5" />} text="Áudio" /> },
+                  { value: "combat", label: <TabLabel icon={<Swords className="size-3.5" />} text="Combate" /> },
+                  ...(isGM
+                    ? [{ value: "audio" as const, label: <TabLabel icon={<Music2 className="size-3.5" />} text="Áudio" /> }]
+                    : []),
                   ...(isGM
                     ? [
                         { value: "scene" as const, label: <TabLabel icon={<CloudFog className="size-3.5" />} text="Cena" /> },
@@ -426,10 +457,19 @@ function Room({ overview, reloadOverview }: { overview: CampaignOverview; reload
                 ]}
               />
               <div className="min-h-0 flex-1 overflow-y-auto">
+                {tab === "sheet" && !isGM && (
+                  <PlayerSheet
+                    characterId={myCharacterId}
+                    token={myToken}
+                    actions={actions}
+                    onCreate={() => setCreating(true)}
+                    onRequestCheck={myToken && requestCheck ? (request) => requestCheck(myToken.id, request) : undefined}
+                  />
+                )}
                 {tab === "combat" && <CombatPanel room={room} actions={actions} canRun={!restricted} ownTokenIds={ownTokenIds} />}
                 {tab === "chat" && <ChatPanel room={room} actions={actions} mineIds={[user.id, ...ownTokenIds]} isGM={!restricted} allowPrivate={policy.allowPrivateMessages} />}
                 {tab === "dice" && <DicePanel actions={actions} />}
-                {tab === "audio" && <AudioPanel room={room} actions={actions} campaignId={campaignId} isGM={!restricted} userId={user.id} />}
+                {tab === "audio" && isGM && <AudioPanel room={room} actions={actions} campaignId={campaignId} isGM userId={user.id} />}
                 {tab === "scene" && isGM && <ScenePanel room={room} actions={actions} />}
                 {tab === "gm" && isGM && <RoomGmPanel room={room} actions={actions} party={partyOf(overview)} sessionLabel={sessionLabelOf(overview)} />}
               </div>
@@ -437,6 +477,18 @@ function Room({ overview, reloadOverview }: { overview: CampaignOverview; reload
           )}
         </aside>
       </div>
+
+      {creating && (
+        <CreateCharacterDialog
+          open
+          onClose={() => setCreating(false)}
+          campaign={{ id: campaignId, name: overview.campaign.name, systemId: overview.system.id }}
+          onCreated={() => {
+            setTab("sheet");
+            void reloadOverview();
+          }}
+        />
+      )}
 
       <Modal
         open={epicOpen}
@@ -523,6 +575,43 @@ function Room({ overview, reloadOverview }: { overview: CampaignOverview; reload
         <p className="text-sm text-fg-muted">Tokens, PV, chat e combate voltam ao início. Os bots saem da mesa.</p>
       </Modal>
     </div>
+  );
+}
+
+/** The player's own sheet, in the room: checks go to the table, HP follows it. */
+function PlayerSheet({
+  characterId,
+  token,
+  actions,
+  onCreate,
+  onRequestCheck,
+}: {
+  characterId: string | null;
+  token: RoomToken | null;
+  actions: ReturnType<typeof useTableActions>;
+  onCreate: () => void;
+  onRequestCheck?: Parameters<typeof SheetEditor>[0]["onRequestCheck"];
+}) {
+  if (!characterId) {
+    return (
+      <div className="flex flex-col items-center gap-3 rounded-xl border border-dashed border-line p-6 text-center">
+        <ScrollText className="size-6 text-accent" />
+        <p className="text-sm text-fg-muted">Crie o seu personagem para jogar: nome, conceito e a ficha do sistema da campanha.</p>
+        <Button size="sm" onClick={onCreate}>
+          Criar personagem
+        </Button>
+      </div>
+    );
+  }
+  return (
+    <SheetEditor
+      characterId={characterId}
+      embedded
+      liveHp={token?.hp.current}
+      onRoll={token ? (check) => actions.postCheck(token, check) : undefined}
+      onRequestCheck={onRequestCheck}
+      onChange={token ? (data) => actions.applySheetSoon(token.id, data) : undefined}
+    />
   );
 }
 

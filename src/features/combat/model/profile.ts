@@ -6,6 +6,7 @@
 import { checkValue } from "@/features/character-sheet/model/checks";
 import { findAttribute, findSkill } from "@/features/character-sheet/model/combat-defaults";
 import { attributeModifier, proficiencyBonus } from "@/features/character-sheet/model/sheet";
+import { rulesFor } from "@/features/systems/rules/registry";
 import type { CharacterSheet, SheetAttack } from "@/types/character";
 import type { SystemTemplate } from "@/types/system";
 import type { CombatStats, TokenAttack } from "./types";
@@ -27,8 +28,11 @@ function reader(system: SystemTemplate, sheet: CharacterSheet) {
 }
 
 /** Defense the sheet gets when the player leaves it on "automático". */
-export function deriveDefense(system: SystemTemplate, sheet: CharacterSheet): number {
+export function deriveDefense(system: SystemTemplate, sheet: CharacterSheet, level: number | null = null): number {
   const { value, mod, skill } = reader(system, sheet);
+  // The system's rules module knows better when it has the choices (D&D 5e: worn armor, shield, unarmored defense).
+  const fromRules = rulesFor(system).defense?.(system, sheet, level);
+  if (typeof fromRules === "number") return fromRules;
   switch (system.dice.mechanic) {
     case "d20-plus-modifier":
       return 10 + mod(["dex", "des"]);
@@ -74,8 +78,10 @@ export function defenseHint(system: SystemTemplate): string {
 }
 
 /** Initiative modifier (or static score) and, for keep-highest pools, the number of d20s. */
-export function deriveInitiative(system: SystemTemplate, sheet: CharacterSheet): { value: number; dice?: number } {
+export function deriveInitiative(system: SystemTemplate, sheet: CharacterSheet, level: number | null = null): { value: number; dice?: number } {
   const { value, mod } = reader(system, sheet);
+  const fromRules = rulesFor(system).initiative?.(system, sheet, level);
+  if (fromRules) return fromRules;
   switch (system.dice.mechanic) {
     case "d20-plus-modifier":
       // Pathfinder rolls Perception, which rides on Wisdom.
@@ -128,9 +134,9 @@ export function attackStats(system: SystemTemplate, sheet: CharacterSheet, level
 }
 
 export function combatProfile(system: SystemTemplate, sheet: CharacterSheet, level: number | null): CombatStats {
-  const initiative = deriveInitiative(system, sheet);
+  const initiative = deriveInitiative(system, sheet, level);
   return {
-    defense: sheet.combat.defense ?? deriveDefense(system, sheet),
+    defense: sheet.combat.defense ?? deriveDefense(system, sheet, level),
     armor: Math.max(0, sheet.combat.armor),
     speed: Math.max(1, sheet.combat.speed),
     initiative: initiative.value,

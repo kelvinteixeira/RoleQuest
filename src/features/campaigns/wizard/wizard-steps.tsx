@@ -272,7 +272,6 @@ export function PlayersStep({ draft, errors, update }: StepProps) {
       <div className="flex flex-col gap-4 rounded-xl border border-line p-4">
         <p className="text-xs font-medium uppercase tracking-wider text-fg-subtle">Permissões dos jogadores</p>
         <Switch checked={policy.playersCanEditSheets} onChange={(v) => setPolicy({ playersCanEditSheets: v })} label="Editar a própria ficha" />
-        <Switch checked={policy.playersCanMoveOwnToken} onChange={(v) => setPolicy({ playersCanMoveOwnToken: v })} label="Mover o próprio token no mapa" />
         <Switch checked={policy.allowPrivateMessages} onChange={(v) => setPolicy({ allowPrivateMessages: v })} label="Mensagens privadas com o mestre" />
         <Switch
           checked={policy.rollsPublicByDefault}

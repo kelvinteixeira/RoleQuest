@@ -275,7 +275,8 @@ export function FeatureInspector({ prop, actions, isGM }: { prop: PlacedProp; ac
           </Button>
         )}
 
-        {door && (
+        {door && !isGM && <p className="mt-2 text-xs text-fg-subtle">Porta {door.open ? "aberta" : "fechada"}. Peça ao mestre no chat se quiser abri-la ou fechá-la.</p>}
+        {door && isGM && (
           <div className="mt-3 flex gap-2">
             <Button size="sm" className="flex-1" onClick={() => actions.toggleDoor(prop.id)} disabled={!door.open && door.locked} leadingIcon={door.open ? <DoorClosed className="size-3.5" /> : <DoorOpen className="size-3.5" />}>
               {door.open ? "Fechar" : "Abrir"}

@@ -293,6 +293,17 @@ export function useRoomActions(campaignId: string, gm: Author, forward?: (events
       send([...bots.map((b): RoomEvent => ({ type: "token.removed", tokenId: b.id })), announce("Os jogadores bot saíram da sala.")]);
     }
 
+    /** Marks where a character should go (players' movement requests); one ping per author. */
+    function ping(cell: Cell, tokenId?: string) {
+      const state = room();
+      if (!state || cell.x < 0 || cell.y < 0 || cell.x >= state.map.cols || cell.y >= state.map.rows) return;
+      send([{ type: "ping.placed", ping: { id: createId("ping"), x: cell.x, y: cell.y, author: gm, tokenId, at: new Date().toISOString() } }]);
+    }
+
+    function clearPing(pingId: string) {
+      send([{ type: "ping.cleared", pingId }]);
+    }
+
     function markEpic(text: string) {
       send([epicMoment(gm, text.trim() || "Momento épico!")]);
       toast.success("Momento épico marcado", "Registrado no log da sessão para o Chronicles Studio.");
@@ -343,7 +354,7 @@ export function useRoomActions(campaignId: string, gm: Author, forward?: (events
       toast.success("Mapa aplicado", joining.length ? `${map.name} · ${joining.length} personagem(ns) na mesa` : map.name);
     }
 
-    return { addTokens, post, setAmbient, setTokenLight, toggleLight, toggleDoor, setDoorLocked, updateTrap, configureFog, revealCells, hideCells, revealAll: () => revealCells(allCells()), hideAll: () => hideCells(allCells()), setRules, applySheetSoon, refreshFromSheet, forgetSheet, syncSheets, postCheck, setAppearance, replaceMap, playMusic, stopMusic, tuneMusic, setAmbience, setLayer, silence, rollDice, sendChat, moveToken, adjustHp, toggleCondition, attackWith, startCombat, nextTurn, endCombat, addBots, removeBots, markEpic };
+    return { addTokens, post, setAmbient, setTokenLight, toggleLight, toggleDoor, setDoorLocked, updateTrap, configureFog, revealCells, hideCells, revealAll: () => revealCells(allCells()), hideAll: () => hideCells(allCells()), setRules, applySheetSoon, refreshFromSheet, forgetSheet, syncSheets, postCheck, setAppearance, replaceMap, playMusic, stopMusic, tuneMusic, setAmbience, setLayer, silence, rollDice, sendChat, moveToken, adjustHp, toggleCondition, attackWith, startCombat, nextTurn, endCombat, addBots, removeBots, markEpic, ping, clearPing };
   }, [campaignId, gm, dispatch, forward]);
 }
 

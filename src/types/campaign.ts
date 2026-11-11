@@ -28,6 +28,7 @@ export interface GameMasterPersona {
 export interface PlayerPolicy {
   maxPlayers: number;
   playersCanEditSheets: boolean;
+  /** @deprecated Kept in stored campaigns only: players never move tokens, they ping and the GM moves. */
   playersCanMoveOwnToken: boolean;
   allowPrivateMessages: boolean;
   rollsPublicByDefault: boolean;

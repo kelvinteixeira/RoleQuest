@@ -4,7 +4,7 @@ import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "rea
 import { useFrame, type ThreeEvent } from "@react-three/fiber";
 import { Billboard, Html, Line } from "@react-three/drei";
 import { AnimatePresence, motion } from "framer-motion";
-import { Check, Footprints, Grid3x3, Mountain, PersonStanding, RotateCcw, RotateCw, ScanEye, X } from "lucide-react";
+import { Check, Footprints, Grid3x3, MapPin, Mountain, PersonStanding, RotateCcw, RotateCw, ScanEye, X } from "lucide-react";
 import * as THREE from "three";
 import { cn } from "@/lib/cn";
 import { toHexColor } from "@/lib/color";
@@ -20,7 +20,7 @@ import { CHARACTER_MODEL_BY_ID, modelFor, sizeOf } from "../model/character-mode
 import { anchorFor, canStand, footprint, gridDistance, isWall, routeTo } from "../model/map";
 import { CharacterFigure, preloadCharacterModel } from "./character-figure";
 import { currentTurnToken, isDown, partyVision } from "../model/room-engine";
-import type { RoomState, RoomToken } from "../model/types";
+import type { MapPing, RoomState, RoomToken } from "../model/types";
 import { useRoomStore, type TokenFx } from "../store/room.store";
 
 type Drag = { tokenId: string; origin: Cell; hover: Cell };
@@ -49,9 +49,20 @@ export function RoomMap3D({
   onMove,
   onFogPaint,
   canMove,
+  ownTokenIds = [],
+  me,
+  onPing,
+  onClearPing,
 }: {
   room: RoomState;
   editing: boolean;
+  /** The viewer's characters: always marked on the map. */
+  ownTokenIds?: string[];
+  /** Who is looking (their own ping can be taken back). */
+  me?: string;
+  /** Players: a click on the floor pings it ("I want to go here") instead of moving anything. */
+  onPing?: (cell: Cell) => void;
+  onClearPing?: (ping: MapPing) => void;
   /** Which tokens this viewer may drag (players: their own). Everyone by default. */
   canMove?: (token: RoomToken) => boolean;
   /** "player": the fog hides what the party has not seen, and hidden traps are invisible. */
@@ -183,6 +194,13 @@ export function RoomMap3D({
       setFogStroke({ ...fogRef.current });
       return;
     }
+    // Players don't move anything: the click marks where they want to go, for the GM to move them.
+    if (onPing) {
+      if (!reachable(cell)) return void toast.info("Lugar desconhecido", "Marque um ponto que o grupo já viu.");
+      e.stopPropagation();
+      onPing(cell);
+      return;
+    }
     // With a character of yours selected, a click on the floor plans its move there.
     const mover = selectedId ? room.tokens.find((t) => t.id === selectedId) : undefined;
     if (mover && movable(mover) && reachable(cell)) {
@@ -199,6 +217,14 @@ export function RoomMap3D({
 
   function onFeatureDown(prop: PlacedProp) {
     if (!editing && !painting && reachable(prop)) selectFeature(prop.id);
+  }
+
+  /** GM: a player's ping prepares their character's move there (the GM still confirms it). */
+  function answerPing(ping: MapPing) {
+    const token = ping.tokenId ? room.tokens.find((t) => t.id === ping.tokenId) : undefined;
+    if (!token) return void toast.info(`${ping.author.name} ainda não tem personagem na mesa`);
+    select(token.id);
+    setPlan({ tokenId: token.id, target: anchorFor(ping, sizeOf(token)), teleport: false, from: planOrigin(token) });
   }
 
   function onCellMove(cell: Cell) {
@@ -263,7 +289,7 @@ export function RoomMap3D({
 
   // Third-person view: follows the selected token, else whoever has the turn, else the viewer's own character.
   const figures = useRef(new Map<string, THREE.Object3D>());
-  const ownToken = room.tokens.find((t) => t.kind === "pc" && (canMove?.(t) ?? true));
+  const ownToken = room.tokens.find((t) => ownTokenIds.includes(t.id)) ?? room.tokens.find((t) => t.kind === "pc" && (canMove?.(t) ?? true));
   const followId = selectedId ?? turnToken?.id ?? ownToken?.id ?? null;
   const followRef = useRef(followId);
   useEffect(() => {
@@ -362,8 +388,19 @@ export function RoomMap3D({
             )}
             {drag && dragging && distance > 0 && <MoveLine doc={doc} from={drag.origin} to={drag.hover} valid={dragValid} label={`${distance} □ · ${(distance * doc.cellDistance).toLocaleString("pt-BR")} ${doc.cellUnit}`} overSpeed={distance > dragging.stats.speed} />}
             {shownTokens.map((t) => (
-              <Token3D key={t.id} doc={doc} token={t} tokens={room.tokens} selected={t.id === selectedId} active={t.id === turnToken?.id} onPointerDown={(e) => onTokenDown(t, e)} register={registerFigure} />
+              <Token3D key={t.id} doc={doc} token={t} tokens={room.tokens} selected={t.id === selectedId} active={t.id === turnToken?.id} mine={ownTokenIds.includes(t.id)} onPointerDown={(e) => onTokenDown(t, e)} register={registerFigure} />
             ))}
+            {(room.pings ?? [])
+              .filter((p) => inBounds(doc, p.x, p.y) && seen(p))
+              .map((p) => (
+                <PingMarker
+                  key={p.id}
+                  doc={doc}
+                  ping={p}
+                  onAnswer={!onPing ? () => answerPing(p) : undefined}
+                  onClear={onClearPing && (!onPing || p.author.id === me) ? () => onClearPing(p) : undefined}
+                />
+              ))}
             {fx.map((f) => (
               <FloatingNumber key={f.id} doc={doc} fx={f} token={shownTokens.find((t) => t.id === f.tokenId)} />
             ))}
@@ -421,7 +458,7 @@ export function RoomMap3D({
         </div>
       )}
       <p className="pointer-events-none absolute bottom-3 right-3 hidden rounded-md bg-canvas/80 px-2 py-1 text-[11px] text-fg-subtle backdrop-blur sm:block">
-        {doc.name} · 1 □ = {doc.cellDistance.toLocaleString("pt-BR")} {doc.cellUnit} · clique no chão para planejar o movimento · direito arrasta · rolagem zoom · meio gira
+        {doc.name} · 1 □ = {doc.cellDistance.toLocaleString("pt-BR")} {doc.cellUnit} · {onPing ? "clique no chão para marcar aonde quer ir" : "clique no chão para planejar o movimento"} · direito arrasta · rolagem zoom · meio gira
       </p>
     </div>
   );
@@ -471,6 +508,7 @@ function ViewButton({ label, active, disabled, onClick, children }: { label: str
 /* ---------- Tokens ---------- */
 
 const ENEMY_RING = "#ef4444";
+const MINE_RING = "#fbbf24";
 /** A route older than this when a figure first appears was already walked (the figure stands at its end). */
 const ROUTE_FRESH_MS = 1500;
 /** Farther than this without a route, a token jumps to its square instead of walking. */
@@ -484,6 +522,7 @@ function Token3D({
   tokens,
   selected,
   active,
+  mine = false,
   onPointerDown,
   register,
 }: {
@@ -492,6 +531,8 @@ function Token3D({
   tokens: RoomToken[];
   selected: boolean;
   active: boolean;
+  /** The viewer's own character: a gold ring and its name always shown. */
+  mine?: boolean;
   onPointerDown: (e: ThreeEvent<PointerEvent>) => void;
   /** Hands the figure to the follow camera (null when it leaves). */
   register?: (id: string, object: THREE.Object3D | null) => void;
@@ -591,6 +632,12 @@ function Token3D({
           <meshBasicMaterial color="#c084fc" transparent opacity={0.9} />
         </mesh>
       )}
+      {mine && (
+        <mesh rotation-x={-Math.PI / 2} position-y={0.028} raycast={() => null}>
+          <ringGeometry args={[0.5, 0.58, 48]} />
+          <meshBasicMaterial color={MINE_RING} transparent opacity={0.95} />
+        </mesh>
+      )}
       {selected && (
         <mesh rotation-x={-Math.PI / 2} position-y={0.02} raycast={() => null}>
           <circleGeometry args={[0.47, 40]} />
@@ -630,11 +677,77 @@ function Token3D({
           </mesh>
         </Billboard>
       )}
-      {(selected || active) && (
+      {(selected || active || mine) && (
         <Html position={[0, barY + 0.25, 0]} center distanceFactor={14} zIndexRange={[10, 0]} style={{ pointerEvents: "none" }}>
-          <div className="whitespace-nowrap rounded-md bg-canvas/90 px-2 py-0.5 text-[11px] font-medium text-fg shadow">
-            <span className="mr-1 font-mono text-fg-subtle">{initials(token.name)}</span>
+          <div className={cn("whitespace-nowrap rounded-md bg-canvas/90 px-2 py-0.5 text-[11px] font-medium text-fg shadow", mine && "ring-1 ring-amber-400")}>
+            {mine ? <span className="mr-1 font-semibold text-amber-400">Você</span> : <span className="mr-1 font-mono text-fg-subtle">{initials(token.name)}</span>}
             {token.name}
+          </div>
+        </Html>
+      )}
+    </group>
+  );
+}
+
+/**
+ * A player's "I want to go here": a pulsing ring and beam in their colour, with
+ * their name. The GM can answer it (plans the character's move) or dismiss it;
+ * the player can take it back.
+ */
+function PingMarker({ doc, ping, onAnswer, onClear }: { doc: MapDocument; ping: MapPing; onAnswer?: () => void; onClear?: () => void }) {
+  const ring = useRef<THREE.Mesh>(null);
+  const color = toHexColor(ping.author.color);
+  const [wx, wz] = cellToWorld(doc, ping.x, ping.y);
+  const y = cellStandY(doc, ping.x, ping.y);
+  // The label mounts after the first frame: a drei <Html> mounted with the canvas loses its content
+  // when the canvas connects its events (its target changes and the new root is never rendered).
+  const [labelReady, setLabelReady] = useState(false);
+  const readyRef = useRef(false);
+  useFrame((state) => {
+    if (!readyRef.current) {
+      readyRef.current = true;
+      setLabelReady(true);
+    }
+    const r = ring.current;
+    if (!r) return;
+    const t = (state.clock.elapsedTime * 0.8) % 1;
+    r.scale.setScalar(0.6 + t * 0.7);
+    (r.material as THREE.MeshBasicMaterial).opacity = 0.9 * (1 - t);
+  });
+  return (
+    <group position={[wx, y, wz]}>
+      <mesh rotation-x={-Math.PI / 2} position-y={0.035} raycast={() => null}>
+        <ringGeometry args={[0.32, 0.42, 40]} />
+        <meshBasicMaterial color={color} transparent opacity={0.95} />
+      </mesh>
+      <mesh ref={ring} rotation-x={-Math.PI / 2} position-y={0.04} raycast={() => null}>
+        <ringGeometry args={[0.42, 0.5, 40]} />
+        <meshBasicMaterial color={color} transparent opacity={0.9} />
+      </mesh>
+      <mesh position-y={0.9} raycast={() => null}>
+        <cylinderGeometry args={[0.03, 0.03, 1.8, 8]} />
+        <meshBasicMaterial color={color} transparent opacity={0.55} />
+      </mesh>
+      {labelReady && (
+        <Html position={[0, 1.95, 0]} center zIndexRange={[25, 0]} style={{ pointerEvents: onAnswer || onClear ? "auto" : "none" }}>
+          {/* Pointer-downs stay on the label: the table under it would take them (select, drag, camera). */}
+          <div
+            onPointerDown={(e) => e.stopPropagation()}
+            className="flex items-center gap-1 whitespace-nowrap rounded-lg border bg-canvas/95 py-0.5 pl-2 pr-1 text-[11px] font-medium text-fg shadow-lg"
+            style={{ borderColor: color }}
+          >
+            <MapPin className="size-3" style={{ color }} />
+            <span className="pr-1">{ping.author.name} quer ir aqui</span>
+            {onAnswer && (
+              <button onClick={onAnswer} className="rounded-md bg-accent-solid px-1.5 py-0.5 text-[10px] font-semibold text-accent-fg hover:bg-accent-strong" title="Planejar o movimento até aqui">
+                Mover
+              </button>
+            )}
+            {onClear && (
+              <button onClick={onClear} className="rounded-md p-0.5 text-fg-subtle hover:bg-surface-2 hover:text-fg" aria-label="Remover marcação" title="Remover marcação">
+                <X className="size-3" />
+              </button>
+            )}
           </div>
         </Html>
       )}

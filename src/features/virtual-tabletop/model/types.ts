@@ -101,6 +101,20 @@ export interface TableAudio {
   ambience: AmbienceLayer[];
 }
 
+/**
+ * A mark a player leaves on the map ("I want to go here"). Players never move
+ * tokens themselves: the GM sees the ping and moves the character.
+ */
+export interface MapPing {
+  id: string;
+  x: number;
+  y: number;
+  author: Author;
+  /** The character the player wants to move (their token), when they have one. */
+  tokenId?: string;
+  at: string;
+}
+
 export interface CombatState {
   active: boolean;
   round: number;
@@ -148,7 +162,10 @@ export type RoomEvent =
   | { type: "lighting.set"; ambient: Ambient }
   | { type: "fog.configured"; enabled?: boolean; vision?: number }
   | { type: "fog.revealed"; cells: number[] }
-  | { type: "fog.hidden"; cells: number[] };
+  | { type: "fog.hidden"; cells: number[] }
+  /** A player's ping replaces their previous one. */
+  | { type: "ping.placed"; ping: MapPing }
+  | { type: "ping.cleared"; pingId: string };
 
 export interface LoggedEvent {
   id: string;
@@ -167,6 +184,8 @@ export interface RoomState {
   combat: CombatState;
   fog: FogState;
   audio: TableAudio;
+  /** Players' movement requests (older rooms have none). */
+  pings?: MapPing[];
   log: LoggedEvent[];
   createdAt: string;
 }

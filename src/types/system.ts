@@ -146,6 +146,12 @@ export interface ClassDefinition {
   skillKeys: string[];
   /** Extra starting maximum per resource key (e.g. +4 Vida). */
   resourceBonus: Record<string, number>;
+  /**
+   * Resources that grow with level. With an entry, the resource's maximum is
+   * `resourceBonus` (the level-1 value) + `perLevel` × (level − 1)
+   * + the attribute's modifier × level, kept up to date on the sheet.
+   */
+  resourceGrowth?: Record<string, { perLevel: number; attributeKey?: string }>;
   /** Names of the class's starting abilities (become abilities on the sheet). */
   abilities: string[];
 }

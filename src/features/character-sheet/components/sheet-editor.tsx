@@ -17,6 +17,8 @@ import { applyClass, levelPerks } from "../model/sheet";
 import { useCharacterSheet, type SaveStatus } from "../hooks/use-character-sheet";
 import { AbilitiesSection, AttributesSection, CustomFieldsSection, InventorySection, SkillsSection, StorySection, type SectionProps } from "./sheet-sections";
 import { CombatSection } from "./combat-section";
+import { syncSheet } from "@/features/systems/rules/registry";
+import { rulesUiFor } from "@/features/systems/rules/ui";
 
 type Tab = "main" | "combat" | "skills" | "abilities" | "inventory" | "custom" | "story";
 
@@ -72,6 +74,15 @@ export function SheetEditor({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [liveHp, loaded]);
 
+  // What follows from the system's rules (max HP, resources, speed) keeps up with level and attributes.
+  const level = data?.character.level ?? null;
+  const system0 = data?.system;
+  const editable = data?.canEdit ? data.character.sheet : null;
+  useEffect(() => {
+    if (!system0 || !editable) return;
+    if (syncSheet(system0, editable, level) !== editable) updateSheet((s) => syncSheet(system0, s, level));
+  }, [system0, editable, level, updateSheet]);
+
   if (error && !data) return <ErrorState error={error} onRetry={reload} />;
   if (!data) return <LoadingState label="Abrindo ficha…" />;
 
@@ -86,6 +97,7 @@ export function SheetEditor({
   }
 
   const props: SectionProps = { system, sheet: character.sheet, readOnly, update: updateSheet, onCheck: check };
+  const { Panel } = rulesUiFor(system);
 
   return (
     <div className="flex flex-col gap-5">
@@ -177,7 +189,12 @@ export function SheetEditor({
               { value: "story", label: "História" },
             ]}
           />
-          {tab === "main" && <AttributesSection {...props} />}
+          {tab === "main" && (
+            <div className="flex flex-col gap-4">
+              {Panel && <Panel {...props} level={character.level} />}
+              <AttributesSection {...props} />
+            </div>
+          )}
           {tab === "combat" && <CombatSection {...props} level={character.level} />}
           {tab === "skills" && <SkillsSection {...props} />}
           {tab === "abilities" && <AbilitiesSection {...props} />}

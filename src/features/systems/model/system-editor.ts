@@ -97,6 +97,11 @@ export function validateSystem(s: SystemTemplate): SystemErrors {
     need(`classes.${i}.label`, !!c.label.trim(), "Dê um nome.");
     need(`classes.${i}.skillKeys`, c.skillKeys.every((k) => skillKeys.has(k)), "Perícia removida.");
     need(`classes.${i}.resourceBonus`, Object.entries(c.resourceBonus).every(([k, v]) => resourceKeys.has(k) && Number.isFinite(v) && Math.abs(v) <= 999), "Bônus inválido.");
+    need(
+      `classes.${i}.resourceGrowth`,
+      Object.entries(c.resourceGrowth ?? {}).every(([k, g]) => resourceKeys.has(k) && Number.isFinite(g.perLevel) && Math.abs(g.perLevel) <= 999 && (!g.attributeKey || attrKeys.has(g.attributeKey))),
+      "Crescimento por nível inválido.",
+    );
   });
 
   const levels = s.progression.levels ?? [];
@@ -142,6 +147,13 @@ export function pruneReferences(s: SystemTemplate): SystemTemplate {
       ...c,
       skillKeys: c.skillKeys.filter((k) => skillKeys.has(k)),
       resourceBonus: Object.fromEntries(Object.entries(c.resourceBonus).filter(([k]) => resourceKeys.has(k))),
+      ...(c.resourceGrowth && {
+        resourceGrowth: Object.fromEntries(
+          Object.entries(c.resourceGrowth)
+            .filter(([k]) => resourceKeys.has(k))
+            .map(([k, g]) => [k, g.attributeKey && !attrKeys.has(g.attributeKey) ? { perLevel: g.perLevel } : g]),
+        ),
+      }),
     })),
   };
 }

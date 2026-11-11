@@ -207,19 +207,47 @@ export function ClassesSection({ system, errors, set }: EditorSectionProps) {
             <Textarea label="Descrição" value={c.description} onChange={(e) => update({ description: e.target.value })} rows={2} maxLength={400} />
             {system.resources.length > 0 && (
               <div>
-                <p className="mb-1 text-xs text-fg-muted">Bônus no máximo inicial</p>
-                <div className="flex flex-wrap gap-2">
-                  {system.resources.map((r) => (
-                    <NumberField
-                      key={r.key}
-                      label={r.label}
-                      className="w-24"
-                      value={c.resourceBonus[r.key] ?? 0}
-                      onChange={(v) => update({ resourceBonus: { ...c.resourceBonus, [r.key]: v } })}
-                    />
-                  ))}
+                <p className="mb-1 text-xs text-fg-muted">Recursos da classe</p>
+                <p className="mb-2 text-[11px] text-fg-subtle">
+                  Bônus no máximo inicial. Com &quot;cresce por nível&quot;, o valor vira o do 1º nível e a ficha recalcula o máximo a cada nível: inicial + por nível × (nível − 1) + atributo × nível.
+                </p>
+                <div className="grid gap-2 sm:grid-cols-2">
+                  {system.resources.map((r) => {
+                    const growth = c.resourceGrowth?.[r.key];
+                    const setGrowth = (next: { perLevel: number; attributeKey?: string } | null) => {
+                      const { [r.key]: _drop, ...rest } = c.resourceGrowth ?? {};
+                      void _drop;
+                      update({ resourceGrowth: next ? { ...rest, [r.key]: next } : rest });
+                    };
+                    return (
+                      <div key={r.key} className="flex flex-col gap-2 rounded-lg border border-line p-2">
+                        <div className="flex items-end gap-2">
+                          <NumberField
+                            label={growth ? `${r.label} no 1º nível` : r.label}
+                            className="w-28"
+                            value={c.resourceBonus[r.key] ?? 0}
+                            onChange={(v) => update({ resourceBonus: { ...c.resourceBonus, [r.key]: v } })}
+                          />
+                          <Toggle label="Cresce por nível" checked={!!growth} onChange={(on) => setGrowth(on ? { perLevel: 0 } : null)} />
+                        </div>
+                        {growth && (
+                          <div className="flex items-end gap-2">
+                            <NumberField label="Por nível" className="w-24" value={growth.perLevel} onChange={(perLevel) => setGrowth({ ...growth, perLevel })} />
+                            <SelectField
+                              label="+ atributo por nível"
+                              className="flex-1"
+                              value={growth.attributeKey ?? ""}
+                              onChange={(attributeKey) => setGrowth({ ...growth, attributeKey: attributeKey || undefined })}
+                              options={[{ value: "", label: "Nenhum" }, ...system.attributes.map((a) => ({ value: a.key, label: `${a.label} (${a.abbreviation})` }))]}
+                            />
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
                 {errors[`classes.${i}.resourceBonus`] && <p className="mt-1 text-[11px] text-danger">{errors[`classes.${i}.resourceBonus`]}</p>}
+                {errors[`classes.${i}.resourceGrowth`] && <p className="mt-1 text-[11px] text-danger">{errors[`classes.${i}.resourceGrowth`]}</p>}
               </div>
             )}
             {system.skills.length > 0 && (

@@ -19,6 +19,7 @@ import type { Encounter, EncounterInput, JournalEntry, JournalInput, Npc, NpcInp
 import type { SystemTemplate } from "@/types/system";
 import type { ChronicleEpisode, ChronicleEpisodeInput } from "@/types/chronicle";
 import type { AudioTrack } from "@/features/audio-engine/catalog";
+import type { BillingStatus, CreditPackId, PlanId } from "@/config/plans";
 
 export interface AuthRepository {
   signIn(email: string, password: string): Promise<AuthSession>;
@@ -242,7 +243,23 @@ export interface VoiceSignalRepository {
   connect(campaignId: ID, onSignal: (envelope: VoiceEnvelope) => void, onStatus: (status: "connected" | "offline") => void): VoiceLink;
 }
 
+/** The signed-in person's account: plan and credits, payment pages, reminders, deletion (LGPD). */
+export interface AccountRepository {
+  billing(): Promise<BillingStatus>;
+  /** A payment page (Stripe Checkout) to subscribe to a plan or buy credits; its URL. */
+  checkout(target: { plan: Exclude<PlanId, "free"> } | { credits: CreditPackId }): Promise<string>;
+  /** The page to change or cancel the subscription and see invoices; its URL. */
+  portal(): Promise<string>;
+  /** Episodes of this campaign carry the "feito com Role Quest" mark (its owner is on the free plan). */
+  watermarkFor(campaignId: ID): Promise<boolean>;
+  emailReminders(userId: ID): Promise<boolean>;
+  setEmailReminders(userId: ID, on: boolean): Promise<void>;
+  /** Deletes the account and everything it owns (campaigns, characters, files), then signs out. */
+  remove(userId: ID): Promise<void>;
+}
+
 export interface Repositories {
+  account: AccountRepository;
   auth: AuthRepository;
   users: UserRepository;
   campaigns: CampaignRepository;

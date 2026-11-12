@@ -44,3 +44,7 @@ next-env.d.ts
 # agent tooling state
 .omc/
 .claude/
+
+# Playwright
+/playwright-report
+/test-results

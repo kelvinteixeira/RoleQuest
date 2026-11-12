@@ -3,6 +3,7 @@
  * Behaviour mirrors what the Supabase versions must guarantee (unique e-mails,
  * no account enumeration on password reset, copies instead of live references).
  */
+import { mockAccount } from "./account";
 import type {
   AuthRepository,
   CampaignRepository,
@@ -474,5 +475,5 @@ const audioTracks: AudioTrackRepository = {
   file: (ref) => mockImages.get(ref),
 };
 
-export const mockRepositories: Repositories = { auth, users, campaigns, sessions, inviteLinks, characters, library, systems, maps, images: mockImages, npcs, encounters, journal, roomSync: null, voice: null, chronicles, audioTracks };
+export const mockRepositories: Repositories = { account: mockAccount, auth, users, campaigns, sessions, inviteLinks, characters, library, systems, maps, images: mockImages, npcs, encounters, journal, roomSync: null, voice: null, chronicles, audioTracks };
 export { resetMockDatabase } from "./database";

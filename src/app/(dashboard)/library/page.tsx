@@ -5,7 +5,7 @@ import { LibraryView } from "@/features/library/components/library-view";
 
 export const metadata: Metadata = { title: "Biblioteca" };
 
-// Client-side AuthGuard gates this page until Phase 7 server auth (see docs/ARCHITECTURE.md §5).
+// Signed-in page: proxy.ts checks the session on the server (Supabase); the client-side AuthGuard covers local mode.
 export const instant = false;
 
 export default function LibraryPage() {

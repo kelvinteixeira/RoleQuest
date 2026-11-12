@@ -25,6 +25,8 @@ export type { LightSpot } from "../model/lights";
 import { backgroundPlane } from "../model/background";
 import { useMapImage } from "../hooks/use-map-image";
 import { DecorModel } from "./decor-models";
+import { graphicsProfile } from "@/lib/graphics";
+import { usePreferencesStore } from "@/stores/preferences.store";
 
 /* ---------- World geometry ---------- */
 
@@ -860,15 +862,20 @@ export function MapCanvas({
 }) {
   const span = Math.max(doc.cols, doc.rows);
   const ambient = AMBIENT_LIGHT[doc.ambient ?? "bright"];
+  // Shadows, pixel density and antialiasing follow the device (or the player's choice in Configurações).
+  const quality = usePreferencesStore((s) => s.graphics);
+  const gfx = useMemo(() => graphicsProfile(quality), [quality]);
   return (
     <Canvas
-      shadows
-      dpr={[1, 2]}
+      // Antialiasing is fixed when the WebGL context is made: a new choice makes a new canvas.
+      key={gfx.level}
+      shadows={gfx.shadows}
+      dpr={gfx.dpr}
       camera={{ fov: 38, near: 0.1, far: span * 6, position: [0, span * 0.8, span * 0.6] }}
       onPointerUp={onPointerUp}
       onPointerMissed={onMissed}
       onContextMenu={(e) => e.preventDefault()}
-      gl={{ antialias: true }}
+      gl={{ antialias: gfx.antialias, powerPreference: gfx.level === "low" ? "low-power" : "high-performance" }}
     >
       <color attach="background" args={["#0b0a0f"]} />
       <fog attach="fog" args={["#0b0a0f", span * 1.6, span * 3.2]} />
@@ -877,8 +884,8 @@ export function MapCanvas({
         position={[span * 0.4, span * 0.9, span * 0.25]}
         intensity={ambient.sun}
         color={ambient.sunColor}
-        castShadow
-        shadow-mapSize={[2048, 2048]}
+        castShadow={gfx.shadows}
+        shadow-mapSize={[gfx.shadowMapSize, gfx.shadowMapSize]}
         shadow-bias={-0.0004}
         shadow-camera-left={-span * 0.7}
         shadow-camera-right={span * 0.7}

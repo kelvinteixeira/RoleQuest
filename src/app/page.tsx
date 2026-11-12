@@ -2,6 +2,7 @@ import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 import { Logo } from "@/components/brand/logo";
 import { ButtonLink } from "@/components/ui/button";
+import { LegalFooter } from "@/components/layout/legal-footer";
 
 export default function HomePage() {
   return (
@@ -21,6 +22,7 @@ export default function HomePage() {
           <ButtonLink href="/login" size="lg" variant="secondary">Já tenho conta</ButtonLink>
         </div>
       </main>
+      <LegalFooter className="relative pb-6" />
     </div>
   );
 }

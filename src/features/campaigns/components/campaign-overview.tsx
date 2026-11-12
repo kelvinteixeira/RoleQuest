@@ -146,7 +146,9 @@ function OverviewContent({ data }: { data: Overview }) {
                   {upcomingSessions.length === 0 ? (
                     <p className="text-sm text-fg-subtle">Nenhuma sessão agendada.</p>
                   ) : (
-                    upcomingSessions.map((s) => <SessionRow key={s.id} session={s} system={summary} />)
+                    upcomingSessions.map((s) => (
+                      <SessionRow key={s.id} session={s} system={summary} calendar={{ campaignName: campaign.name, url: process.env.NEXT_PUBLIC_APP_URL ? `${process.env.NEXT_PUBLIC_APP_URL}/campaign/${campaign.id}` : undefined }} />
+                    ))
                   )}
                 </div>
                 <div>

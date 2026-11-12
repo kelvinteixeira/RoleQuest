@@ -105,7 +105,7 @@ Regras:
 ## 5. Autenticação e permissões
 
 - `stores/session.store.ts` guarda a sessão atual (persistida). `AuthGuard` protege o grupo `(dashboard)` e `campaign/*` no cliente.
-- Com `DATA_SOURCE=supabase`: Supabase Auth (sessão no navegador, renovada por `authService.resume` ao abrir o app) e **Row Level Security** como fonte de verdade das permissões. Proteção de rotas no servidor (cookies SSR + `proxy.ts`) fica para quando houver rotas renderizadas com dados no servidor.
+- Com `DATA_SOURCE=supabase`: Supabase Auth com a sessão em **cookies** (`@supabase/ssr`, `lib/supabase/client.ts`); `src/proxy.ts` verifica a sessão no servidor (`getClaims`, assinatura do token) antes de renderizar as páginas de quem está logado e redireciona para `/login?next=`. **Row Level Security** continua sendo a fonte de verdade das permissões. Rotas de API autenticam pelo token no cabeçalho (`server/supabase.ts`); tarefas do servidor (webhook do Stripe, lembretes) usam a service role, só no servidor.
 - Papéis são **por campanha** (`CampaignMember.role = 'game_master' | 'player'`). O mesmo usuário pode ser mestre numa campanha e jogador em outra.
 - `lib/permissions.ts` define a matriz de capacidades (`campaign:manage`, `map:edit`, `sheet:edit-own`, `chat:private-gm`…). A UI usa `can(role, capability)`; o backend replicará a mesma matriz em políticas RLS.
 

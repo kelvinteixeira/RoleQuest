@@ -25,7 +25,7 @@ const bytesOf = async (blob: Blob) => new Uint8Array(await blob.arrayBuffer());
  * downloads — one PDF, or the pages as PNG (a ZIP when there are several).
  * Everything is drawn in this browser.
  */
-export default function ComicView({ script, blobs, campaignName, fileBase }: { script: EpisodeScript; blobs: Record<string, Blob>; campaignName: string; fileBase: string }) {
+export default function ComicView({ script, blobs, campaignName, fileBase, watermark = false }: { script: EpisodeScript; blobs: Record<string, Blob>; campaignName: string; fileBase: string; watermark?: boolean }) {
   const [pages, setPages] = useState<string[] | null>(null);
   const [saving, setSaving] = useState<"pdf" | "png" | null>(null);
   const shown = useRef<string[]>([]);
@@ -35,7 +35,7 @@ export default function ComicView({ script, blobs, campaignName, fileBase }: { s
     let alive = true;
     const timer = setTimeout(async () => {
       try {
-        const canvases = await renderComic(script, blobs, campaignName);
+        const canvases = await renderComic(script, blobs, campaignName, { watermark });
         const urls = await Promise.all(canvases.map(async (c) => URL.createObjectURL(await canvasBlob(c, "image/jpeg", 0.8))));
         if (!alive) return urls.forEach((u) => URL.revokeObjectURL(u));
         shown.current.forEach((u) => URL.revokeObjectURL(u));
@@ -49,7 +49,7 @@ export default function ComicView({ script, blobs, campaignName, fileBase }: { s
       alive = false;
       clearTimeout(timer);
     };
-  }, [script, blobs, campaignName]);
+  }, [script, blobs, campaignName, watermark]);
 
   useEffect(
     () => () => {
@@ -62,7 +62,7 @@ export default function ComicView({ script, blobs, campaignName, fileBase }: { s
   async function save(kind: "pdf" | "png") {
     setSaving(kind);
     try {
-      const canvases = await renderComic(script, blobs, campaignName);
+      const canvases = await renderComic(script, blobs, campaignName, { watermark });
       let name: string;
       if (kind === "pdf") {
         const jpegs = await Promise.all(canvases.map(async (c) => ({ jpeg: await bytesOf(await canvasBlob(c, "image/jpeg", 0.92)), width: c.width, height: c.height })));

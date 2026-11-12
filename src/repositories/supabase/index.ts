@@ -3,6 +3,7 @@
  * the database (RLS + functions in supabase/migrations); these stay thin:
  * query, map rows (mappers.ts), translate errors (errors.ts).
  */
+import { supabaseAccount } from "./account";
 import type {
   AuthRepository,
   CampaignRepository,
@@ -338,4 +339,4 @@ const journal: JournalRepository = {
 };
 
 /** Map pictures stay in this browser (IndexedDB) until the Storage step. */
-export const supabaseRepositories: Repositories = { auth, users, campaigns, sessions, inviteLinks, characters, library, systems, maps, images: supabaseMapImages, npcs, encounters, journal, roomSync: supabaseRoomSync, voice: supabaseVoiceSignal, chronicles: supabaseChronicles, audioTracks: supabaseAudioTracks };
+export const supabaseRepositories: Repositories = { account: supabaseAccount, auth, users, campaigns, sessions, inviteLinks, characters, library, systems, maps, images: supabaseMapImages, npcs, encounters, journal, roomSync: supabaseRoomSync, voice: supabaseVoiceSignal, chronicles: supabaseChronicles, audioTracks: supabaseAudioTracks };

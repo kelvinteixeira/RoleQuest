@@ -1,9 +1,13 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
-import { Database, KeyRound, RotateCcw, SlidersHorizontal, UserRound } from "lucide-react";
+import { Suspense, useState, type ReactNode } from "react";
+import { CreditCard, Database, KeyRound, RotateCcw, ShieldCheck, SlidersHorizontal, UserRound } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card, CardHeader, PhaseBadge } from "@/components/ui/primitives";
+import { Card, CardHeader } from "@/components/ui/primitives";
+import { appConfig } from "@/config/app";
+import { authService } from "@/services/auth.service";
+import { toUserMessage } from "@/lib/errors";
+import { BillingSection, PrivacySection } from "./account-sections";
 import { Modal } from "@/components/ui/modal";
 import { Switch } from "@/components/ui/switch";
 import { PageContainer, PageHeader } from "@/components/layout/page-header";
@@ -20,6 +24,19 @@ export function SettingsView() {
   const { setProfile, signOut } = useAuth();
   const prefs = usePreferencesStore();
   const [confirmReset, setConfirmReset] = useState(false);
+
+  const [sendingReset, setSendingReset] = useState(false);
+  async function changePassword() {
+    setSendingReset(true);
+    try {
+      await authService.requestPasswordReset(user.email);
+      toast.success("Link enviado", `Abra o e-mail de ${user.email} para escolher a nova senha.`);
+    } catch (error) {
+      toast.error("Não deu para enviar o link", toUserMessage(error));
+    } finally {
+      setSendingReset(false);
+    }
+  }
 
   async function resetData() {
     localDataService.reset();
@@ -66,6 +83,19 @@ export function SettingsView() {
                 label="Efeitos sonoros na mesa"
                 description="Dados, golpes, portas, armadilhas e fogo. Também dá para silenciar pelo botão na sala."
               />
+              <label className="flex flex-wrap items-center gap-3 text-sm text-fg-muted">
+                Qualidade gráfica da mesa 3D
+                <select
+                  value={prefs.graphics}
+                  onChange={(e) => prefs.setGraphics(e.target.value as typeof prefs.graphics)}
+                  className="h-8 rounded-md border border-line bg-surface-2/60 px-2 text-sm text-fg outline-none focus:border-accent/60"
+                >
+                  <option value="auto">Automática (pelo aparelho)</option>
+                  <option value="low">Baixa: sem sombras, mais leve no celular</option>
+                  <option value="medium">Média</option>
+                  <option value="high">Alta</option>
+                </select>
+              </label>
               <label className={cn("flex items-center gap-3 text-sm text-fg-muted", !prefs.diceSounds && "opacity-50")}>
                 Volume
                 <input
@@ -97,11 +127,23 @@ export function SettingsView() {
             </div>
           </dl>
           <div className="mt-5 flex flex-wrap items-center gap-2">
-            <Button variant="secondary" size="sm" disabled title="Alteração de senha e e-mail — Fase 7 (Supabase Auth)">
+            <Button variant="secondary" size="sm" loading={sendingReset} disabled={appConfig.dataSource === "mock"} onClick={() => void changePassword()}>
               Alterar senha
             </Button>
-            <PhaseBadge phase={7} />
+            {appConfig.dataSource === "mock" && <span className="text-xs text-fg-subtle">No modo local não há e-mail para o link.</span>}
           </div>
+        </Section>
+
+        <div id="plano" className="scroll-mt-20">
+          <Section icon={<CreditCard />} title="Plano" description="Seu plano, o uso de hoje no Chronicles e os créditos.">
+            <Suspense fallback={<p className="text-sm text-fg-subtle">Carregando plano…</p>}>
+              <BillingSection />
+            </Suspense>
+          </Section>
+        </div>
+
+        <Section icon={<ShieldCheck />} title="Privacidade e seus dados" description="Lembretes, uma cópia dos seus dados e a exclusão da conta (LGPD).">
+          <PrivacySection />
         </Section>
 
         {localDataService.isAvailable() && (

@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
+import type { GraphicsQuality } from "@/lib/graphics";
 
 type PreferencesState = {
   sidebarCollapsed: boolean;
@@ -11,6 +12,9 @@ type PreferencesState = {
   /** This listener's level for the table's music and ambience. */
   musicVolume: number;
   ambienceVolume: number;
+  /** 3D quality of the table on this device. */
+  graphics: GraphicsQuality;
+  setGraphics: (value: GraphicsQuality) => void;
   setMusicVolume: (value: number) => void;
   setAmbienceVolume: (value: number) => void;
   setEffectsVolume: (value: number) => void;
@@ -30,6 +34,8 @@ export const usePreferencesStore = create<PreferencesState>()(
       effectsVolume: 0.6,
       musicVolume: 0.7,
       ambienceVolume: 0.7,
+      graphics: "auto",
+      setGraphics: (value) => set({ graphics: value }),
       setMusicVolume: (value) => set({ musicVolume: Math.max(0, Math.min(1, value)) }),
       setAmbienceVolume: (value) => set({ ambienceVolume: Math.max(0, Math.min(1, value)) }),
       setEffectsVolume: (value) => set({ effectsVolume: Math.max(0, Math.min(1, value)) }),
@@ -41,7 +47,7 @@ export const usePreferencesStore = create<PreferencesState>()(
     {
       name: "rq:preferences:v1",
       storage: createJSONStorage(() => localStorage),
-      partialize: ({ sidebarCollapsed, diceSounds, reduceMotion, effectsVolume, musicVolume, ambienceVolume }) => ({ sidebarCollapsed, diceSounds, reduceMotion, effectsVolume, musicVolume, ambienceVolume }),
+      partialize: ({ sidebarCollapsed, diceSounds, reduceMotion, effectsVolume, musicVolume, ambienceVolume, graphics }) => ({ sidebarCollapsed, diceSounds, reduceMotion, effectsVolume, musicVolume, ambienceVolume, graphics }),
       skipHydration: true,
     },
   ),

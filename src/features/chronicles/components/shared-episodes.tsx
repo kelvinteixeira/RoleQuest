@@ -19,6 +19,7 @@ import type { ChronicleEpisode, EpisodeScript } from "@/types/chronicle";
 import { useCurrentUser } from "@/features/authentication/hooks/use-auth";
 import { episodeSeconds } from "../model/script";
 import { playableVoices, useObjectUrls, useSoundtrack } from "../audio/use-episode-audio";
+import { useWatermark } from "../model/use-watermark";
 
 const EpisodePlayer = dynamic(() => import("./episode-player"), { ssr: false, loading: () => <div className="aspect-video w-full animate-pulse rounded-xl bg-surface-2" /> });
 const ComicView = dynamic(() => import("./comic-view"), { ssr: false, loading: () => <LoadingState label="Montando as páginas…" /> });
@@ -94,6 +95,7 @@ export function SharedEpisodes({ campaignId }: { campaignId: string }) {
 /** One shared episode, read-only: the video and the comic. */
 function EpisodeViewer({ episode, campaignName }: { episode: ChronicleEpisode; campaignName: string }) {
   const script = episode.script as EpisodeScript;
+  const watermark = useWatermark(episode.campaignId);
   const [view, setView] = useState<"video" | "comic">("video");
   const [blobs, setBlobs] = useState<Record<string, Blob> | null>(null);
   const [voiceBlobs, setVoiceBlobs] = useState<Record<string, Blob> | null>(null);
@@ -131,9 +133,9 @@ function EpisodeViewer({ episode, campaignName }: { episode: ChronicleEpisode; c
       {!blobs || !voiceBlobs ? (
         <LoadingState label="Carregando o episódio…" />
       ) : view === "video" ? (
-        <EpisodePlayer script={script} images={urls} campaignName={campaignName} music={music} voices={voices} />
+        <EpisodePlayer script={script} images={urls} campaignName={campaignName} music={music} voices={voices} watermark={watermark} />
       ) : (
-        <ComicView script={script} blobs={blobs} campaignName={campaignName} fileBase={`${slug(campaignName)}-${slug(script.title)}`} />
+        <ComicView script={script} blobs={blobs} campaignName={campaignName} fileBase={`${slug(campaignName)}-${slug(script.title)}`} watermark={watermark} />
       )}
       <Card className="p-3 text-xs text-fg-subtle">Episódio compartilhado pelo mestre. O vídeo e a HQ são montados neste navegador; a narração sem voz gravada é lida pela voz do navegador.</Card>
     </div>

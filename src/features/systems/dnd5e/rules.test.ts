@@ -99,3 +99,27 @@ describe("D&D 5e derived values", () => {
     expect(spellSlots("pact", 11)).toEqual([0, 0, 0, 0, 3]);
   });
 });
+
+describe("SRD weapons, spells and features", () => {
+  it("a weapon becomes an attack with the right ability, proficiency and range", async () => {
+    const { WEAPONS } = await import("./srd-extra");
+    const { weaponAttack, addSpell } = await import("./rules");
+    const weapon = (key: string) => WEAPONS.find((w) => w.key === key)!;
+    const rogue = buildSheet(dnd5e, { ...fighter, class: "ladino", baseScores: { str: 10, dex: 15, con: 14, int: 12, wis: 10, cha: 8 } });
+    expect(weaponAttack(rogue, weapon("rapieira"))).toMatchObject({ attributeKey: "dex", proficient: true, damage: "1d8+@mod", range: 1 });
+    expect(weaponAttack(rogue, weapon("machado-grande")).proficient).toBe(false);
+    expect(weaponAttack(rogue, weapon("arco-longo")).range).toBe(30);
+    expect(weaponAttack(rogue, weapon("glaive")).range).toBe(2);
+    const wizard = buildSheet(dnd5e, { ...fighter, class: "mago" });
+    const missiles = { label: "Mísseis Mágicos", level: 1 as const, school: "evocação", classes: ["mago"] };
+    const once = addSpell(wizard, missiles);
+    expect(once.abilities.length).toBe(wizard.abilities.length + 1);
+    expect(addSpell(once, missiles).abilities.length).toBe(once.abilities.length);
+  });
+
+  it("class features add up by level", async () => {
+    const { featuresUpTo } = await import("./srd-extra");
+    expect(featuresUpTo("guerreiro", 5).map((f) => f.name)).toEqual(["Surto de ação", "Arquétipo marcial", "Aumento no valor de atributo", "Ataque extra"]);
+    expect(featuresUpTo("guerreiro", 1)).toEqual([]);
+  });
+});

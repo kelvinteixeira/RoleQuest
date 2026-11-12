@@ -1,98 +1,32 @@
 "use client";
 
+export type { VoiceChat, VoiceParticipant, VoiceStatus } from "./voice-common";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { repositories } from "@/repositories";
 import type { VoiceLink } from "@/repositories/contracts";
 import { VoiceMesh, type VoicePeer } from "../model/voice-mesh";
+import { LEVEL_EVERY_MS, micError, SpeakingMeter, type VoiceChat, type VoiceStatus } from "./voice-common";
 import { VoiceChanger, type VoiceEffectId } from "../model/voice-effects";
+import { useLiveKitVoiceChat } from "./use-livekit-voice";
 
-export type VoiceStatus = "unavailable" | "idle" | "joining" | "live";
-
-export interface VoiceParticipant extends VoicePeer {
-  speaking: boolean;
-}
-
-export interface VoiceChat {
-  status: VoiceStatus;
-  /** Signalling dropped: calls already open keep going, new ones wait for it to come back. */
-  reconnecting: boolean;
-  muted: boolean;
-  /** Is this member's voice heard right now. */
-  selfSpeaking: boolean;
-  /** Everyone else in the voice channel. */
-  participants: VoiceParticipant[];
-  error: string | null;
-  join: () => Promise<void>;
-  leave: () => void;
-  toggleMute: () => void;
-  /** Character voice the others hear (the GM's voice filters). */
-  voiceEffect: VoiceEffectId;
-  setVoiceEffect: (id: VoiceEffectId) => void;
-  /** Hearing your own processed voice. */
-  monitoring: boolean;
-  setMonitoring: (on: boolean) => void;
-}
-
-/** STUN finds a route through most home routers; a TURN server relays the rest (optional, see .env.example). */
-function iceServers(): RTCIceServer[] {
+/**
+ * STUN finds a route through most home routers; a TURN server relays the rest.
+ * Short-lived TURN credentials come from /api/voice/ice (TURN_SECRET or
+ * Cloudflare TURN on the server); fixed NEXT_PUBLIC_TURN_* values still work.
+ */
+async function iceServers(): Promise<RTCIceServer[]> {
   const servers: RTCIceServer[] = [{ urls: ["stun:stun.l.google.com:19302", "stun:stun1.l.google.com:19302"] }];
   const turn = process.env.NEXT_PUBLIC_TURN_URL;
   if (turn) servers.push({ urls: turn.split(",").map((u) => u.trim()), username: process.env.NEXT_PUBLIC_TURN_USERNAME, credential: process.env.NEXT_PUBLIC_TURN_CREDENTIAL });
-  return servers;
-}
-
-function micError(e: unknown): string {
-  const name = e instanceof DOMException ? e.name : "";
-  if (name === "NotAllowedError" || name === "SecurityError") return "O navegador bloqueou o microfone. Clique no cadeado ao lado do endereço do site, permita o microfone e tente de novo.";
-  if (name === "NotFoundError" || name === "OverconstrainedError") return "Nenhum microfone encontrado. Conecte um e tente de novo.";
-  if (name === "NotReadableError" || name === "AbortError") return "O microfone está ocupado por outro programa. Feche-o e tente de novo.";
-  return "Não deu para ligar o microfone.";
-}
-
-const SPEAKING_LEVEL = 0.035;
-const LEVEL_EVERY_MS = 120;
-/** Keeps the "speaking" ring on through short pauses between words. */
-const SPEAKING_HOLD_MS = 450;
-
-/** Watches the loudness of audio streams and says who is talking. */
-class SpeakingMeter {
-  private readonly ctx = new AudioContext();
-  private readonly meters = new Map<string, { source: MediaStreamAudioSourceNode; analyser: AnalyserNode; lastLoud: number }>();
-  private readonly buffer = new Uint8Array(512);
-
-  watch(id: string, stream: MediaStream) {
-    this.unwatch(id);
-    if (stream.getAudioTracks().length === 0) return;
-    const source = this.ctx.createMediaStreamSource(stream);
-    const analyser = this.ctx.createAnalyser();
-    analyser.fftSize = 512;
-    source.connect(analyser);
-    this.meters.set(id, { source, analyser, lastLoud: 0 });
-    void this.ctx.resume().catch(() => undefined);
-  }
-
-  unwatch(id: string) {
-    const m = this.meters.get(id);
-    if (!m) return;
-    m.source.disconnect();
-    this.meters.delete(id);
-  }
-
-  speaking(now: number): Set<string> {
-    const out = new Set<string>();
-    for (const [id, m] of this.meters) {
-      m.analyser.getByteTimeDomainData(this.buffer);
-      let sum = 0;
-      for (const v of this.buffer) sum += ((v - 128) / 128) ** 2;
-      if (Math.sqrt(sum / this.buffer.length) > SPEAKING_LEVEL) m.lastLoud = now;
-      if (now - m.lastLoud < SPEAKING_HOLD_MS) out.add(id);
-    }
-    return out;
-  }
-
-  close() {
-    for (const id of [...this.meters.keys()]) this.unwatch(id);
-    void this.ctx.close().catch(() => undefined);
+  try {
+    const token = await repositories().auth.accessToken();
+    if (!token) return servers;
+    const res = await fetch("/api/voice/ice", { method: "POST", headers: { Authorization: `Bearer ${token}` } });
+    if (!res.ok) return servers;
+    const { iceServers: fromServer } = (await res.json()) as { iceServers: RTCIceServer[] };
+    return [...fromServer, ...servers.slice(1)];
+  } catch {
+    return servers;
   }
 }
 
@@ -115,7 +49,7 @@ const SELF = "\u0000self";
  * Voice chat for the members of a campaign: a WebRTC call with each other
  * member in the channel, set up through the campaign's signalling channel.
  */
-export function useVoiceChat(campaignId: string, userId: string, options: { voiceEffects?: boolean } = {}): VoiceChat {
+function useMeshVoiceChat(campaignId: string, userId: string, options: { voiceEffects?: boolean } = {}): VoiceChat {
   const voiceEffects = !!options.voiceEffects;
   const repo = repositories().voice;
   const [status, setStatus] = useState<VoiceStatus>(repo ? "idle" : "unavailable");
@@ -170,6 +104,8 @@ export function useVoiceChat(campaignId: string, userId: string, options: { voic
       return;
     }
 
+    const servers = await iceServers();
+
     // The GM's voice goes out through the voice changer (the call keeps that one stream all along).
     let changer: VoiceChanger | null = null;
     if (voiceEffects) {
@@ -187,7 +123,7 @@ export function useVoiceChat(campaignId: string, userId: string, options: { voic
       selfId: userId,
       localStream: outgoing,
       send: (envelope) => link.send(envelope),
-      createPeer: () => new RTCPeerConnection({ iceServers: iceServers() }),
+      createPeer: () => new RTCPeerConnection({ iceServers: servers }),
       onRemoteStream: (id, stream) => {
         const old = players.get(id);
         if (old) {
@@ -280,3 +216,9 @@ export function useVoiceChat(campaignId: string, userId: string, options: { voic
     setMonitoring,
   };
 }
+
+/**
+ * Voice for the table: calls straight between browsers (default), or through a
+ * LiveKit media server when NEXT_PUBLIC_VOICE_PROVIDER=livekit (large tables).
+ */
+export const useVoiceChat = process.env.NEXT_PUBLIC_VOICE_PROVIDER === "livekit" ? useLiveKitVoiceChat : useMeshVoiceChat;

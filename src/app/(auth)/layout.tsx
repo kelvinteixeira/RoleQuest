@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Logo } from "@/components/brand/logo";
 import { appConfig } from "@/config/app";
+import { LegalFooter } from "@/components/layout/legal-footer";
 import { AuthShowcase } from "@/features/authentication/components/auth-showcase";
 
 export default function AuthLayout({ children }: { children: React.ReactNode }) {
@@ -14,6 +15,7 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
         {appConfig.dataSource === "mock" && (
           <p className="text-center text-xs text-fg-subtle">Modo local · seus dados ficam neste navegador.</p>
         )}
+        <LegalFooter className="mt-3" />
       </div>
       <AuthShowcase />
     </div>

@@ -2,7 +2,7 @@ import { Suspense } from "react";
 import { LoadingState } from "@/components/feedback/states";
 import { SystemEditorView } from "@/features/systems/components/editor/system-editor-view";
 
-// Client-side AuthGuard gates this page until Phase 7 server auth (see docs/ARCHITECTURE.md §5).
+// Signed-in page: proxy.ts checks the session on the server (Supabase); the client-side AuthGuard covers local mode.
 export const instant = false;
 
 /** Editor of a custom system (owner only). Params are runtime data, read inside Suspense. */

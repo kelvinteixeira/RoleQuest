@@ -1,6 +1,6 @@
 import "server-only";
-import { createClient } from "@supabase/supabase-js";
 import { appConfig } from "@/config/app";
+import { signedIn } from "@/server/supabase";
 
 export type AiUse = "script" | "image" | "voice";
 
@@ -28,23 +28,15 @@ export async function requireGm(request: Request, campaignId: string, use: AiUse
     // A dev server listens on the network: keys are only spent for this machine.
     return LOOPBACK.test(request.headers.get("host") ?? "") ? null : Response.json({ error: "Disponível só em localhost no modo local." }, { status: 403 });
   }
-  const token = request.headers.get("authorization")?.replace(/^Bearer\s+/i, "");
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-  if (!token || !url || !key) return Response.json({ error: "Entre na sua conta." }, { status: 401 });
-
-  const client = createClient(url, key, {
-    global: { headers: { Authorization: `Bearer ${token}` } },
-    auth: { persistSession: false, autoRefreshToken: false },
-  });
-  const { data: auth, error } = await client.auth.getUser(token);
-  if (error || !auth.user) return Response.json({ error: "Sessão expirada. Entre de novo." }, { status: 401 });
+  const caller = await signedIn(request);
+  if (caller instanceof Response) return caller;
+  const { client } = caller;
   // GM check and daily allowance in one step (security definer function).
   const { data: allowed, error: quotaError } = await client.rpc("spend_chronicle_quota", { cid: campaignId, what: use });
   if (quotaError) return Response.json({ error: "Só os mestres da campanha criam episódios." }, { status: 403 });
   if (allowed !== true) {
     const what = { script: "roteiros", image: "imagens", voice: "narrações" }[use];
-    return Response.json({ error: `Limite diário de ${what} atingido. Volte amanhã.` }, { status: 429 });
+    return Response.json({ error: `Limite diário de ${what} do seu plano atingido. Volte amanhã, compre créditos ou mude de plano em Configurações → Plano.` }, { status: 429 });
   }
   return null;
 }

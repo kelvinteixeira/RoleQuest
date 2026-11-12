@@ -29,6 +29,7 @@ export function RegisterForm() {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [formError, setFormError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
+  const [accepted, setAccepted] = useState(false);
 
   const set = (key: keyof typeof values) => (e: { target: { value: string } }) => setValues({ ...values, [key]: e.target.value });
   const strength = passwordStrength(values.password);
@@ -36,7 +37,7 @@ export function RegisterForm() {
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
     setFormError(null);
-    const fieldErrors = validateSignUp(values);
+    const fieldErrors = { ...validateSignUp(values), ...(!accepted && { terms: "Aceite os termos para criar a conta." }) };
     setErrors(fieldErrors as Record<string, string>);
     if (hasErrors(fieldErrors)) return;
 
@@ -95,6 +96,23 @@ export function RegisterForm() {
           onChange={set("confirmPassword")}
           error={errors.confirmPassword}
         />
+        <div className="flex flex-col gap-1">
+          <label className="flex items-start gap-2 text-sm text-fg-muted">
+            <input type="checkbox" checked={accepted} onChange={(e) => setAccepted(e.target.checked)} className="mt-0.5 accent-[var(--color-accent-solid)]" aria-invalid={!!errors.terms} />
+            <span>
+              Li e aceito os{" "}
+              <Link href="/terms" target="_blank" className="text-accent hover:underline">
+                Termos de uso
+              </Link>{" "}
+              e a{" "}
+              <Link href="/privacy" target="_blank" className="text-accent hover:underline">
+                Política de privacidade
+              </Link>
+              .
+            </span>
+          </label>
+          {errors.terms && <p className="text-xs text-danger">{errors.terms}</p>}
+        </div>
         <Button type="submit" size="lg" loading={pending} trailingIcon={<ArrowRight className="size-4" />}>
           Criar conta
         </Button>

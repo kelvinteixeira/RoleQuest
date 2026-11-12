@@ -14,6 +14,8 @@ export function toAppError(error: DbError, fallback = "Algo deu errado ao falar 
       return new AppError("forbidden", /row-level security/i.test(message) ? "Você não tem permissão para isso." : message);
     case "P0002": // no_data_found raised by our functions
       return new AppError("not_found", message);
+    case "P0001": // raise_exception from our guards (e.g. the free plan's campaign limit): the message is for the person
+      return new AppError("validation", message);
     case "PGRST116": // .single() found no row
       return new AppError("not_found", "Não encontrado.");
     case "22023": // invalid_parameter_value raised by our functions

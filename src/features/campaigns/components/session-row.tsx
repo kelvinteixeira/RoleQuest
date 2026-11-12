@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { CalendarPlus } from "lucide-react";
+import { googleCalendarUrl, icsDataUrl, sessionEvent } from "@/lib/calendar";
 import { cn } from "@/lib/cn";
 import { formatDate, formatDuration, formatTime } from "@/lib/format";
 import { systemStyle } from "@/features/systems/components/system-identity";
@@ -12,12 +14,15 @@ export function SessionRow({
   campaignId,
   system,
   showSummary = false,
+  calendar,
 }: {
   session: GameSession;
   campaignName?: string;
   campaignId?: string;
   system?: SystemSummary;
   showSummary?: boolean;
+  /** Offers "add to calendar" for a scheduled session (rows that aren't links themselves). */
+  calendar?: { campaignName: string; url?: string };
 }) {
   const date = new Date(session.scheduledAt);
   const content = (
@@ -39,6 +44,7 @@ export function SessionRow({
         </p>
         {showSummary && session.summary && <p className="mt-1.5 line-clamp-2 text-xs text-fg-muted">{session.summary}</p>}
       </div>
+      {calendar && !campaignId && session.status === "scheduled" && <AddToCalendar session={session} {...calendar} />}
     </>
   );
 
@@ -49,5 +55,21 @@ export function SessionRow({
     </Link>
   ) : (
     <div className={className}>{content}</div>
+  );
+}
+
+function AddToCalendar({ session, campaignName, url }: { session: GameSession; campaignName: string; url?: string }) {
+  const event = sessionEvent(session, campaignName, url);
+  const link = "inline-flex h-7 items-center rounded-md px-2 text-[11px] text-fg-muted hover:bg-surface-2 hover:text-fg";
+  return (
+    <div className="flex shrink-0 items-center gap-0.5" aria-label="Adicionar à agenda">
+      <CalendarPlus className="size-3.5 text-fg-subtle" aria-hidden />
+      <a href={googleCalendarUrl(event)} target="_blank" rel="noreferrer" className={link} title="Adicionar ao Google Agenda">
+        Google
+      </a>
+      <a href={icsDataUrl(event)} download={`sessao-${session.number}.ics`} className={link} title="Baixar para a agenda do celular ou do Outlook (.ics)">
+        .ics
+      </a>
+    </div>
   );
 }

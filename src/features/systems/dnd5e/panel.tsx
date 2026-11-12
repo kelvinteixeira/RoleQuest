@@ -1,12 +1,15 @@
 "use client";
 
-import { AlertTriangle, BookOpen, Shield, Sparkles } from "lucide-react";
+import { useState } from "react";
+import { AlertTriangle, BookOpen, Plus, Shield, Sparkles, Swords } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/cn";
 import { RollButton, SheetSection } from "@/features/character-sheet/components/sheet-sections";
 import { autoDerived } from "@/features/systems/rules/build";
 import type { PanelProps } from "@/features/systems/rules/types";
-import { armorClass, changeClass, changeRace, dndOf, dndRules, emptyBuild, spellcasting, withDnd, type DndBuild } from "./rules";
+import { addSpell, addWeapon, armorClass, changeClass, changeRace, dndOf, dndRules, emptyBuild, spellcasting, withDnd, type DndBuild } from "./rules";
+import { featuresUpTo, SPELLS, WEAPONS, weaponProficient } from "./srd-extra";
 import { ABILITY_ABBR, ARMOR_CATEGORY_LABEL, ARMORS, BACKGROUNDS, CLASSES, classByKey, RACES, raceByKey, type Trait } from "./srd";
 
 const signed = (n: number) => (n >= 0 ? `+${n}` : `${n}`);
@@ -142,12 +145,27 @@ export function DndPanel({ system, sheet, readOnly, update, onCheck, level }: Pa
         </SheetSection>
       )}
 
+      {!readOnly && <SrdPicker sheet={sheet} update={update} classKey={build.class} casting={!!casting} />}
+
       {(race || cls) && (
         <SheetSection title="Traços e características">
           <div className="grid gap-2 sm:grid-cols-2">
             {race && <TraitList title={race.label} traits={race.traits} />}
             {cls && <TraitList title={`${cls.label} (nível 1)`} traits={cls.features} />}
           </div>
+          {cls && featuresUpTo(cls.key, Math.max(1, level ?? 1)).length > 0 && (
+            <div className="mt-2 rounded-lg border border-line bg-surface-2/30 p-3">
+              <p className="mb-1.5 text-xs font-medium text-fg">Ganhos até o nível {Math.max(1, level ?? 1)}</p>
+              <ul className="flex flex-wrap gap-1.5">
+                {featuresUpTo(cls.key, Math.max(1, level ?? 1)).map((f) => (
+                  <li key={`${f.level}-${f.name}`} className="rounded-full border border-line px-2 py-0.5 text-xs text-fg-muted">
+                    <span className="font-mono text-fg-subtle">{f.level}º</span> {f.name}
+                  </li>
+                ))}
+              </ul>
+              {(level ?? 1) > 5 && <p className="mt-1.5 text-[11px] text-fg-subtle">Do 6º nível em diante, anote as características na aba Habilidades.</p>}
+            </div>
+          )}
         </SheetSection>
       )}
     </div>
@@ -186,5 +204,62 @@ function TraitList({ title, traits }: { title: string; traits: Trait[] }) {
         ))}
       </ul>
     </div>
+  );
+}
+
+/** Weapons and spells from the SRD, added to the sheet in one click. */
+function SrdPicker({ sheet, update, classKey, casting }: Pick<PanelProps, "sheet" | "update"> & { classKey: string; casting: boolean }) {
+  const [weapon, setWeapon] = useState(WEAPONS[0].key);
+  const spells = SPELLS.filter((s) => s.classes.includes(classKey));
+  const chosen = WEAPONS.find((w) => w.key === weapon)!;
+  return (
+    <SheetSection title="Armas e magias do SRD">
+      <div className="flex flex-wrap items-end gap-2">
+        <Field label="Arma" className="min-w-56 flex-1">
+          <select aria-label="Arma do SRD" value={weapon} onChange={(e) => setWeapon(e.target.value)} className={select}>
+            {(["simples", "marcial"] as const).map((cat) => (
+              <optgroup key={cat} label={cat === "simples" ? "Simples" : "Marciais"}>
+                {WEAPONS.filter((w) => w.category === cat).map((w) => (
+                  <option key={w.key} value={w.key}>
+                    {w.label} · {w.dice} {w.damageType}
+                    {weaponProficient(classKey || undefined, w) ? "" : " (sem proficiência)"}
+                  </option>
+                ))}
+              </optgroup>
+            ))}
+          </select>
+        </Field>
+        <Button size="sm" variant="secondary" onClick={() => update((s) => addWeapon(s, chosen))} leadingIcon={<Swords className="size-3.5" />}>
+          Adicionar ataque
+        </Button>
+      </div>
+      <p className="mt-1.5 text-[11px] text-fg-subtle">{chosen.properties.length ? chosen.properties.join(", ") : "Sem propriedades especiais"}. O ataque vai para a aba Combate.</p>
+
+      {casting && spells.length > 0 && (
+        <div className="mt-4">
+          <p className="mb-1.5 text-xs text-fg-muted">Truques e magias de 1º nível da classe</p>
+          <div className="flex flex-wrap gap-1.5">
+            {spells.map((s) => {
+              const has = sheet.abilities.some((a) => a.name === s.label);
+              return (
+                <button
+                  key={s.label}
+                  type="button"
+                  disabled={has}
+                  onClick={() => update((sh) => addSpell(sh, s))}
+                  title={`${s.level === 0 ? "Truque" : "1º nível"} · ${s.school}`}
+                  className={cn("inline-flex h-7 items-center gap-1 rounded-full border px-2.5 text-xs transition-colors", has ? "border-accent/50 bg-accent/10 text-fg" : "border-line text-fg-muted hover:text-fg")}
+                >
+                  {has ? <Sparkles className="size-3 text-accent" /> : <Plus className="size-3" />}
+                  {s.label}
+                  {s.level === 0 && <span className="text-[10px] text-fg-subtle">truque</span>}
+                </button>
+              );
+            })}
+          </div>
+          <p className="mt-1.5 text-[11px] text-fg-subtle">Entram em Habilidades. Magias de nível mais alto você anota lá.</p>
+        </div>
+      )}
+    </SheetSection>
   );
 }

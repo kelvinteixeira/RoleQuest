@@ -148,7 +148,7 @@ export function ChatPanel({ room, actions, mineIds, isGM = true, allowPrivate = 
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <div ref={listRef} className="-mx-1 flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto px-1 pb-2" aria-live="polite">
+      <div ref={listRef} className="-mx-1 flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto px-1 pb-2" role="log" aria-label="Chat da mesa" aria-live="polite" aria-relevant="additions">
         {room.messages.length === 0 && <p className="py-8 text-center text-sm text-fg-subtle">Nenhuma mensagem ainda.</p>}
         {room.messages.map((m) => (
           <MessageItem key={m.id} message={m} mine={mineIds.includes(m.author.id)} />

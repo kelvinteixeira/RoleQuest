@@ -364,7 +364,7 @@ function drawPage(ctx: Ctx, page: ComicPage, number: number, script: EpisodeScri
 }
 
 /** Every page of the comic as a canvas. `blobs`: image key -> picture (scenes without one get a colour panel). */
-export async function renderComic(script: EpisodeScript, blobs: Record<string, Blob>, campaignName: string): Promise<HTMLCanvasElement[]> {
+export async function renderComic(script: EpisodeScript, blobs: Record<string, Blob>, campaignName: string, options: { watermark?: boolean } = {}): Promise<HTMLCanvasElement[]> {
   const pages = comicPages(script);
   const images: Record<string, ImageBitmap> = {};
   await Promise.all(
@@ -381,7 +381,17 @@ export async function renderComic(script: EpisodeScript, blobs: Record<string, B
       const canvas = document.createElement("canvas");
       canvas.width = PAGE.width;
       canvas.height = PAGE.height;
-      drawPage(canvas.getContext("2d")!, page, page.kind === "story" ? ++number : 0, script, campaignName, images);
+      const ctx = canvas.getContext("2d")!;
+      drawPage(ctx, page, page.kind === "story" ? ++number : 0, script, campaignName, images);
+      // Free plan: the mark sits centred in the bottom margin.
+      if (options.watermark) {
+        ctx.save();
+        ctx.font = "600 22px 'Trebuchet MS', Arial, sans-serif";
+        ctx.fillStyle = "rgba(20, 16, 28, 0.55)";
+        ctx.textAlign = "center";
+        ctx.fillText("feito com Role Quest", PAGE.width / 2, PAGE.height - PAGE.margin + 6);
+        ctx.restore();
+      }
       return canvas;
     });
   } finally {

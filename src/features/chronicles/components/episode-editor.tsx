@@ -18,6 +18,7 @@ import type { ChronicleEpisode, EpisodeScene, EpisodeScript } from "@/types/chro
 import { episodeSeconds, SCENE_SECONDS_MAX, sceneImageKey } from "../model/script";
 import { playableVoices, useObjectUrls, useSoundtrack } from "../audio/use-episode-audio";
 import { EpisodeVideo, FPS, HEIGHT, WIDTH, episodeFrames } from "../video/episode-video";
+import { useWatermark } from "../model/use-watermark";
 
 const EpisodePlayer = dynamic(() => import("./episode-player"), { ssr: false, loading: () => <div className="aspect-video w-full animate-pulse rounded-xl bg-surface-2" /> });
 
@@ -34,6 +35,7 @@ const slug = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCa
 export function EpisodeEditor({ episode: initial, campaignName, imagesLive, voiceLive, onChange, onDelete }: { episode: ChronicleEpisode; campaignName: string; imagesLive: boolean; voiceLive: boolean; onChange: (e: ChronicleEpisode) => void; onDelete: () => void }) {
   const user = useCurrentUser();
   const [episode, setEpisode] = useState(initial);
+  const watermark = useWatermark(initial.campaignId);
   const [script, setScript] = useState<EpisodeScript>(initial.script!);
   const [dirty, setDirty] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -230,7 +232,7 @@ export function EpisodeEditor({ episode: initial, campaignName, imagesLive, voic
     setExporting(0);
     try {
       const { renderMediaOnWeb } = await import("@remotion/web-renderer");
-      const props = { script, images: urls, campaignName, music, voices };
+      const props = { script, images: urls, campaignName, music, voices, watermark };
       const result = await renderMediaOnWeb({
         composition: { id: "episode", component: EpisodeVideo, durationInFrames: episodeFrames(script), fps: FPS, width: WIDTH, height: HEIGHT, defaultProps: props },
         inputProps: props,
@@ -296,9 +298,9 @@ export function EpisodeEditor({ episode: initial, campaignName, imagesLive, voic
       {!blobs ? (
         <LoadingState label="Carregando as imagens…" />
       ) : view === "video" ? (
-        <EpisodePlayer key={`${script.scenes.map((s) => `${s.id}${s.seconds}`).join()}`} script={script} images={urls} campaignName={campaignName} music={music} voices={voices} />
+        <EpisodePlayer key={`${script.scenes.map((s) => `${s.id}${s.seconds}`).join()}`} script={script} images={urls} campaignName={campaignName} music={music} voices={voices} watermark={watermark} />
       ) : (
-        <ComicView script={script} blobs={blobs} campaignName={campaignName} fileBase={`${slug(campaignName)}-${slug(script.title)}`} />
+        <ComicView script={script} blobs={blobs} campaignName={campaignName} fileBase={`${slug(campaignName)}-${slug(script.title)}`} watermark={watermark} />
       )}
 
       <div className="flex flex-wrap items-center gap-2">

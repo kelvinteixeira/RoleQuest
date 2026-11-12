@@ -3,7 +3,7 @@ import { CharactersView } from "@/features/characters/components/characters-view
 
 export const metadata: Metadata = { title: "Personagens" };
 
-// Client-side AuthGuard gates this page until Phase 7 server auth (see docs/ARCHITECTURE.md §5).
+// Signed-in page: proxy.ts checks the session on the server (Supabase); the client-side AuthGuard covers local mode.
 export const instant = false;
 
 export default function CharactersPage() {

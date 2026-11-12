@@ -435,6 +435,53 @@ await as(out, "fora@mesa.com", async () => {
 await db.exec(`reset role`);
 await db.query(`select set_config('realtime.topic', '', false)`);
 
+// Launch: plans, AI credits, the free-plan campaign limit and account deletion.
+{
+  const solo = await user("solo@mesa.com", "Solo");
+  const newCampaign = (owner) => db.query(`insert into public.campaigns (name, system_id, visual_style_id, owner_id) values ('Solo', 'dnd5e', 'ember', $1) returning id`, [owner]);
+  // Billing off (default): everyone has the paid allowances, no campaign limit.
+  const plan0 = await as(solo, "solo@mesa.com", async () => (await db.query(`select public.my_plan() as p`)).rows[0].p);
+  ok("before billing is on, everyone counts as Mestre", plan0 === "mestre");
+  const firstCampaign = await as(solo, "solo@mesa.com", async () => (await newCampaign(solo)).rows[0].id);
+  ok("before billing is on, a second campaign is fine", !(await as(solo, "solo@mesa.com", () => fails(() => newCampaign(solo)))));
+  await db.exec(`update public.billing_config set enforce = true`);
+  const plan1 = await as(solo, "solo@mesa.com", async () => (await db.query(`select public.my_plan() as p`)).rows[0].p);
+  ok("with billing on, no subscription means free", plan1 === "free");
+  const limited = await as(solo, "solo@mesa.com", () => fails(() => newCampaign(solo)));
+  ok("free plan: no new campaign while one is under way", !!limited && limited.includes("plano grátis"), limited?.slice(0, 50));
+  // Users can't give themselves a plan or credits.
+  const selfPlan = await as(solo, "solo@mesa.com", () => fails(() => db.query(`insert into public.subscriptions (user_id, plan) values ($1, 'mesa')`, [solo])));
+  const selfCredits = await as(solo, "solo@mesa.com", () => fails(() => db.query(`insert into public.ai_credits (user_id, balance) values ($1, 999)`, [solo])));
+  ok("users can't write their own plan or credits", !!selfPlan && !!selfCredits);
+  // Free allowance: 3 scripts a day, then credits (5 each), then no.
+  const spend = () => as(solo, "solo@mesa.com", async () => (await db.query(`select public.spend_chronicle_quota($1, 'script') as ok`, [firstCampaign])).rows[0].ok);
+  const free3 = [await spend(), await spend(), await spend()];
+  ok("free plan: 3 scripts a day", free3.every(Boolean) && !(await spend()));
+  await db.query(`insert into public.ai_credits (user_id, balance) values ($1, 7)`, [solo]);
+  ok("over the allowance, credits pay (5 a script)", (await spend()) === true && !(await spend()));
+  const left = (await db.query(`select balance from public.ai_credits where user_id = $1`, [solo])).rows[0].balance;
+  ok("credits are spent once", left === 2, String(left));
+  // A paid plan lifts the limit.
+  await db.query(`insert into public.subscriptions (user_id, plan, status, current_period_end) values ($1, 'mestre', 'active', now() + interval '30 days')`, [solo]);
+  const billing = await as(solo, "solo@mesa.com", async () => (await db.query(`select public.my_billing() as b`)).rows[0].b);
+  ok("my_billing shows plan, credits and today's use", billing.plan === "mestre" && billing.credits === 2 && billing.usedToday.script === 4, JSON.stringify(billing));
+  ok("Mestre plan: more campaigns", !(await as(solo, "solo@mesa.com", () => fails(() => newCampaign(solo)))));
+  const otherSees = await as(p1, "ana@mesa.com", async () => (await db.query(`select count(*)::int as n from public.subscriptions`)).rows[0].n);
+  ok("subscriptions are private", otherSees === 0);
+  await db.exec(`update public.billing_config set enforce = false`);
+  // Deleting the account takes the user's campaigns, characters, plan and login with it.
+  await db.query(`select set_config('request.jwt.claim.sub', '', false)`);
+  await db.exec(`set role anon`);
+  const anon = await fails(() => db.query(`select public.delete_my_account()`));
+  await db.exec(`reset role`);
+  ok("deleting needs a signed-in user", !!anon, anon?.slice(0, 50));
+  const stillThere = (await db.query(`select count(*)::int as n from public.profiles where id = $1`, [solo])).rows[0].n;
+  ok("a failed delete leaves the account alone", stillThere === 1);
+  await as(solo, "solo@mesa.com", () => db.query(`select public.delete_my_account()`));
+  const gone = (await db.query(`select (select count(*) from public.profiles where id = $1)::int + (select count(*) from public.campaigns where owner_id = $1)::int + (select count(*) from public.subscriptions where user_id = $1)::int + (select count(*) from auth.users where id = $1::uuid)::int as n`, [solo])).rows[0].n;
+  ok("account deletion removes profile, campaigns, plan and login", gone === 0, String(gone));
+}
+
 // Signed out: nothing.
 await db.exec(`reset role`);
 await db.query(`select set_config('request.jwt.claim.sub', '', false)`);

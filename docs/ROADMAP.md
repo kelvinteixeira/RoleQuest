@@ -95,6 +95,19 @@ Plano completo em [SYSTEM-RULES.md](SYSTEM-RULES.md).
 - ✅ Fundação comum: interface `SystemRules`, registro por sistema, dados da ficha por sistema (`sheet.build`), peças de criação reutilizáveis, classes com recursos que crescem por nível (editor de sistemas); D&D 5e migrado
 - ✅ Módulos dos outros nove sistemas (Pathfinder 2e, Tormenta20, 3D&T Victory, Call of Cthulhu, Vampiro, Lobisomem, Ordem Paranormal, Cyberpunk RED, GURPS): valores automáticos, bloco próprio na ficha e criação guiada, sobre um painel genérico e uma criação por configuração; fichas antigas só recalculam quando o jogador liga o automático
 
+## Fase 9 — Pronto para lançar ✅
+Checklist das contas e chaves em [LAUNCH.md](LAUNCH.md).
+- ✅ Termos de uso e política de privacidade (LGPD), aceite no cadastro, links no rodapé
+- ✅ LGPD na conta: exportar os dados (JSON) e excluir a conta (campanhas, personagens, arquivos, login e assinatura)
+- ✅ Sessão em cookies e páginas protegidas no servidor (`proxy.ts`); senha alterável pelo e-mail
+- ✅ Planos Grátis, Mestre e Mesa e créditos de IA com Stripe (checkout, portal, webhook idempotente); limites no banco, ligados por `billing_config`; marca d'água nos episódios do plano grátis
+- ✅ CI (typecheck, lint, testes, regras do banco, build, e2e) e testes de ponta a ponta com Playwright
+- ✅ Monitoramento de erros do servidor e do navegador, com alerta opcional no Discord/Slack
+- ✅ Voz: credenciais TURN temporárias (coturn ou Cloudflare) e LiveKit para mesas grandes
+- ✅ Lembretes de sessão por e-mail (Resend, job de hora em hora) e "adicionar à agenda" (Google e .ics)
+- ✅ Qualidade gráfica por aparelho (sombras, densidade de pixels) e mapa navegável pelo teclado, chat anunciado a leitores de tela
+- ✅ D&D 5e: armas do SRD como ataques, truques e magias de 1º nível por classe, características até o 5º nível
+
 ## Como verificar cada entrega
 ```bash
 npm run typecheck

@@ -32,6 +32,8 @@ export interface EpisodeVideoProps extends Record<string, unknown> {
   music?: string | null;
   /** Recorded narration that matches the caption, by scene id. */
   voices?: Record<string, { url: string; text: string; seconds: number }>;
+  /** Free plan: a small "feito com Role Quest" mark in the corner. */
+  watermark?: boolean;
 }
 
 export const episodeFrames = (script: Pick<EpisodeScript, "scenes">) => Math.max(1, script.scenes.reduce((n, s) => n + s.seconds * FPS, 0));
@@ -245,7 +247,7 @@ function SceneView({ scene, index, script, images, campaignName }: { scene: Epis
 }
 
 /** The whole episode: one sequence per scene, back to back, with the soundtrack under it. */
-export function EpisodeVideo({ script, images, campaignName, music, voices = {} }: EpisodeVideoProps) {
+export function EpisodeVideo({ script, images, campaignName, music, voices = {}, watermark = false }: EpisodeVideoProps) {
   const starts = sceneStarts(script);
   const total = episodeFrames(script);
   const windows = useMemo(() => speechWindows(script, voices), [script, voices]);
@@ -265,6 +267,11 @@ export function EpisodeVideo({ script, images, campaignName, music, voices = {} 
           </Sequence>
         );
       })}
+      {watermark ? (
+        <div style={{ position: "absolute", right: 36, bottom: 30, padding: "8px 16px", borderRadius: 999, background: "rgba(6,5,10,0.55)", color: "rgba(255,255,255,0.85)", fontFamily: FONT_COMIC, fontSize: 26, letterSpacing: 0.5 }}>
+          feito com Role Quest
+        </div>
+      ) : null}
     </AbsoluteFill>
   );
 }

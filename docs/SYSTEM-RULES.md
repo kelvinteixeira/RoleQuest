@@ -82,7 +82,9 @@ Pronto quando: typecheck, lint e testes passam; a ficha e a criação de D&D fun
 
 Entregue para os dez sistemas, sobre o painel genérico (`rules/panel.tsx`: números, resistências, chave do automático e um extra por sistema) e a criação por configuração (`rules/creation-kit.tsx`: classe cadastrada, método de atributos, método de perícias, toques finais). Também: perícias da Ordem Paranormal e do Narrador ligadas ao atributo de cada uma, e o bônus de perícia do Tormenta20 corrigido (½ nível em todas + treino 2/4/6).
 
-Fórmulas de sistemas fechados (T20, Ordem, PF2, Vampiro/Lobisomem, Cyberpunk, GURPS) foram escritas a partir de conhecimento geral das regras: vale conferir com os livros e ajustar os módulos se algum número divergir.
+Fórmulas de sistemas fechados foram escritas a partir de conhecimento geral das regras. Situação da conferência:
+- ✅ Cyberpunk RED: PV = 10 + 5 × ⌈(CORPO + VON) / 2⌉, gravemente ferido na metade, teste de morte = CORPO (conferido com fontes públicas).
+- ⬜ A conferir com o livro: compra de pontos do Tormenta20 (10 pontos; custos 1/2/4/7), criação e limite de PE por turno da Ordem Paranormal, Fúria inicial do Lobisomem, graus e reforços do Pathfinder 2e, custos do GURPS.
 
 O que estava planejado:
 

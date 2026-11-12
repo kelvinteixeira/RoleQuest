@@ -343,8 +343,74 @@ export function RoomMap3D({
   const dragValid = !!(drag && dragging && canStand(room.map, room.tokens, drag.hover, dragging.id));
   const distance = drag ? gridDistance(drag.origin, drag.hover) : 0;
 
+  /* ---------- Keyboard: arrows move a cursor over the squares ---------- */
+  const [cursor, setCursor] = useState<Cell | null>(null);
+  const [announce, setAnnounce] = useState("");
+  function describe(cell: Cell): string {
+    const here = shownTokens.find((t) => footprint(t, sizeOf(t)).some((c) => c.x === cell.x && c.y === cell.y));
+    const ping = room.pings?.find((p) => p.x === cell.x && p.y === cell.y);
+    const hidden = !reachable(cell);
+    return [`Casa ${cell.x + 1}, ${cell.y + 1}`, hidden ? "não explorada" : null, here ? `${here.name}${ownTokenIds.includes(here.id) ? " (você)" : ""}, ${here.hp.current} de ${here.hp.max} PV` : null, ping ? `${ping.author.name} quer ir aqui` : null]
+      .filter(Boolean)
+      .join(". ");
+  }
+  function onMapKey(e: React.KeyboardEvent<HTMLDivElement>) {
+    if (editing || e.target !== e.currentTarget) return;
+    const moves: Record<string, [number, number]> = { ArrowUp: [0, -1], ArrowDown: [0, 1], ArrowLeft: [-1, 0], ArrowRight: [1, 0] };
+    const start = (): Cell => {
+      const mine = room.tokens.find((t) => ownTokenIds.includes(t.id)) ?? (selectedId ? room.tokens.find((t) => t.id === selectedId) : undefined);
+      return mine ? { x: mine.x, y: mine.y } : { x: Math.floor(doc.cols / 2), y: Math.floor(doc.rows / 2) };
+    };
+    if (moves[e.key]) {
+      e.preventDefault();
+      const [dx, dy] = moves[e.key];
+      const from = cursor ?? start();
+      const next = cursor ? { x: Math.max(0, Math.min(doc.cols - 1, from.x + dx)), y: Math.max(0, Math.min(doc.rows - 1, from.y + dy)) } : from;
+      setCursor(next);
+      setAnnounce(describe(next));
+      return;
+    }
+    if (!cursor) return;
+    if (e.key === " ") {
+      // Space picks the creature on the square (to look at it, or for the GM to move it).
+      e.preventDefault();
+      const here = shownTokens.find((t) => footprint(t, sizeOf(t)).some((c) => c.x === cursor.x && c.y === cursor.y));
+      select(here?.id ?? null);
+      setAnnounce(here ? `${here.name} selecionado` : "Nada nesta casa");
+    } else if (e.key === "Enter") {
+      // Enter on the planned square confirms it (the window listener does that); elsewhere it plans or pings.
+      if (plan && plan.target.x === cursor.x && plan.target.y === cursor.y) return;
+      e.preventDefault();
+      e.stopPropagation();
+      if (onPing) {
+        if (!reachable(cursor)) return setAnnounce("Casa não explorada: escolha uma que o grupo já viu");
+        onPing(cursor);
+        setAnnounce("Marcado: o mestre vai mover o seu personagem");
+        return;
+      }
+      const mover = selectedId ? room.tokens.find((t) => t.id === selectedId) : undefined;
+      if (!mover || !movable(mover)) return setAnnounce("Selecione uma criatura com Espaço antes de mover");
+      setPlan({ tokenId: mover.id, target: anchorFor(cursor, sizeOf(mover)), teleport: false, from: planOrigin(mover) });
+      setAnnounce(`Movimento de ${mover.name} planejado. Enter de novo para confirmar, Esc para cancelar`);
+    } else if (e.key === "Escape") {
+      setCursor(null);
+    }
+  }
+
   return (
-    <div className="relative h-full w-full" onPointerLeave={() => setHover(null)}>
+    <div
+      className="relative h-full w-full outline-none focus-visible:ring-2 focus-visible:ring-accent/70"
+      onPointerLeave={() => setHover(null)}
+      tabIndex={0}
+      role="application"
+      aria-roledescription="mapa da mesa"
+      aria-label={onPing ? "Mapa da mesa. Setas escolhem uma casa, Enter marca aonde você quer ir, Espaço seleciona quem está na casa." : "Mapa da mesa. Setas escolhem uma casa, Espaço seleciona quem está nela, Enter planeja e confirma o movimento, Esc cancela."}
+      onKeyDown={onMapKey}
+      onBlur={() => setCursor(null)}
+    >
+      <p className="sr-only" aria-live="polite">
+        {announce}
+      </p>
       <MapCanvas
         doc={doc}
         view={view}
@@ -376,6 +442,7 @@ export function RoomMap3D({
         ) : (
           <>
             {painting && <CellHighlights doc={doc} cells={fogPreview} color={fogBrush === "reveal" ? "#fde68a" : "#1e1b2e"} opacity={0.5} />}
+            {cursor && <CellHighlights doc={doc} cells={[cursor]} color="#38bdf8" opacity={0.6} />}
             {selectedFeature && <CellHighlights doc={doc} cells={[selectedFeature]} color="#f59e0b" opacity={0.45} />}
             {drag && <CellHighlights doc={doc} cells={rangeCells} color="#a855f7" opacity={0.14} />}
             {drag && <CellHighlights doc={doc} cells={footprint(drag.hover, dragging ? sizeOf(dragging) : 1)} color={dragValid ? "#a855f7" : "#ef4444"} opacity={0.55} />}

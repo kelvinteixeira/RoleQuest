@@ -10,6 +10,7 @@ import { createSheet, newAbility, proficiencyBonus } from "@/features/character-
 import { autoDerived, buildOf, setResourceMax, withBuild } from "@/features/systems/rules/build";
 import type { SystemRules } from "@/features/systems/rules/types";
 import { ABILITIES, ABILITY_LABEL, armorByKey, backgroundByKey, classByKey, raceByKey, spellSlots, type Ability, type SkillKey } from "./srd";
+import { weaponAbility, weaponProficient, weaponRange, type Spell, type Weapon } from "./srd-extra";
 
 /** The template and its custom copies. */
 export function isDnd(system: Pick<SystemTemplate, "id" | "baseSystemId">): boolean {
@@ -275,3 +276,31 @@ export const dndRules: SystemRules = {
   saves: (system, sheet, level) =>
     ABILITIES.map((a) => ({ key: a, label: ABILITY_LABEL[a], request: { attributeKey: a, save: true }, proficient: saveProficient(sheet, a), value: saveBonus(system, sheet, level, a) })),
 };
+
+/* ---------- SRD weapons and spells on the sheet ---------- */
+
+/** An attack for a weapon: the right ability, proficiency from the class, reach or range in squares. */
+export function weaponAttack(sheet: CharacterSheet, weapon: Weapon): SheetAttack {
+  const ability = weaponAbility(weapon, sheet.attributes as Partial<Record<Ability, number>>);
+  return {
+    id: createId("atk"),
+    name: weapon.label,
+    attributeKey: ability,
+    skillKey: null,
+    proficient: weaponProficient(dndOf(sheet)?.class || undefined, weapon),
+    bonus: 0,
+    damage: weapon.dice === "1" ? "1" : `${weapon.dice}+@mod`,
+    range: weaponRange(weapon),
+  };
+}
+
+export function addWeapon(sheet: CharacterSheet, weapon: Weapon): CharacterSheet {
+  return { ...sheet, combat: { ...sheet.combat, attacks: [...sheet.combat.attacks, weaponAttack(sheet, weapon)] } };
+}
+
+/** Adds a spell to the sheet's abilities (once). */
+export function addSpell(sheet: CharacterSheet, spell: Spell): CharacterSheet {
+  if (sheet.abilities.some((a) => a.name === spell.label)) return sheet;
+  const kind = spell.level === 0 ? "Truque" : "Magia de 1º nível";
+  return { ...sheet, abilities: [...sheet.abilities, { ...newAbility(spell.label), kind, description: `${kind} de ${spell.school} (SRD 5.1).` }] };
+}

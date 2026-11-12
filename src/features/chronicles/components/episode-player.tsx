@@ -62,9 +62,9 @@ function useBrowserNarrator(player: React.RefObject<PlayerRef | null>, script: E
 }
 
 /** The episode preview (Remotion Player): play, scrub, full screen, with music and narration. */
-export default function EpisodePlayer({ script, images, campaignName, music = null, voices = {} }: Pick<EpisodeVideoProps, "script" | "images" | "campaignName" | "music" | "voices">) {
+export default function EpisodePlayer({ script, images, campaignName, music = null, voices = {}, watermark = false }: Pick<EpisodeVideoProps, "script" | "images" | "campaignName" | "music" | "voices" | "watermark">) {
   const ref = useRef<PlayerRef>(null);
-  const inputProps = useMemo(() => ({ script, images, campaignName, music, voices }), [script, images, campaignName, music, voices]);
+  const inputProps = useMemo(() => ({ script, images, campaignName, music, voices, watermark }), [script, images, campaignName, music, voices, watermark]);
   useBrowserNarrator(ref, script, voices);
   return (
     <Player

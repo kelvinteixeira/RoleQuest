@@ -43,6 +43,10 @@ export interface SystemRules {
   initiative?(system: SystemTemplate, sheet: CharacterSheet, level: number | null): { value: number; dice?: number } | null;
   /** Saving throws, in the order the sheet shows them. */
   saves?(system: SystemTemplate, sheet: CharacterSheet, level: number | null): SaveDefinition[];
+  /** The level class formulas grow with, when the sheet's level means something else (Ordem: NEX % → exposure level). */
+  classLevel?(level: number | null): number;
+  /** Added to d20 + modifier checks (and attacks) on top of attribute, training and the skill's bonus. */
+  checkBonus?(system: SystemTemplate, sheet: CharacterSheet, level: number | null, req: Pick<CheckRequest, "attributeKey" | "skillKey" | "save" | "saveKey">): number;
 }
 
 /* ---------- UI side ---------- */

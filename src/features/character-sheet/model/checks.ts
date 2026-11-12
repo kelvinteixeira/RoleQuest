@@ -14,6 +14,10 @@ export interface CheckRequest {
   skillKey?: string;
   /** With `attributeKey`: a saving throw (D&D 5e adds proficiency when the class is trained in it). */
   save?: boolean;
+  /** Which of the system's saves this is, when one attribute backs more than one (Pathfinder: Vontade and Percepção). */
+  saveKey?: string;
+  /** Name shown for the roll ("Fortitude"); defaults to the attribute or skill. */
+  label?: string;
   mode?: RollMode;
 }
 
@@ -34,7 +38,9 @@ function dice(count: number, sides: number, rng: Rng) {
   return Array.from({ length: Math.max(0, Math.min(MAX_POOL, Math.floor(count) || 0)) }, () => rng(sides));
 }
 
-function checkInputs(system: SystemTemplate, sheet: CharacterSheet, req: Pick<CheckRequest, "attributeKey" | "skillKey" | "save">) {
+type CheckTarget = Pick<CheckRequest, "attributeKey" | "skillKey" | "save" | "saveKey" | "label">;
+
+function checkInputs(system: SystemTemplate, sheet: CharacterSheet, req: CheckTarget) {
   const skillDef = req.skillKey ? system.skills.find((s) => s.key === req.skillKey) : undefined;
   const sheetSkill = req.skillKey ? sheet.skills[req.skillKey] : undefined;
   // Percentile/roll-under skills are their own target; other mechanics add an attribute.
@@ -44,7 +50,13 @@ function checkInputs(system: SystemTemplate, sheet: CharacterSheet, req: Pick<Ch
   const attrDef = system.attributes.find((a) => a.key === attrKey);
   const attrValue = attrDef ? (sheet.attributes[attrDef.key] ?? attrDef.defaultValue) : 0;
   const skill = req.skillKey ? (sheet.skills[req.skillKey] ?? { trained: false, bonus: 0 }) : null;
-  const label = skillDef ? `${skillDef.label}${attrDef ? ` (${attrDef.abbreviation})` : ""}` : req.save && attrDef ? `Resistência de ${attrDef.label}` : (attrDef?.label ?? "Teste");
+  const label = req.label?.trim()
+    ? req.label.trim().slice(0, 60)
+    : skillDef
+      ? `${skillDef.label}${attrDef ? ` (${attrDef.abbreviation})` : ""}`
+      : req.save && attrDef
+        ? `Resistência de ${attrDef.label}`
+        : (attrDef?.label ?? "Teste");
   return { attrDef, attrValue, skill, label };
 }
 
@@ -53,14 +65,21 @@ function checkInputs(system: SystemTemplate, sheet: CharacterSheet, req: Pick<Ch
  * modifier + proficiency, skill %, pool size, target… `dice` is the d20 count of keep-highest pools.
  * Attacks reuse it, so a weapon skill counts the same as on a check.
  */
-export function checkValue(system: SystemTemplate, sheet: CharacterSheet, level: number | null, req: Pick<CheckRequest, "attributeKey" | "skillKey" | "save">): { value: number; dice?: number } {
+export function checkValue(system: SystemTemplate, sheet: CharacterSheet, level: number | null, req: CheckTarget): { value: number; dice?: number } {
   const { attrDef, attrValue, skill } = checkInputs(system, sheet, req);
   const bonus = skill?.bonus ?? 0;
   switch (system.dice.mechanic) {
     case "d20-plus-modifier": {
+      const rules = rulesFor(system);
       // Saving throws: proficiency when the system's rules say so (D&D 5e: the class's two saves).
-      const savePro = !skill && req.save && attrDef && !!rulesFor(system).saves?.(system, sheet, level).some((s) => s.proficient && s.request.attributeKey === attrDef.key);
-      return { value: (attrDef ? attributeModifier(attrDef, attrValue) : 0) + (skill?.trained || savePro ? proficiencyBonus(system, level) : 0) + bonus };
+      const savePro =
+        !skill &&
+        req.save &&
+        attrDef &&
+        !!rules.saves?.(system, sheet, level).some((s) => s.proficient && (req.saveKey ? s.request.saveKey === req.saveKey : s.request.attributeKey === attrDef.key));
+      // System extras: Tormenta20's half level on skills, Pathfinder's proficiency ranks…
+      const extra = rules.checkBonus?.(system, sheet, level, req) ?? 0;
+      return { value: (attrDef ? attributeModifier(attrDef, attrValue) : 0) + (skill?.trained || savePro ? proficiencyBonus(system, level) : 0) + bonus + extra };
     }
     case "d100-roll-under":
       return { value: skill ? skill.bonus : attrValue };

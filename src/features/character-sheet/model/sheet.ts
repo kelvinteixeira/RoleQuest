@@ -32,7 +32,8 @@ export function proficiencyBonus(system: SystemTemplate, level: number | null): 
     case "pathfinder2e":
       return 2 + lvl;
     case "tormenta20":
-      return 2 + Math.floor(lvl / 2);
+      // Training bonus; half the level goes to every skill apart from this (see the Tormenta20 rules module).
+      return lvl >= 15 ? 6 : lvl >= 7 ? 4 : 2;
     default:
       return system.kind === "custom" && system.dice.mechanic === "d20-plus-modifier" ? 2 + Math.floor((lvl - 1) / 4) : 0;
   }
@@ -50,7 +51,8 @@ export function createSheet(system: SystemTemplate): CharacterSheet {
   const currency = Object.fromEntries(system.inventory.currencies.map((c) => [c, 0]));
   // Call of Cthulhu style: sanity starts at POW.
   if (resources.san && attributes.pow !== undefined && system.dice.mechanic === "d100-roll-under") resources.san = { current: attributes.pow, max: attributes.pow };
-  return { attributes, resources, skills, abilities: [], inventory: [], currency, custom, combat: defaultCombat(system), conditions: [], story: { ...EMPTY_STORY }, privateNotes: "" };
+  // A brand-new sheet follows the system's rules from the start (see `autoDerived`).
+  return { attributes, resources, skills, abilities: [], inventory: [], currency, custom, combat: defaultCombat(system), conditions: [], story: { ...EMPTY_STORY }, privateNotes: "", autoDerived: true };
 }
 
 /** Fills keys missing from older sheets (or added to the template later) without touching existing values. */
@@ -65,12 +67,14 @@ export function ensureSheet(character: Character, system: SystemTemplate): Chara
   // Sheets from before rules modules kept D&D choices in `dnd`: they move to `build`.
   const { dnd: legacy, ...current } = sheet;
   const migrated: Partial<CharacterSheet> = legacy && !sheet.build
-    ? { build: { system: "dnd5e", data: { race: legacy.race, class: legacy.class, background: legacy.background, armor: legacy.armor, shield: legacy.shield, raceBonus: legacy.raceBonus } }, autoDerived: sheet.autoDerived ?? legacy.auto }
+    ? { build: { system: "dnd5e", data: { race: legacy.race, class: legacy.class, background: legacy.background, armor: legacy.armor, shield: legacy.shield, raceBonus: legacy.raceBonus } }, autoDerived: legacy.auto }
     : {};
   return {
     ...defaults,
     ...current,
     ...migrated,
+    // Older sheets keep their own values until the player turns automatic on.
+    autoDerived: migrated.autoDerived ?? sheet.autoDerived,
     attributes: { ...defaults.attributes, ...sheet.attributes },
     resources: { ...defaults.resources, ...sheet.resources },
     skills: { ...defaults.skills, ...sheet.skills },
